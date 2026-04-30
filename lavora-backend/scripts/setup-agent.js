@@ -104,16 +104,18 @@ const TOOLS = [
 
 function apiCall(method, path, body) {
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
+    const hasBody = body && Object.keys(body).length > 0;
+    const data = hasBody ? JSON.stringify(body) : null;
+    const headers = { 'xi-api-key': API_KEY };
+    if (data) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(data);
+    }
     const req = https.request({
       hostname: 'api.elevenlabs.io',
       path,
       method,
-      headers: {
-        'xi-api-key': API_KEY,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data)
-      }
+      headers
     }, (res) => {
       let raw = '';
       res.on('data', c => raw += c);
@@ -123,7 +125,7 @@ function apiCall(method, path, body) {
       });
     });
     req.on('error', reject);
-    req.write(data);
+    if (data) req.write(data);
     req.end();
   });
 }
