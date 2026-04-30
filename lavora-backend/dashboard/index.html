@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lavora Clinic — Receptionist Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #1a2744;
+  --navy-light: #243356;
+  --gold: #c9a84c;
+  --gold-light: #e8c97a;
+  --bg: #f0f4f8;
+  --white: #ffffff;
+  --text: #1a2744;
+  --text-mid: #4a5568;
+  --text-light: #718096;
+  --border: #e2e8f0;
+  --pending: #f59e0b;
+  --confirmed: #10b981;
+  --cancelled: #ef4444;
+  --ai-color: #7c3aed;
+  --human-color: #0891b2;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+/* ── Setup Screen ── */
+#setup-screen {
+  position: fixed; inset: 0; background: var(--navy);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.setup-card {
+  background: white; border-radius: 16px; padding: 48px 40px; width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.setup-card .logo { font-size: 22px; font-weight: 700; color: var(--navy); letter-spacing: 2px; margin-bottom: 4px; }
+.setup-card .tagline { color: var(--text-light); font-size: 12px; margin-bottom: 32px; }
+.setup-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 24px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
+.field input {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: 14px; font-family: inherit;
+  transition: border .2s;
+}
+.field input:focus { outline: none; border-color: var(--gold); }
+.btn-primary {
+  width: 100%; padding: 12px; background: var(--navy); color: white;
+  border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .2s;
+}
+.btn-primary:hover { background: var(--navy-light); }
+.btn-gold {
+  padding: 9px 18px; background: var(--gold); color: white;
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .2s; white-space: nowrap;
+}
+.btn-gold:hover { background: var(--gold-light); }
+.btn-outline {
+  padding: 9px 18px; background: transparent; color: var(--text-mid);
+  border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px;
+  font-weight: 500; cursor: pointer; transition: all .2s;
+}
+.btn-outline:hover { border-color: var(--navy); color: var(--navy); }
+
+/* ── Header ── */
+header {
+  background: var(--navy); color: white;
+  display: flex; align-items: center; padding: 0 24px; height: 60px; gap: 20px;
+  position: sticky; top: 0; z-index: 100;
+}
+.logo-text { font-size: 18px; font-weight: 700; letter-spacing: 3px; color: var(--gold); }
+.logo-sub { font-size: 10px; color: rgba(255,255,255,.5); letter-spacing: 1px; }
+header .spacer { flex: 1; }
+.clock { font-size: 13px; color: rgba(255,255,255,.7); }
+.refresh-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.08); border-radius: 20px;
+  padding: 4px 12px; font-size: 12px; color: rgba(255,255,255,.6);
+}
+.refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--confirmed); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.conn-status { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
+.conn-ok { background: rgba(16,185,129,.15); color: #6ee7b7; }
+.conn-err { background: rgba(239,68,68,.15); color: #fca5a5; }
+#header-settings { background: none; border: none; color: rgba(255,255,255,.5); cursor: pointer; font-size: 18px; padding: 4px 8px; border-radius: 6px; }
+#header-settings:hover { color: white; }
+
+/* ── Stats Bar ── */
+.stats-bar {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px;
+  padding: 16px 24px;
+}
+.stat-card {
+  background: var(--white); border-radius: var(--radius); padding: 16px;
+  box-shadow: var(--shadow); text-align: center; border-top: 3px solid transparent;
+}
+.stat-card.today { border-top-color: var(--gold); }
+.stat-card.ai { border-top-color: var(--ai-color); }
+.stat-card.human { border-top-color: var(--human-color); }
+.stat-card.pending { border-top-color: var(--pending); }
+.stat-card.confirmed { border-top-color: var(--confirmed); }
+.stat-card.cancelled { border-top-color: var(--cancelled); }
+.stat-card.total { border-top-color: var(--navy); }
+.stat-num { font-size: 28px; font-weight: 700; line-height: 1; }
+.stat-lbl { font-size: 10px; font-weight: 500; color: var(--text-light); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+
+/* ── Main Layout ── */
+.main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 0 24px 24px; }
+
+/* ── Appointments Panel ── */
+.panel { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.panel-header {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-title { font-size: 15px; font-weight: 600; flex: 1; }
+.toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 12px 20px;
+  border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.search-input {
+  flex: 1; min-width: 180px; padding: 8px 12px;
+  border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit;
+}
+.search-input:focus { outline: none; border-color: var(--gold); }
+.filter-select {
+  padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 12px; font-family: inherit; background: white; cursor: pointer;
+}
+.filter-select:focus { outline: none; border-color: var(--gold); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--text-light);
+  text-transform: uppercase; letter-spacing: .5px; padding: 10px 16px;
+  background: #fafbfc; border-bottom: 1px solid var(--border);
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #fafbfc; }
+tbody td { padding: 12px 16px; vertical-align: middle; }
+.cell-name { font-weight: 600; color: var(--text); }
+.cell-sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+.badge {
+  display: inline-block; padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: .3px;
+}
+.badge-pending { background: #fffbeb; color: #b45309; }
+.badge-confirmed { background: #ecfdf5; color: #065f46; }
+.badge-cancelled { background: #fef2f2; color: #991b1b; }
+.badge-ai { background: #ede9fe; color: #5b21b6; }
+.badge-human { background: #e0f2fe; color: #0369a1; }
+.actions { display: flex; gap: 6px; }
+.btn-sm {
+  padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px;
+  cursor: pointer; border: none; transition: all .15s;
+}
+.btn-edit { background: #f0f4ff; color: #3730a3; }
+.btn-edit:hover { background: #ddd6fe; }
+.btn-cancel { background: #fef2f2; color: #991b1b; }
+.btn-cancel:hover { background: #fee2e2; }
+.empty-state { padding: 48px; text-align: center; color: var(--text-light); }
+.empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+/* ── Activity Feed ── */
+.activity-panel { display: flex; flex-direction: column; max-height: calc(100vh - 200px); }
+#activity-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.activity-item {
+  background: #fafbfc; border-radius: 8px; padding: 12px;
+  border-left: 3px solid var(--border); transition: border-color .2s;
+}
+.activity-item.BOOKED { border-left-color: var(--confirmed); }
+.activity-item.CANCELLED { border-left-color: var(--cancelled); }
+.activity-item.RESCHEDULED { border-left-color: var(--pending); }
+.activity-item.MISSED_CAPTURE { border-left-color: #f97316; }
+.activity-item.UPDATED { border-left-color: var(--human-color); }
+.activity-item.CALL_RECEIVED { border-left-color: var(--ai-color); }
+.activity-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.activity-actor { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; }
+.actor-ai { background: #ede9fe; color: #5b21b6; }
+.actor-human { background: #e0f2fe; color: #0369a1; }
+.actor-twilio { background: #fef3c7; color: #92400e; }
+.activity-type { font-size: 10px; font-weight: 700; color: var(--text-light); }
+.activity-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.activity-detail { font-size: 11px; color: var(--text-light); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.activity-time { font-size: 10px; color: var(--text-light); margin-top: 4px; }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  display: none; align-items: center; justify-content: center; z-index: 500;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: white; border-radius: 14px; width: 540px; max-width: 95vw;
+  max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+.modal-head {
+  display: flex; align-items: center; padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title { font-size: 16px; font-weight: 700; flex: 1; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-light); padding: 2px 6px; border-radius: 6px; }
+.modal-close:hover { background: var(--border); }
+.modal-body { padding: 24px; }
+.modal-body .field { margin-bottom: 16px; }
+.modal-body .field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
+.modal-body .field input,
+.modal-body .field select,
+.modal-body .field textarea {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+  border-radius: 8px; font-size: 14px; font-family: inherit;
+}
+.modal-body .field input:focus,
+.modal-body .field select:focus,
+.modal-body .field textarea:focus { outline: none; border-color: var(--gold); }
+.modal-body .field textarea { resize: vertical; min-height: 70px; }
+.modal-body .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--border); }
+.confirm-box { padding: 24px; text-align: center; }
+.confirm-box p { margin-bottom: 20px; color: var(--text-mid); line-height: 1.6; }
+.confirm-box strong { color: var(--text); }
+.confirm-foot { display: flex; gap: 10px; justify-content: center; }
+.btn-danger { padding: 10px 24px; background: var(--cancelled); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn-danger:hover { background: #dc2626; }
+
+/* ── Toast ── */
+#toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+.toast {
+  padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15); animation: slideIn .25s ease;
+  max-width: 320px;
+}
+.toast-success { background: #065f46; color: white; }
+.toast-error { background: #991b1b; color: white; }
+.toast-info { background: var(--navy); color: white; }
+@keyframes slideIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+
+/* ── Spinner ── */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 1100px) {
+  .main { grid-template-columns: 1fr; }
+  .stats-bar { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 640px) {
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Setup Screen ─────────────────────────────────── -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <div class="logo">LAVORA</div>
+    <div class="tagline">Where Science, Beauty, and Longevity Meet</div>
+    <h2>Connect to Backend</h2>
+    <div class="field">
+      <label>Server URL</label>
+      <input id="cfg-url" type="url" placeholder="http://localhost:3000" value="http://localhost:3000">
+    </div>
+    <div class="field">
+      <label>CRM API Key</label>
+      <input id="cfg-key" type="password" placeholder="Your CRM_SECRET_KEY">
+    </div>
+    <button class="btn-primary" onclick="saveConfig()">Connect Dashboard</button>
+  </div>
+</div>
+
+<!-- ── App ─────────────────────────────────────────── -->
+<div id="app" style="display:none">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <div class="logo-text">LAVORA</div>
+      <div class="logo-sub">CLINIC DASHBOARD</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="clock" id="clock"></span>
+    <div class="refresh-badge">
+      <span class="refresh-dot"></span>
+      <span id="countdown">30s</span>
+    </div>
+    <span class="conn-status conn-ok" id="conn-status">● Live</span>
+    <button id="header-settings" title="Settings" onclick="openSettings()">⚙</button>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card today"><div class="stat-num" id="s-today">—</div><div class="stat-lbl">Today</div></div>
+    <div class="stat-card total"><div class="stat-num" id="s-total">—</div><div class="stat-lbl">Total</div></div>
+    <div class="stat-card ai"><div class="stat-num" id="s-ai">—</div><div class="stat-lbl">AI Booked</div></div>
+    <div class="stat-card human"><div class="stat-num" id="s-human">—</div><div class="stat-lbl">Human</div></div>
+    <div class="stat-card pending"><div class="stat-num" id="s-pending">—</div><div class="stat-lbl">Pending</div></div>
+    <div class="stat-card confirmed"><div class="stat-num" id="s-confirmed">—</div><div class="stat-lbl">Confirmed</div></div>
+    <div class="stat-card cancelled"><div class="stat-num" id="s-cancelled">—</div><div class="stat-lbl">Cancelled</div></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Appointments Panel -->
+    <div class="panel">
+      <div class="toolbar">
+        <input class="search-input" id="search" placeholder="🔍  Search name, phone, service…" oninput="renderTable()">
+        <select class="filter-select" id="f-status" onchange="renderTable()">
+          <option value="">All Statuses</option>
+          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+        </select>
+        <select class="filter-select" id="f-source" onchange="renderTable()">
+          <option value="">All Sources</option>
+          <option>AI Voice</option><option>Human</option>
+        </select>
+        <input type="date" class="filter-select" id="f-date" onchange="renderTable()">
+        <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th><th>Service</th><th>Doctor</th>
+              <th>Date</th><th>Time</th><th>Status</th><th>Source</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="apt-body"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state" style="display:none">
+          <div class="icon">📋</div>
+          <div>No appointments found</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Feed -->
+    <div class="panel activity-panel">
+      <div class="panel-header">
+        <span class="panel-title">Live Activity</span>
+        <button class="btn-outline" style="padding:5px 10px;font-size:11px" onclick="loadActivity()">↻ Refresh</button>
+      </div>
+      <div id="activity-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Appointment Modal ── -->
+<div class="modal-overlay" id="apt-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title" id="modal-title">New Appointment</span>
+      <button class="modal-close" onclick="closeModal('apt-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-id">
+      <div class="field">
+        <label>Patient Full Name *</label>
+        <input id="m-name" type="text" placeholder="e.g. Fatima Al-Rashidi">
+      </div>
+      <div class="field">
+        <label>Phone Number *</label>
+        <input id="m-phone" type="tel" placeholder="+968 9X XXX XXX">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Service *</label>
+          <select id="m-service">
+            <option value="">Select service…</option>
+            <option>Botox</option><option>Fillers</option><option>Profhilo</option>
+            <option>Thread Lifting</option><option>Endolift</option>
+            <option>PRP</option><option>Mesotherapy</option>
+            <option>Exosomes</option><option>Stem Cell</option>
+            <option>Frax Pro</option><option>Picoway</option>
+            <option>RedTouch</option><option>Chemical Peels</option>
+            <option>Laser Hair Removal</option>
+            <option>Onda Plus</option><option>Redustim</option><option>Body Wraps</option>
+            <option>Aesthetic Gynecology</option><option>Vaginoplasty</option><option>Labiaplasty</option>
+            <option>Medical Skin Care</option><option>Dermatology</option>
+            <option>Consultation</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Doctor</label>
+          <select id="m-doctor">
+            <option value="">Assign later</option>
+            <option>Dr. Soraya</option><option>Dr. Neda</option>
+            <option>Dr. Leila</option><option>Dr. Hussein</option><option>Dr. Amani</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Date *</label>
+          <input id="m-date" type="date">
+        </div>
+        <div class="field">
+          <label>Time *</label>
+          <input id="m-time" type="time" min="09:00" max="18:00">
+        </div>
+      </div>
+      <div class="field" id="status-field" style="display:none">
+        <label>Status</label>
+        <select id="m-status">
+          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="m-notes" placeholder="Any special notes…"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-outline" onclick="closeModal('apt-modal')">Cancel</button>
+      <button class="btn-gold" id="modal-save" onclick="saveAppointment()">Book Appointment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Cancel Confirm Modal ── -->
+<div class="modal-overlay" id="cancel-modal">
+  <div class="modal-box" style="width:400px">
+    <div class="modal-head">
+      <span class="modal-title">Cancel Appointment</span>
+      <button class="modal-close" onclick="closeModal('cancel-modal')">✕</button>
+    </div>
+    <div class="confirm-box">
+      <p>Are you sure you want to cancel the appointment for<br><strong id="cancel-name"></strong>?<br><br>This will also remove the Google Calendar event.</p>
+      <div class="confirm-foot">
+        <button class="btn-outline" onclick="closeModal('cancel-modal')">Keep It</button>
+        <button class="btn-danger" onclick="confirmCancel()">Yes, Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast Container ── -->
+<div id="toast-container"></div>
+
+<script>
+// ─── Config ──────────────────────────────────────────────────────────────────
+const CFG = {
+  get url() { return localStorage.getItem('lavora_url') || ''; },
+  get key() { return localStorage.getItem('lavora_key') || ''; },
+  set(url, key) {
+    localStorage.setItem('lavora_url', url.replace(/\/$/, ''));
+    localStorage.setItem('lavora_key', key);
+  },
+  clear() { localStorage.removeItem('lavora_url'); localStorage.removeItem('lavora_key'); }
+};
+
+function saveConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  if (!url || !key) { alert('Please fill in both fields.'); return; }
+  CFG.set(url, key);
+  bootstrap();
+}
+
+function openSettings() {
+  document.getElementById('cfg-url').value = CFG.url;
+  document.getElementById('cfg-key').value = CFG.key;
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+// ─── API Client ───────────────────────────────────────────────────────────────
+const API = {
+  async call(method, path, body) {
+    const res = await fetch(`${CFG.url}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': CFG.key
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  },
+  getAppointments(params = {}) {
+    const q = new URLSearchParams(params).toString();
+    return this.call('GET', `/api/appointments${q ? '?' + q : ''}`);
+  },
+  createAppointment(body) { return this.call('POST', '/api/appointments', body); },
+  updateAppointment(id, body) { return this.call('PUT', `/api/appointments/${id}`, body); },
+  deleteAppointment(id) { return this.call('DELETE', `/api/appointments/${id}`); },
+  getActivity() { return this.call('GET', '/api/activity'); },
+  getStats() { return this.call('GET', '/api/stats'); }
+};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let allAppointments = [];
+let cancelTargetId = null;
+let countdownSecs = 30;
+let countdownTimer = null;
+
+// ─── Rendering ───────────────────────────────────────────────────────────────
+function renderTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const fStatus = document.getElementById('f-status').value;
+  const fSource = document.getElementById('f-source').value;
+  const fDate = document.getElementById('f-date').value;
+
+  let rows = allAppointments.filter(a => {
+    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
+    const matchStatus = !fStatus || a.status === fStatus;
+    const matchSource = !fSource || a.source === fSource;
+    const matchDate = !fDate || a.date === fDate;
+    return matchSearch && matchStatus && matchSource && matchDate;
+  });
+
+  // Sort: newest first
+  rows.sort((a, b) => b.timestamp?.localeCompare(a.timestamp || '') || 0);
+
+  const tbody = document.getElementById('apt-body');
+  const empty = document.getElementById('empty-state');
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(a => `
+    <tr>
+      <td>
+        <div class="cell-name">${esc(a.name)}</div>
+        <div class="cell-sub">${esc(a.phone)}</div>
+      </td>
+      <td>${esc(a.service)}</td>
+      <td>${esc(a.doctor) || '<span style="color:var(--text-light)">—</span>'}</td>
+      <td>${formatDate(a.date)}</td>
+      <td>${esc(a.time)}</td>
+      <td><span class="badge badge-${a.status?.toLowerCase()}">${esc(a.status)}</span></td>
+      <td><span class="badge badge-${a.source === 'AI Voice' ? 'ai' : 'human'}">${esc(a.source)}</span></td>
+      <td>
+        <div class="actions">
+          ${a.status !== 'Cancelled' ? `
+            <button class="btn-sm btn-edit" onclick="openEditModal('${esc(a.id)}')">Edit</button>
+            <button class="btn-sm btn-cancel" onclick="openCancelModal('${esc(a.id)}','${esc(a.name)}')">Cancel</button>
+          ` : '<span style="color:var(--text-light);font-size:11px">Cancelled</span>'}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderActivity(activities) {
+  const container = document.getElementById('activity-list');
+  if (!activities.length) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-light);font-size:13px">No activity yet</div>';
+    return;
+  }
+  container.innerHTML = activities.slice(0, 40).map(a => `
+    <div class="activity-item ${a.actionType}">
+      <div class="activity-top">
+        <span class="activity-actor actor-${actorClass(a.actor)}">${esc(a.actor)}</span>
+        <span class="activity-type">${esc(a.actionType)}</span>
+      </div>
+      <div class="activity-name">${esc(a.patientName || '—')}</div>
+      <div class="activity-detail">${esc(a.details || '')}</div>
+      <div class="activity-time">${relativeTime(a.timestamp)}</div>
+    </div>
+  `).join('');
+}
+
+function renderStats(stats) {
+  document.getElementById('s-today').textContent = stats.today_total ?? '—';
+  document.getElementById('s-total').textContent = stats.total ?? '—';
+  document.getElementById('s-ai').textContent = stats.ai_booked ?? '—';
+  document.getElementById('s-human').textContent = stats.human_booked ?? '—';
+  document.getElementById('s-pending').textContent = stats.pending ?? '—';
+  document.getElementById('s-confirmed').textContent = stats.confirmed ?? '—';
+  document.getElementById('s-cancelled').textContent = stats.cancelled ?? '—';
+}
+
+// ─── Data Loading ─────────────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const [apts, activity, stats] = await Promise.all([
+      API.getAppointments(),
+      API.getActivity(),
+      API.getStats()
+    ]);
+    allAppointments = apts.appointments || [];
+    renderTable();
+    renderActivity(activity.activities || []);
+    renderStats(stats);
+    setConn(true);
+  } catch (err) {
+    setConn(false);
+    console.error('Load error:', err.message);
+  }
+}
+
+async function loadActivity() {
+  try {
+    const data = await API.getActivity();
+    renderActivity(data.activities || []);
+  } catch (err) { console.error(err); }
+}
+
+function setConn(ok) {
+  const el = document.getElementById('conn-status');
+  el.className = 'conn-status ' + (ok ? 'conn-ok' : 'conn-err');
+  el.textContent = ok ? '● Live' : '● Offline';
+}
+
+// ─── Auto Refresh ─────────────────────────────────────────────────────────────
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownSecs = 30;
+  updateCountdown();
+  countdownTimer = setInterval(() => {
+    countdownSecs--;
+    updateCountdown();
+    if (countdownSecs <= 0) {
+      countdownSecs = 30;
+      loadAll();
+    }
+  }, 1000);
+}
+
+function updateCountdown() {
+  document.getElementById('countdown').textContent = `${countdownSecs}s`;
+}
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleString('en-OM', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// ─── Modals ───────────────────────────────────────────────────────────────────
+function openNewModal() {
+  document.getElementById('modal-title').textContent = 'New Appointment';
+  document.getElementById('modal-id').value = '';
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-phone').value = '';
+  document.getElementById('m-service').value = '';
+  document.getElementById('m-doctor').value = '';
+  document.getElementById('m-date').value = '';
+  document.getElementById('m-time').value = '';
+  document.getElementById('m-notes').value = '';
+  document.getElementById('m-status').value = 'Pending';
+  document.getElementById('status-field').style.display = 'none';
+  document.getElementById('modal-save').textContent = 'Book Appointment';
+  openModal('apt-modal');
+}
+
+function openEditModal(id) {
+  const apt = allAppointments.find(a => a.id === id);
+  if (!apt) return;
+  document.getElementById('modal-title').textContent = 'Edit Appointment';
+  document.getElementById('modal-id').value = apt.id;
+  document.getElementById('m-name').value = apt.name || '';
+  document.getElementById('m-phone').value = apt.phone || '';
+  document.getElementById('m-service').value = apt.service || '';
+  document.getElementById('m-doctor').value = apt.doctor || '';
+  document.getElementById('m-date').value = apt.date || '';
+  document.getElementById('m-time').value = apt.time || '';
+  document.getElementById('m-notes').value = apt.notes || '';
+  document.getElementById('m-status').value = apt.status || 'Pending';
+  document.getElementById('status-field').style.display = '';
+  document.getElementById('modal-save').textContent = 'Save Changes';
+  openModal('apt-modal');
+}
+
+function openCancelModal(id, name) {
+  cancelTargetId = id;
+  document.getElementById('cancel-name').textContent = name;
+  openModal('cancel-modal');
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ─── Save Appointment ─────────────────────────────────────────────────────────
+async function saveAppointment() {
+  const id = document.getElementById('modal-id').value;
+  const body = {
+    name: document.getElementById('m-name').value.trim(),
+    phone: document.getElementById('m-phone').value.trim(),
+    service: document.getElementById('m-service').value,
+    doctor: document.getElementById('m-doctor').value,
+    date: document.getElementById('m-date').value,
+    time: document.getElementById('m-time').value,
+    notes: document.getElementById('m-notes').value.trim()
+  };
+  if (id) body.status = document.getElementById('m-status').value;
+
+  const required = ['name','phone','service','date','time'];
+  const missing = required.filter(k => !body[k]);
+  if (missing.length) { toast(`Please fill in: ${missing.join(', ')}`, 'error'); return; }
+
+  const btn = document.getElementById('modal-save');
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  try {
+    if (id) {
+      await API.updateAppointment(id, body);
+      toast('Appointment updated successfully', 'success');
+    } else {
+      await API.createAppointment(body);
+      toast('Appointment booked successfully', 'success');
+    }
+    closeModal('apt-modal');
+    await loadAll();
+    startCountdown();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.innerHTML = id ? 'Save Changes' : 'Book Appointment';
+    btn.disabled = false;
+  }
+}
+
+async function confirmCancel() {
+  if (!cancelTargetId) return;
+  try {
+    await API.deleteAppointment(cancelTargetId);
+    toast('Appointment cancelled', 'success');
+    closeModal('cancel-modal');
+    await loadAll();
+    startCountdown();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  try {
+    return new Date(d + 'T12:00:00').toLocaleDateString('en-OM', { weekday: 'short', month: 'short', day: 'numeric' });
+  } catch { return d; }
+}
+
+function relativeTime(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(ts).toLocaleDateString('en-OM', { month: 'short', day: 'numeric' });
+}
+
+function actorClass(actor) {
+  if (!actor) return 'human';
+  const a = actor.toLowerCase();
+  if (a.includes('ai') || a.includes('voice')) return 'ai';
+  if (a.includes('twilio')) return 'twilio';
+  return 'human';
+}
+
+// ─── Close modal on overlay click ────────────────────────────────────────────
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ─── Bootstrap ────────────────────────────────────────────────────────────────
+function bootstrap() {
+  if (!CFG.url || !CFG.key) {
+    document.getElementById('setup-screen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    return;
+  }
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app').style.display = '';
+  loadAll();
+  startCountdown();
+  updateClock();
+  setInterval(updateClock, 10000);
+}
+
+bootstrap();
+</script>
+</body>
+</html>

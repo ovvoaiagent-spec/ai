@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 
 const sheetsService = require('./services/sheetsService');
 const activityService = require('./services/activityService');
@@ -8,11 +9,23 @@ const apiRoutes = require('./routes/api');
 
 const app = express();
 
+// CORS — allow the dashboard to call the API from any origin
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Api-Key');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // Capture raw body for ElevenLabs HMAC signature verification
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; }
 }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve CRM dashboard at /
+app.use(express.static(path.join(__dirname, '../dashboard')));
 
 // Mount routes
 app.use('/webhook', webhookRoutes);
@@ -70,7 +83,8 @@ async function start() {
     console.log(`   GET  /api/appointments/today`);
     console.log(`   GET  /api/activity`);
     console.log(`   GET  /api/stats`);
-    console.log(`\n❤️  Health: GET /health\n`);
+    console.log(`\n🖥️  Dashboard: http://localhost:${PORT}/`);
+    console.log(`❤️  Health:    http://localhost:${PORT}/health\n`);
   });
 }
 
