@@ -6,6 +6,7 @@ const sheetsService = require('./services/sheetsService');
 const activityService = require('./services/activityService');
 const webhookRoutes = require('./routes/webhooks');
 const apiRoutes = require('./routes/api');
+const toolRoutes = require('./routes/tools');
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use(express.static(path.join(__dirname, '../dashboard')));
 // Mount routes
 app.use('/webhook', webhookRoutes);
 app.use('/api', apiRoutes);
+app.use('/tools', toolRoutes); // real-time ElevenLabs tool calls (mid-conversation)
 
 // Health check (public)
 app.get('/health', (_req, res) => {
@@ -39,6 +41,33 @@ app.get('/health', (_req, res) => {
     service: 'AI Voice Receptionist Backend',
     timestamp: new Date().toISOString()
   });
+});
+
+// Integration status (public) — dashboard polls this to show green/red indicators
+app.get('/status', async (_req, res) => {
+  const status = {
+    server: true,
+    sheets: false,
+    calendar: false,
+    elevenlabs: !!process.env.ELEVENLABS_API_KEY,
+    twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+  };
+  if (process.env.GOOGLE_SHEETS_ID) {
+    try {
+      await sheetsService.getAllAppointments();
+      status.sheets = true;
+    } catch {}
+  }
+  if (process.env.GOOGLE_CALENDAR_ID) {
+    try {
+      const { google } = require('googleapis');
+      const auth = await sheetsService.getAuth();
+      const cal = google.calendar({ version: 'v3', auth });
+      await cal.calendars.get({ calendarId: process.env.GOOGLE_CALENDAR_ID });
+      status.calendar = true;
+    } catch {}
+  }
+  res.json(status);
 });
 
 // 404 handler
@@ -83,6 +112,10 @@ async function start() {
     console.log(`   GET  /api/appointments/today`);
     console.log(`   GET  /api/activity`);
     console.log(`   GET  /api/stats`);
+    console.log(`\n🤖 Agent Tools (called live during calls):`);
+    console.log(`   POST /tools/check-availability`);
+    console.log(`   POST /tools/book-appointment`);
+    console.log(`   POST /tools/get-services`);
     console.log(`\n🖥️  Dashboard: http://localhost:${PORT}/`);
     console.log(`❤️  Health:    http://localhost:${PORT}/health\n`);
   });

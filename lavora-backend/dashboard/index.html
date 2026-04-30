@@ -247,6 +247,21 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Integration Status Bar ── */
+.integrations-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 24px; background: var(--navy-light);
+  font-size: 11px; flex-wrap: wrap;
+}
+.integrations-bar span { color: rgba(255,255,255,.4); font-weight: 500; margin-right: 4px; }
+.int-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.int-ok { background: rgba(16,185,129,.15); color: #6ee7b7; }
+.int-err { background: rgba(239,68,68,.12); color: #fca5a5; }
+.int-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -299,6 +314,16 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
     <span class="conn-status conn-ok" id="conn-status">● Live</span>
     <button id="header-settings" title="Settings" onclick="openSettings()">⚙</button>
   </header>
+
+  <!-- Integration Status -->
+  <div class="integrations-bar">
+    <span>Integrations:</span>
+    <div class="int-pill int-ok" id="int-server"><span class="int-dot"></span>Server</div>
+    <div class="int-pill int-err" id="int-sheets"><span class="int-dot"></span>Google Sheets</div>
+    <div class="int-pill int-err" id="int-calendar"><span class="int-dot"></span>Google Calendar</div>
+    <div class="int-pill int-err" id="int-elevenlabs"><span class="int-dot"></span>ElevenLabs</div>
+    <div class="int-pill int-err" id="int-twilio"><span class="int-dot"></span>Twilio</div>
+  </div>
 
   <!-- Stats -->
   <div class="stats-bar">
@@ -607,6 +632,27 @@ async function loadAll() {
     setConn(false);
     console.error('Load error:', err.message);
   }
+  loadIntegrationStatus();
+}
+
+async function loadIntegrationStatus() {
+  try {
+    const res = await fetch(`${CFG.url}/status`);
+    const s = await res.json();
+    const map = {
+      'int-server': s.server,
+      'int-sheets': s.sheets,
+      'int-calendar': s.calendar,
+      'int-elevenlabs': s.elevenlabs,
+      'int-twilio': s.twilio
+    };
+    for (const [id, ok] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.className = `int-pill ${ok ? 'int-ok' : 'int-err'}`;
+      }
+    }
+  } catch {}
 }
 
 async function loadActivity() {
