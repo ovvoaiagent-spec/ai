@@ -1,6 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+
+// On Railway, write Google credentials from env var to file
+if (process.env.GOOGLE_TOKENS_JSON) {
+  const credDir = path.join(__dirname, '../credentials');
+  fs.mkdirSync(credDir, { recursive: true });
+  fs.writeFileSync(path.join(credDir, 'google-tokens.json'), process.env.GOOGLE_TOKENS_JSON);
+}
 
 const sheetsService = require('./services/sheetsService');
 const activityService = require('./services/activityService');
