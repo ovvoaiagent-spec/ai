@@ -42,13 +42,21 @@ async function getClient() {
   if (sheets) return sheets;
 
   const keyPath = path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_PATH);
-  auth = new google.auth.GoogleAuth({
-    keyFile: keyPath,
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/calendar'
-    ]
-  });
+  const keyData = JSON.parse(require('fs').readFileSync(keyPath, 'utf8'));
+  const SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/drive'
+  ];
+
+  if (keyData.type === 'authorized_user') {
+    // OAuth2 user credentials (from google-oauth-setup.js)
+    auth = new google.auth.OAuth2(keyData.client_id, keyData.client_secret);
+    auth.setCredentials({ refresh_token: keyData.refresh_token });
+  } else {
+    // Service account credentials
+    auth = new google.auth.GoogleAuth({ keyFile: keyPath, scopes: SCOPES });
+  }
 
   sheets = google.sheets({ version: 'v4', auth });
   return sheets;
@@ -240,5 +248,8 @@ module.exports = {
   getAuth: async () => {
     await getClient();
     return auth;
-  }
+  },
+
+  // Reset cached client (useful after credential update)
+  reset: () => { auth = null; sheets = null; }
 };
