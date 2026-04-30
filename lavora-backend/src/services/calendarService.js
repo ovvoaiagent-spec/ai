@@ -16,6 +16,10 @@ async function getClient(auth) {
 }
 
 async function createEvent(apt, source = 'AI Voice', auth) {
+  if (!auth || !CALENDAR_ID()) {
+    console.log('[CALENDAR] Skipping event creation — Google Calendar not configured');
+    return null;
+  }
   const cal = await getClient(auth);
 
   const startDt = dayjs(`${apt.date}T${apt.time}:00`);
@@ -51,7 +55,7 @@ async function createEvent(apt, source = 'AI Voice', auth) {
 }
 
 async function updateEvent(eventId, apt, auth) {
-  if (!eventId) return null;
+  if (!eventId || !auth || !CALENDAR_ID()) return null;
   const cal = await getClient(auth);
 
   const startDt = dayjs(`${apt.date}T${apt.time}:00`);
@@ -86,7 +90,7 @@ async function updateEvent(eventId, apt, auth) {
 }
 
 async function deleteEvent(eventId, auth) {
-  if (!eventId) return;
+  if (!eventId || !auth || !CALENDAR_ID()) return;
   const cal = await getClient(auth);
   await cal.events.delete({
     calendarId: CALENDAR_ID(),

@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const db = require('./localDbService');
 
 const ACTION_TYPES = {
   BOOKED: 'BOOKED',
@@ -8,10 +9,6 @@ const ACTION_TYPES = {
   MISSED_CAPTURE: 'MISSED_CAPTURE',
   CALL_RECEIVED: 'CALL_RECEIVED'
 };
-
-// In-memory ring buffer (last 100 entries)
-const LOG = [];
-const MAX_LOG = 100;
 
 let sheetsService = null;
 
@@ -29,24 +26,27 @@ async function addActivity({ actor, actionType, patientName = '', details = '' }
     timestamp: new Date().toISOString()
   };
 
-  LOG.unshift(entry);
-  if (LOG.length > MAX_LOG) LOG.pop();
-
   console.log(`[ACTIVITY] ${actor} | ${actionType} | ${patientName} | ${details}`);
 
   if (sheetsService) {
     try {
       await sheetsService.appendActivity(entry);
     } catch (err) {
-      console.error('[ACTIVITY] Failed to sync to Sheets:', err.message);
+      console.error('[ACTIVITY] Failed to sync:', err.message);
     }
+  } else {
+    db.appendActivity(entry);
   }
 
   return entry;
 }
 
 function getActivities(limit = 50) {
-  return LOG.slice(0, limit);
+  try {
+    return db.getAllActivities().slice(0, limit);
+  } catch {
+    return [];
+  }
 }
 
 module.exports = { init, addActivity, getActivities, ACTION_TYPES };
