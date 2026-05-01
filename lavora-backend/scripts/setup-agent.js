@@ -61,8 +61,8 @@ const TOOLS = [
       request_body_schema: {
         type: 'object',
         properties: {
-          date: { type: 'string', description: 'Date in YYYY-MM-DD format, e.g. 2025-05-12' },
-          time: { type: 'string', description: 'Time in HH:MM 24-hour format, e.g. 10:30' }
+          date: { type: 'string', description: 'Date in YYYY-MM-DD format, e.g. 2025-05-12', dynamic_variable: '', constant_value: '' },
+          time: { type: 'string', description: 'Time in HH:MM 24-hour format, e.g. 10:30', dynamic_variable: '', constant_value: '' }
         },
         required: ['date', 'time']
       }
@@ -78,11 +78,11 @@ const TOOLS = [
       request_body_schema: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Patient full name in English' },
-          phone: { type: 'string', description: 'Patient phone number including country code' },
-          date: { type: 'string', description: 'Appointment date in YYYY-MM-DD format' },
-          time: { type: 'string', description: 'Appointment time in HH:MM 24-hour format' },
-          service: { type: 'string', description: 'Service or treatment requested' }
+          name:    { type: 'string', description: 'Patient full name in English', dynamic_variable: '', constant_value: '' },
+          phone:   { type: 'string', description: 'Patient phone number including country code', dynamic_variable: '', constant_value: '' },
+          date:    { type: 'string', description: 'Appointment date in YYYY-MM-DD format', dynamic_variable: '', constant_value: '' },
+          time:    { type: 'string', description: 'Appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' },
+          service: { type: 'string', description: 'Service or treatment requested', dynamic_variable: '', constant_value: '' }
         },
         required: ['name', 'phone', 'date', 'time', 'service']
       }
