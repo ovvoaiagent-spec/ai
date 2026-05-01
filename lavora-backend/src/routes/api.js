@@ -224,6 +224,93 @@ router.get('/activity', (req, res) => {
   res.json({ activities: activityService.getActivities(limit) });
 });
 
+// ─── POST /api/setup-agent ────────────────────────────────────────────────────
+// Re-applies the system prompt + tools to ElevenLabs agent
+router.post('/setup-agent', async (req, res) => {
+  const https = require('https');
+  const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
+  const API_KEY  = process.env.ELEVENLABS_API_KEY;
+  const SERVER_URL = process.env.SERVER_URL || 'https://ai-production-5456.up.railway.app';
+
+  if (!AGENT_ID || !API_KEY) {
+    return res.status(400).json({ error: 'ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY not set' });
+  }
+
+  function elevenlabsPatch(body) {
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify(body);
+      const req2 = https.request({
+        hostname: 'api.elevenlabs.io',
+        path: `/v1/convai/agents/${AGENT_ID}`,
+        method: 'PATCH',
+        headers: { 'xi-api-key': API_KEY, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
+      }, r => { let raw=''; r.on('data',c=>raw+=c); r.on('end',()=>resolve({status:r.statusCode,body:JSON.parse(raw)})); });
+      req2.on('error', reject);
+      req2.write(data);
+      req2.end();
+    });
+  }
+
+  const SYSTEM_PROMPT = `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
+Your name is Lavora Assistant. You are professional, warm, and refined — reflecting a luxury medical aesthetic clinic.
+
+Your ONLY goal is to collect the following 5 pieces of information and book an appointment:
+1. Patient full name
+2. Phone number
+3. Preferred appointment date (clinic is open Saturday–Thursday, 9AM–6PM, closed Friday)
+4. Preferred appointment time
+5. Which service or treatment they want
+
+Available services: Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Laser Hair Removal, Onda Plus, Redustim, Body Wraps, Aesthetic Gynecology, Medical Skin Care, Dermatology, Consultation.
+
+CONVERSATION FLOW:
+1. Ask for each piece of information one at a time, naturally.
+2. Once you have all 5 fields confirmed by the patient:
+   - Call check_availability to verify the slot is free.
+   - If available: call book_appointment with all 5 fields. This SAVES the booking — you MUST call it.
+   - After book_appointment succeeds, say EXACTLY:
+     "Perfect! Your [Service] appointment is confirmed for [Date] at [Time]. We will contact you at [Phone] to confirm. Thank you for calling Lavora Clinic. Goodbye!"
+3. End the call immediately after.
+
+RULES:
+- ALWAYS call book_appointment before saying the confirmation — never say "booked" without calling the tool first.
+- Do NOT give medical advice. Say: "Our specialists would be best to advise you — shall I book a consultation?"
+- Do NOT mention technical details or IDs.
+- If the caller speaks Arabic, respond fully in Arabic.
+- Keep responses short and professional.
+- Never ask for all 5 fields at once — one question at a time.
+- Say goodbye only ONCE.`;
+
+  const TOOLS = [
+    { name:'check_availability', description:'Check if a date/time slot is available. Always call before confirming a slot.', type:'webhook',
+      api_schema:{ url:`${SERVER_URL}/tools/check-availability`, method:'POST',
+        request_body_schema:{ type:'object', properties:{ date:{type:'string'}, time:{type:'string'} }, required:['date','time'] } } },
+    { name:'book_appointment', description:'REQUIRED: Call this to save the appointment once all 5 fields are confirmed. Never confirm verbally without calling this first.', type:'webhook',
+      api_schema:{ url:`${SERVER_URL}/tools/book-appointment`, method:'POST',
+        request_body_schema:{ type:'object', properties:{ name:{type:'string'}, phone:{type:'string'}, date:{type:'string'}, time:{type:'string'}, service:{type:'string'} }, required:['name','phone','date','time','service'] } } },
+    { name:'get_services', description:'Get the full list of services. Call if the patient is unsure.', type:'webhook',
+      api_schema:{ url:`${SERVER_URL}/tools/get-services`, method:'POST', request_body_schema:{type:'object',properties:{}} } },
+    { name:'get_working_hours', description:'Get clinic working hours.', type:'webhook',
+      api_schema:{ url:`${SERVER_URL}/tools/get-working-hours`, method:'POST', request_body_schema:{type:'object',properties:{}} } }
+  ];
+
+  try {
+    const result = await elevenlabsPatch({
+      conversation_config: { agent: {
+        prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
+        first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
+        language: 'en'
+      }}
+    });
+    if (result.status !== 200) {
+      return res.status(502).json({ error: 'ElevenLabs rejected update', detail: result.body });
+    }
+    res.json({ success: true, message: 'Agent updated — book_appointment tool is now required before confirmation' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/poll-now ───────────────────────────────────────────────────────
 router.post('/poll-now', async (req, res) => {
   try {
