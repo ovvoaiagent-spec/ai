@@ -289,16 +289,53 @@ RULES:
 - Never ask for all 5 fields at once — one question at a time.`;
 
   const TOOLS = [
-    { name:'check_availability', description:'Check if a date/time slot is available. Always call before confirming a slot.', type:'webhook',
-      api_schema:{ url:`${SERVER_URL}/tools/check-availability`, method:'POST',
-        request_body_schema:{ type:'object', properties:{ date:{type:'string'}, time:{type:'string'} }, required:['date','time'] } } },
-    { name:'book_appointment', description:'REQUIRED: Call this to save the appointment once all 5 fields are confirmed. Never confirm verbally without calling this first.', type:'webhook',
-      api_schema:{ url:`${SERVER_URL}/tools/book-appointment`, method:'POST',
-        request_body_schema:{ type:'object', properties:{ name:{type:'string'}, phone:{type:'string'}, date:{type:'string'}, time:{type:'string'}, service:{type:'string'} }, required:['name','phone','date','time','service'] } } },
-    { name:'get_services', description:'Get the full list of services. Call if the patient is unsure.', type:'webhook',
-      api_schema:{ url:`${SERVER_URL}/tools/get-services`, method:'POST', request_body_schema:{type:'object',properties:{}} } },
-    { name:'get_working_hours', description:'Get clinic working hours.', type:'webhook',
-      api_schema:{ url:`${SERVER_URL}/tools/get-working-hours`, method:'POST', request_body_schema:{type:'object',properties:{}} } }
+    {
+      name: 'check_availability',
+      description: 'Check if a date/time slot is available. Always call before confirming a slot.',
+      type: 'webhook',
+      api_schema: {
+        url: `${SERVER_URL}/tools/check-availability`, method: 'POST',
+        request_body_schema: {
+          type: 'object',
+          properties: {
+            date: { type: 'string', description: 'Appointment date in YYYY-MM-DD format, e.g. 2025-05-12' },
+            time: { type: 'string', description: 'Appointment time in HH:MM 24-hour format, e.g. 14:00' }
+          },
+          required: ['date', 'time']
+        }
+      }
+    },
+    {
+      name: 'book_appointment',
+      description: 'REQUIRED: Call this to save the appointment once all 5 fields are confirmed. Never confirm verbally without calling this first.',
+      type: 'webhook',
+      api_schema: {
+        url: `${SERVER_URL}/tools/book-appointment`, method: 'POST',
+        request_body_schema: {
+          type: 'object',
+          properties: {
+            name:    { type: 'string', description: 'Patient full name' },
+            phone:   { type: 'string', description: 'Patient phone number including country code' },
+            date:    { type: 'string', description: 'Appointment date in YYYY-MM-DD format' },
+            time:    { type: 'string', description: 'Appointment time in HH:MM 24-hour format' },
+            service: { type: 'string', description: 'Service or treatment requested' }
+          },
+          required: ['name', 'phone', 'date', 'time', 'service']
+        }
+      }
+    },
+    {
+      name: 'get_services',
+      description: 'Get the full list of services. Call if the patient is unsure.',
+      type: 'webhook',
+      api_schema: { url: `${SERVER_URL}/tools/get-services`, method: 'POST', request_body_schema: { type: 'object', properties: {} } }
+    },
+    {
+      name: 'get_working_hours',
+      description: 'Get clinic working hours.',
+      type: 'webhook',
+      api_schema: { url: `${SERVER_URL}/tools/get-working-hours`, method: 'POST', request_body_schema: { type: 'object', properties: {} } }
+    }
   ];
 
   const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
