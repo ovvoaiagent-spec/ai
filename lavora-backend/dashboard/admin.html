@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lavora AI — Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #1a2744; --navy-mid: #243356; --navy-light: #2e4070;
+  --gold: #c9a84c; --gold-light: #e8c97a; --gold-pale: #fdf6e3;
+  --bg: #f0f4f8; --white: #fff; --text: #1a2744; --text-mid: #4a5568;
+  --text-light: #718096; --border: #e2e8f0; --green: #10b981;
+  --pending: #f59e0b; --cancelled: #ef4444; --ai: #7c3aed; --human: #0891b2;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+/* ── Login ── */
+#login-screen {
+  position: fixed; inset: 0; background: var(--navy);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.login-card { background: white; border-radius: 16px; padding: 48px 40px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.login-logo { font-size: 20px; font-weight: 800; letter-spacing: 3px; color: var(--navy); margin-bottom: 4px; }
+.login-sub { font-size: 11px; color: var(--text-light); letter-spacing: 1px; margin-bottom: 8px; }
+.login-badge { display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-bottom: 28px; }
+.login-card h2 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-mid); margin-bottom: 5px; }
+.field input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; transition: border .2s; }
+.field input:focus { outline: none; border-color: var(--gold); }
+.btn-primary { width: 100%; padding: 12px; background: var(--navy); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn-primary:hover { background: var(--navy-mid); }
+.btn-gold { padding: 9px 18px; background: var(--gold); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; white-space: nowrap; }
+.btn-gold:hover { background: var(--gold-light); }
+.btn-outline { padding: 9px 18px; background: transparent; color: var(--text-mid); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; white-space: nowrap; }
+.btn-outline:hover { border-color: var(--navy); color: var(--navy); }
+.btn-sm { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; border: none; transition: all .15s; }
+.btn-edit { background: #f0f4ff; color: #3730a3; }
+.btn-edit:hover { background: #ddd6fe; }
+.btn-danger { background: #fef2f2; color: #991b1b; }
+.btn-danger:hover { background: #fee2e2; }
+
+/* ── Sidebar ── */
+#app { display: none; min-height: 100vh; display: grid; grid-template-columns: 220px 1fr; grid-template-rows: auto 1fr; }
+aside {
+  background: var(--navy); color: white; grid-row: 1 / 3;
+  display: flex; flex-direction: column; min-height: 100vh;
+}
+.aside-logo { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.aside-logo-text { font-size: 17px; font-weight: 800; letter-spacing: 3px; color: var(--gold); }
+.aside-logo-sub { font-size: 9px; color: rgba(255,255,255,.3); letter-spacing: 2px; margin-top: 2px; }
+.aside-section { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: rgba(255,255,255,.3); padding: 20px 20px 8px; text-transform: uppercase; }
+.aside-link {
+  display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.6);
+  cursor: pointer; border-left: 3px solid transparent; transition: all .15s;
+}
+.aside-link:hover { background: rgba(255,255,255,.05); color: white; }
+.aside-link.active { color: white; background: rgba(201,168,76,.1); border-left-color: var(--gold); }
+.aside-link .icon { font-size: 16px; width: 20px; text-align: center; }
+.aside-spacer { flex: 1; }
+.aside-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.08); }
+.aside-footer button { width: 100%; padding: 8px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 8px; color: rgba(255,255,255,.5); font-size: 12px; cursor: pointer; }
+.aside-footer button:hover { background: rgba(255,255,255,.1); color: white; }
+
+/* ── Main Area ── */
+.main-area { padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
+topbar {
+  display: flex; align-items: center; padding: 0 28px; height: 60px; gap: 16px;
+  background: white; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+}
+.topbar-title { font-size: 17px; font-weight: 700; flex: 1; }
+.topbar-clock { font-size: 12px; color: var(--text-light); }
+
+/* ── Page Content ── */
+.page { display: none; padding: 24px 28px; }
+.page.active { display: block; }
+
+/* ── Stat Cards ── */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.kpi-card { background: white; border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); border-top: 3px solid transparent; }
+.kpi-card.gold { border-top-color: var(--gold); }
+.kpi-card.green { border-top-color: var(--green); }
+.kpi-card.purple { border-top-color: var(--ai); }
+.kpi-card.blue { border-top-color: var(--human); }
+.kpi-num { font-size: 32px; font-weight: 800; line-height: 1; }
+.kpi-lbl { font-size: 11px; font-weight: 600; color: var(--text-light); margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }
+.kpi-trend { font-size: 12px; margin-top: 6px; }
+.kpi-up { color: var(--green); }
+.kpi-down { color: var(--cancelled); }
+
+/* ── Panel ── */
+.panel { background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin-bottom: 20px; }
+.panel-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.panel-title { font-size: 14px; font-weight: 700; flex: 1; }
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.search-input { flex: 1; min-width: 160px; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; }
+.search-input:focus { outline: none; border-color: var(--gold); }
+.filter-select { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 12px; font-family: inherit; background: white; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: .5px; padding: 10px 16px; background: #fafbfc; border-bottom: 1px solid var(--border); }
+tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #fafbfc; }
+tbody td { padding: 12px 16px; vertical-align: middle; }
+.cell-name { font-weight: 600; }
+.cell-sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-active { background: #ecfdf5; color: #065f46; }
+.badge-trial { background: #fffbeb; color: #b45309; }
+.badge-suspended { background: #fef2f2; color: #991b1b; }
+.badge-starter { background: #f0f9ff; color: #0369a1; }
+.badge-pro { background: #ede9fe; color: #5b21b6; }
+.badge-enterprise { background: #fdf6e3; color: #92400e; }
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--gold); border-radius: 3px; transition: width .5s; }
+.actions { display: flex; gap: 6px; }
+
+/* ── Modal ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 500; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: white; border-radius: 14px; width: 540px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.modal-head { display: flex; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.modal-title { font-size: 16px; font-weight: 700; flex: 1; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-light); padding: 2px 6px; border-radius: 6px; }
+.modal-close:hover { background: var(--border); }
+.modal-body { padding: 24px; }
+.modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--border); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ── Clinic Detail Drawer ── */
+.drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 480px; background: white; z-index: 400; box-shadow: -8px 0 40px rgba(0,0,0,.15); transform: translateX(100%); transition: transform .3s; overflow-y: auto; }
+.drawer.open { transform: translateX(0); }
+.drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.3); display: none; z-index: 399; }
+.drawer-overlay.open { display: block; }
+.drawer-head { padding: 24px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; background: var(--navy); color: white; }
+.drawer-close { margin-left: auto; background: none; border: none; font-size: 20px; color: rgba(255,255,255,.6); cursor: pointer; }
+.drawer-body { padding: 24px; }
+.detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: var(--text-light); }
+.detail-value { font-weight: 600; text-align: right; }
+
+/* ── Analytics ── */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-card { background: white; border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.chart-title { font-size: 13px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+.bar-label { width: 100px; color: var(--text-mid); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-shrink: 0; }
+.bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width .6s; }
+.bar-val { font-weight: 600; width: 36px; text-align: right; flex-shrink: 0; }
+.donut-wrap { display: flex; align-items: center; gap: 20px; }
+.donut { width: 100px; height: 100px; border-radius: 50%; flex-shrink: 0; }
+.donut-legend { display: flex; flex-direction: column; gap: 8px; }
+.donut-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.donut-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Toast ── */
+#toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+.toast { padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,.15); max-width: 320px; }
+.toast-success { background: #065f46; color: white; }
+.toast-error { background: #991b1b; color: white; }
+.toast-info { background: var(--navy); color: white; }
+
+@media (max-width: 900px) {
+  #app { grid-template-columns: 1fr; }
+  aside { display: none; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .drawer { width: 100vw; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">LAVORA AI</div>
+    <div class="login-sub">ADMIN PANEL</div>
+    <div class="login-badge">🔐 Admin Access Only</div>
+    <h2>Sign In</h2>
+    <div class="field">
+      <label>Admin Password</label>
+      <input id="admin-pw" type="password" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <button class="btn-primary" onclick="login()">Access Admin Panel</button>
+    <div id="login-error" style="color:#ef4444;font-size:12px;margin-top:12px;display:none">Incorrect password.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <!-- Sidebar -->
+  <aside>
+    <div class="aside-logo">
+      <div class="aside-logo-text">LAVORA AI</div>
+      <div class="aside-logo-sub">ADMIN PANEL</div>
+    </div>
+    <div class="aside-section">Main</div>
+    <div class="aside-link active" onclick="showPage('overview',this)"><span class="icon">📊</span> Overview</div>
+    <div class="aside-link" onclick="showPage('clinics',this)"><span class="icon">🏥</span> Clinics</div>
+    <div class="aside-link" onclick="showPage('analytics',this)"><span class="icon">📈</span> Analytics</div>
+    <div class="aside-section">System</div>
+    <div class="aside-link" onclick="showPage('settings',this)"><span class="icon">⚙️</span> Settings</div>
+    <div class="aside-spacer"></div>
+    <div class="aside-footer">
+      <button onclick="logout()">Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <topbar>
+      <div class="topbar-title" id="page-title">Overview</div>
+      <span class="topbar-clock" id="clock"></span>
+    </topbar>
+
+    <!-- OVERVIEW PAGE -->
+    <div class="page active" id="page-overview">
+      <div class="kpi-row">
+        <div class="kpi-card gold"><div class="kpi-num" id="kpi-clinics">—</div><div class="kpi-lbl">Total Clinics</div><div class="kpi-trend kpi-up" id="kpi-clinics-trend"></div></div>
+        <div class="kpi-card green"><div class="kpi-num" id="kpi-bookings">—</div><div class="kpi-lbl">Total Bookings</div><div class="kpi-trend kpi-up" id="kpi-bookings-trend"></div></div>
+        <div class="kpi-card purple"><div class="kpi-num" id="kpi-ai">—</div><div class="kpi-lbl">AI Bookings</div><div class="kpi-trend" id="kpi-ai-trend"></div></div>
+        <div class="kpi-card blue"><div class="kpi-num" id="kpi-revenue">—</div><div class="kpi-lbl">MRR (OMR)</div><div class="kpi-trend" id="kpi-rev-trend"></div></div>
+      </div>
+
+      <!-- Recent Activity across clinics -->
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Recent Activity — All Clinics</span>
+          <button class="btn-outline" style="font-size:11px;padding:5px 10px" onclick="renderOverview()">↻ Refresh</button>
+        </div>
+        <table>
+          <thead><tr><th>Clinic</th><th>Event</th><th>Patient</th><th>Service</th><th>Time</th></tr></thead>
+          <tbody id="overview-activity"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CLINICS PAGE -->
+    <div class="page" id="page-clinics">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">All Clinics</span>
+          <button class="btn-gold" onclick="openAddClinic()">+ Add Clinic</button>
+        </div>
+        <div class="toolbar">
+          <input class="search-input" id="clinic-search" placeholder="🔍  Search clinic name, city…" oninput="renderClinics()">
+          <select class="filter-select" id="clinic-plan" onchange="renderClinics()">
+            <option value="">All Plans</option>
+            <option>Starter</option><option>Professional</option><option>Enterprise</option>
+          </select>
+          <select class="filter-select" id="clinic-status" onchange="renderClinics()">
+            <option value="">All Statuses</option>
+            <option>Active</option><option>Trial</option><option>Suspended</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Clinic</th><th>Plan</th><th>Status</th><th>Bookings</th><th>AI%</th><th>MRR</th><th>Since</th><th>Actions</th></tr></thead>
+            <tbody id="clinics-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS PAGE -->
+    <div class="page" id="page-analytics">
+      <div class="kpi-row" style="margin-bottom:20px">
+        <div class="kpi-card gold"><div class="kpi-num" id="a-total-bookings">—</div><div class="kpi-lbl">Total Bookings</div></div>
+        <div class="kpi-card green"><div class="kpi-num" id="a-ai-rate">—</div><div class="kpi-lbl">AI Booking Rate</div></div>
+        <div class="kpi-card purple"><div class="kpi-num" id="a-active">—</div><div class="kpi-lbl">Active Clinics</div></div>
+        <div class="kpi-card blue"><div class="kpi-num" id="a-mrr">—</div><div class="kpi-lbl">Total MRR (OMR)</div></div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Bookings by Clinic</div>
+          <div id="chart-by-clinic"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Plan Distribution</div>
+          <div class="donut-wrap" id="chart-plans"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top Services (All Clinics)</div>
+          <div id="chart-services"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">AI vs Human Bookings</div>
+          <div class="donut-wrap" id="chart-ai-human"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div class="page" id="page-settings">
+      <div class="panel" style="max-width:560px">
+        <div class="panel-head"><span class="panel-title">Admin Settings</span></div>
+        <div style="padding:24px;display:flex;flex-direction:column;gap:20px">
+          <div class="field">
+            <label>Admin Password</label>
+            <input id="new-pw" type="password" placeholder="Change admin password">
+          </div>
+          <div class="field">
+            <label>Product Name</label>
+            <input id="product-name" type="text" value="Lavora AI">
+          </div>
+          <div class="field">
+            <label>Contact WhatsApp</label>
+            <input id="contact-wa" type="tel" placeholder="+968 9X XXX XXX">
+          </div>
+          <button class="btn-gold" style="width:fit-content" onclick="saveSettings()">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADD/EDIT CLINIC MODAL -->
+<div class="modal-overlay" id="clinic-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title" id="clinic-modal-title">Add New Clinic</span>
+      <button class="modal-close" onclick="closeModal('clinic-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cm-id">
+      <div class="row2">
+        <div class="field"><label>Clinic Name *</label><input id="cm-name" type="text" placeholder="e.g. Pearl Aesthetic Clinic"></div>
+        <div class="field"><label>City *</label><input id="cm-city" type="text" placeholder="e.g. Muscat"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Country</label>
+          <select id="cm-country" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit">
+            <option>Oman</option><option>UAE</option><option>Saudi Arabia</option>
+            <option>Qatar</option><option>Bahrain</option><option>Kuwait</option>
+          </select>
+        </div>
+        <div class="field"><label>Plan</label>
+          <select id="cm-plan" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit">
+            <option>Starter</option><option>Professional</option><option>Enterprise</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Status</label>
+          <select id="cm-status" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit">
+            <option>Trial</option><option>Active</option><option>Suspended</option>
+          </select>
+        </div>
+        <div class="field"><label>Monthly Fee (OMR)</label><input id="cm-fee" type="number" placeholder="99"></div>
+      </div>
+      <div class="field"><label>Phone Number (Twilio)</label><input id="cm-phone" type="tel" placeholder="+968 XXXX XXXX"></div>
+      <div class="field"><label>Contact Person</label><input id="cm-contact" type="text" placeholder="Dr. Name / Manager Name"></div>
+      <div class="field"><label>Notes</label><textarea id="cm-notes" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;min-height:70px" placeholder="Any notes…"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-outline" onclick="closeModal('clinic-modal')">Cancel</button>
+      <button class="btn-gold" onclick="saveClinic()">Save Clinic</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLINIC DETAIL DRAWER -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="clinic-drawer">
+  <div class="drawer-head">
+    <div>
+      <div style="font-size:11px;color:rgba(255,255,255,.4);letter-spacing:1px;margin-bottom:4px">CLINIC DETAIL</div>
+      <div style="font-size:18px;font-weight:700" id="drawer-name">—</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.55);margin-top:4px" id="drawer-location">—</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="detail-row"><span class="detail-label">Plan</span><span class="detail-value" id="dd-plan">—</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value" id="dd-status">—</span></div>
+    <div class="detail-row"><span class="detail-label">Monthly Fee</span><span class="detail-value" id="dd-fee">—</span></div>
+    <div class="detail-row"><span class="detail-label">Phone Number</span><span class="detail-value" id="dd-phone">—</span></div>
+    <div class="detail-row"><span class="detail-label">Contact Person</span><span class="detail-value" id="dd-contact">—</span></div>
+    <div class="detail-row"><span class="detail-label">Total Bookings</span><span class="detail-value" id="dd-bookings">—</span></div>
+    <div class="detail-row"><span class="detail-label">AI Bookings</span><span class="detail-value" id="dd-ai">—</span></div>
+    <div class="detail-row"><span class="detail-label">Active Since</span><span class="detail-value" id="dd-since">—</span></div>
+    <div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" id="dd-notes" style="max-width:60%;word-break:break-word">—</span></div>
+    <div style="display:flex;gap:10px;margin-top:24px;flex-wrap:wrap">
+      <button class="btn-gold" id="drawer-edit-btn">Edit Clinic</button>
+      <button class="btn-outline" id="drawer-suspend-btn">Suspend</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+const ADMIN_PW = localStorage.getItem('lavora_admin_pw') || 'lavora2025';
+
+function login() {
+  const pw = document.getElementById('admin-pw').value;
+  if (pw === ADMIN_PW) {
+    localStorage.setItem('lavora_admin_auth', '1');
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'grid';
+    initApp();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+function logout() { localStorage.removeItem('lavora_admin_auth'); location.reload(); }
+
+// ── Data Store (localStorage) ─────────────────────────────────────────────────
+function getClinics() { try { return JSON.parse(localStorage.getItem('lavora_clinics') || '[]'); } catch { return []; } }
+function saveClinics(c) { localStorage.setItem('lavora_clinics', JSON.stringify(c)); }
+
+// Seed demo clinics if empty
+function seedIfEmpty() {
+  if (getClinics().length > 0) return;
+  const demo = [
+    { id:'c1', name:'Lavora Clinic', city:'Muscat', country:'Oman', plan:'Professional', status:'Active', fee:179, phone:'+968 9XXX XXXX', contact:'Dr. Soraya', totalBookings:87, aiBookings:62, since:'2025-01-15', notes:'Flagship client' },
+    { id:'c2', name:'Pearl Aesthetics', city:'Dubai', country:'UAE', plan:'Starter', status:'Active', fee:99, phone:'+971 5X XXX XXXX', contact:'Dr. Nada', totalBookings:34, aiBookings:28, since:'2025-02-20', notes:'' },
+    { id:'c3', name:'Al Noor Medical', city:'Riyadh', country:'Saudi Arabia', plan:'Enterprise', status:'Active', fee:299, phone:'+966 5X XXX XXXX', contact:'Clinic Manager', totalBookings:156, aiBookings:134, since:'2024-11-01', notes:'Multi-branch' },
+    { id:'c4', name:'Glow Beauty Center', city:'Abu Dhabi', country:'UAE', plan:'Professional', status:'Trial', fee:179, phone:'+971 2X XXX XXXX', contact:'Dr. Leila', totalBookings:12, aiBookings:10, since:'2025-04-10', notes:'Trial ends May 10' },
+    { id:'c5', name:'Radiance Clinic', city:'Doha', country:'Qatar', plan:'Starter', status:'Active', fee:99, phone:'+974 7X XXX XXXX', contact:'Mr. Ahmed', totalBookings:45, aiBookings:38, since:'2025-03-01', notes:'' },
+  ];
+  saveClinics(demo);
+}
+
+// ── App Init ──────────────────────────────────────────────────────────────────
+function initApp() {
+  seedIfEmpty();
+  renderOverview();
+  renderClinics();
+  renderAnalytics();
+  updateClock();
+  setInterval(updateClock, 10000);
+}
+
+// ── Page Switching ────────────────────────────────────────────────────────────
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.aside-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  const titles = { overview:'Overview', clinics:'Clinics', analytics:'Analytics', settings:'Settings' };
+  document.getElementById('page-title').textContent = titles[name] || name;
+  if (name === 'analytics') renderAnalytics();
+}
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+function renderOverview() {
+  const clinics = getClinics();
+  const totalBookings = clinics.reduce((s, c) => s + (c.totalBookings || 0), 0);
+  const aiBookings = clinics.reduce((s, c) => s + (c.aiBookings || 0), 0);
+  const mrr = clinics.filter(c => c.status === 'Active').reduce((s, c) => s + (c.fee || 0), 0);
+
+  document.getElementById('kpi-clinics').textContent = clinics.length;
+  document.getElementById('kpi-clinics-trend').textContent = clinics.filter(c => c.status === 'Active').length + ' active';
+  document.getElementById('kpi-bookings').textContent = totalBookings;
+  document.getElementById('kpi-bookings-trend').textContent = '↑ ' + totalBookings + ' total';
+  document.getElementById('kpi-ai').textContent = aiBookings;
+  document.getElementById('kpi-ai-trend').textContent = totalBookings > 0 ? Math.round(aiBookings/totalBookings*100) + '% AI rate' : '';
+  document.getElementById('kpi-revenue').textContent = mrr;
+
+  // Recent activity (simulated from clinic data)
+  const activity = [];
+  clinics.forEach(c => {
+    if (c.totalBookings > 0) {
+      activity.push({ clinic: c.name, event: 'Booked', patient: 'Patient', service: 'Consultation', time: '2h ago' });
+    }
+  });
+  const tbody = document.getElementById('overview-activity');
+  tbody.innerHTML = clinics.slice(0,8).map(c => `
+    <tr>
+      <td><div class="cell-name">${esc(c.name)}</div><div class="cell-sub">${esc(c.city)}, ${esc(c.country)}</div></td>
+      <td><span class="badge badge-active">Active</span></td>
+      <td>—</td>
+      <td>—</td>
+      <td style="color:var(--text-light);font-size:12px">Live</td>
+    </tr>
+  `).join('');
+}
+
+// ── Clinics Table ─────────────────────────────────────────────────────────────
+function renderClinics() {
+  const search = document.getElementById('clinic-search').value.toLowerCase();
+  const planF = document.getElementById('clinic-plan').value;
+  const statusF = document.getElementById('clinic-status').value;
+
+  let clinics = getClinics().filter(c => {
+    const matchS = !search || [c.name, c.city, c.country, c.contact].join(' ').toLowerCase().includes(search);
+    const matchP = !planF || c.plan === planF;
+    const matchSt = !statusF || c.status === statusF;
+    return matchS && matchP && matchSt;
+  });
+
+  const tbody = document.getElementById('clinics-body');
+  if (!clinics.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-light)">No clinics found</td></tr>'; return; }
+
+  tbody.innerHTML = clinics.map(c => {
+    const aiPct = c.totalBookings > 0 ? Math.round(c.aiBookings / c.totalBookings * 100) : 0;
+    return `
+    <tr>
+      <td>
+        <div class="cell-name" style="cursor:pointer;color:var(--navy)" onclick="openDrawer('${c.id}')">${esc(c.name)}</div>
+        <div class="cell-sub">${esc(c.city)}, ${esc(c.country)}</div>
+      </td>
+      <td><span class="badge badge-${c.plan === 'Enterprise' ? 'enterprise' : c.plan === 'Professional' ? 'pro' : 'starter'}">${esc(c.plan)}</span></td>
+      <td><span class="badge badge-${c.status.toLowerCase()}">${esc(c.status)}</span></td>
+      <td>
+        <div style="font-weight:600">${c.totalBookings || 0}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(aiPct,100)}%"></div></div>
+      </td>
+      <td style="font-weight:600;color:var(--ai)">${aiPct}%</td>
+      <td style="font-weight:600">${c.fee || 0} OMR</td>
+      <td style="color:var(--text-light);font-size:12px">${formatDate(c.since)}</td>
+      <td>
+        <div class="actions">
+          <button class="btn-sm btn-edit" onclick="openEditClinic('${c.id}')">Edit</button>
+          <button class="btn-sm btn-danger" onclick="removeClinic('${c.id}','${esc(c.name)}')">Remove</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+function renderAnalytics() {
+  const clinics = getClinics();
+  const total = clinics.reduce((s,c)=>s+(c.totalBookings||0),0);
+  const ai = clinics.reduce((s,c)=>s+(c.aiBookings||0),0);
+  const active = clinics.filter(c=>c.status==='Active').length;
+  const mrr = clinics.filter(c=>c.status==='Active').reduce((s,c)=>s+(c.fee||0),0);
+
+  document.getElementById('a-total-bookings').textContent = total;
+  document.getElementById('a-ai-rate').textContent = total>0 ? Math.round(ai/total*100)+'%' : '—';
+  document.getElementById('a-active').textContent = active;
+  document.getElementById('a-mrr').textContent = mrr;
+
+  // Chart: bookings by clinic
+  const maxB = Math.max(...clinics.map(c=>c.totalBookings||0), 1);
+  document.getElementById('chart-by-clinic').innerHTML = clinics.sort((a,b)=>(b.totalBookings||0)-(a.totalBookings||0)).slice(0,6).map(c=>`
+    <div class="bar-row">
+      <span class="bar-label">${esc(c.name)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((c.totalBookings||0)/maxB*100)}%;background:var(--gold)"></div></div>
+      <span class="bar-val">${c.totalBookings||0}</span>
+    </div>`).join('');
+
+  // Chart: plan distribution
+  const plans = { Starter: 0, Professional: 0, Enterprise: 0 };
+  clinics.forEach(c => { if (plans[c.plan]!==undefined) plans[c.plan]++; });
+  const total2 = clinics.length || 1;
+  const colors = { Starter:'#0891b2', Professional:'#7c3aed', Enterprise:'#c9a84c' };
+  let pct = 0;
+  const gradient = Object.entries(plans).map(([k,v])=>{ const p=Math.round(v/total2*100); const s=pct; pct+=p; return `${colors[k]} ${s}% ${pct}%`; }).join(',');
+  document.getElementById('chart-plans').innerHTML = `
+    <div class="donut" style="background:conic-gradient(${gradient})"></div>
+    <div class="donut-legend">${Object.entries(plans).map(([k,v])=>`<div class="donut-item"><div class="donut-dot" style="background:${colors[k]}"></div><span>${k}: <strong>${v}</strong></span></div>`).join('')}</div>`;
+
+  // Chart: services (simulated)
+  const services = [{s:'Botox',n:42},{s:'Fillers',n:35},{s:'PRP',n:28},{s:'Consultation',n:22},{s:'Laser',n:18}];
+  const maxS = services[0].n;
+  document.getElementById('chart-services').innerHTML = services.map(({s,n})=>`
+    <div class="bar-row">
+      <span class="bar-label">${s}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxS*100)}%;background:var(--navy-light)"></div></div>
+      <span class="bar-val">${n}</span>
+    </div>`).join('');
+
+  // Chart: AI vs Human
+  const human = total - ai;
+  const totalD = total || 1;
+  const aiPct = Math.round(ai/totalD*100);
+  const humPct = 100 - aiPct;
+  document.getElementById('chart-ai-human').innerHTML = `
+    <div class="donut" style="background:conic-gradient(var(--ai) 0% ${aiPct}%,var(--human) ${aiPct}% 100%)"></div>
+    <div class="donut-legend">
+      <div class="donut-item"><div class="donut-dot" style="background:var(--ai)"></div><span>AI Voice: <strong>${ai}</strong> (${aiPct}%)</span></div>
+      <div class="donut-item"><div class="donut-dot" style="background:var(--human)"></div><span>Human: <strong>${human}</strong> (${humPct}%)</span></div>
+    </div>`;
+}
+
+// ── Add / Edit Clinic ─────────────────────────────────────────────────────────
+function openAddClinic() {
+  document.getElementById('clinic-modal-title').textContent = 'Add New Clinic';
+  ['cm-id','cm-name','cm-city','cm-phone','cm-contact','cm-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cm-plan').value = 'Starter';
+  document.getElementById('cm-status').value = 'Trial';
+  document.getElementById('cm-fee').value = '99';
+  document.getElementById('cm-country').value = 'Oman';
+  openModal('clinic-modal');
+}
+
+function openEditClinic(id) {
+  const c = getClinics().find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('clinic-modal-title').textContent = 'Edit Clinic';
+  document.getElementById('cm-id').value = c.id;
+  document.getElementById('cm-name').value = c.name || '';
+  document.getElementById('cm-city').value = c.city || '';
+  document.getElementById('cm-country').value = c.country || 'Oman';
+  document.getElementById('cm-plan').value = c.plan || 'Starter';
+  document.getElementById('cm-status').value = c.status || 'Trial';
+  document.getElementById('cm-fee').value = c.fee || '';
+  document.getElementById('cm-phone').value = c.phone || '';
+  document.getElementById('cm-contact').value = c.contact || '';
+  document.getElementById('cm-notes').value = c.notes || '';
+  openModal('clinic-modal');
+}
+
+function saveClinic() {
+  const id = document.getElementById('cm-id').value;
+  const name = document.getElementById('cm-name').value.trim();
+  const city = document.getElementById('cm-city').value.trim();
+  if (!name || !city) { toast('Clinic name and city are required.', 'error'); return; }
+  const clinic = {
+    id: id || 'c' + Date.now(),
+    name, city,
+    country: document.getElementById('cm-country').value,
+    plan: document.getElementById('cm-plan').value,
+    status: document.getElementById('cm-status').value,
+    fee: parseInt(document.getElementById('cm-fee').value) || 0,
+    phone: document.getElementById('cm-phone').value.trim(),
+    contact: document.getElementById('cm-contact').value.trim(),
+    notes: document.getElementById('cm-notes').value.trim(),
+    totalBookings: 0,
+    aiBookings: 0,
+    since: new Date().toISOString().split('T')[0]
+  };
+  let clinics = getClinics();
+  if (id) {
+    const existing = clinics.find(x => x.id === id);
+    if (existing) { clinic.totalBookings = existing.totalBookings; clinic.aiBookings = existing.aiBookings; clinic.since = existing.since; }
+    clinics = clinics.map(x => x.id === id ? clinic : x);
+    toast('Clinic updated.', 'success');
+  } else {
+    clinics.push(clinic);
+    toast('Clinic added.', 'success');
+  }
+  saveClinics(clinics);
+  closeModal('clinic-modal');
+  renderClinics();
+  renderOverview();
+}
+
+function removeClinic(id, name) {
+  if (!confirm(`Remove "${name}"?`)) return;
+  saveClinics(getClinics().filter(c => c.id !== id));
+  renderClinics();
+  renderOverview();
+  toast('Clinic removed.', 'success');
+}
+
+// ── Drawer ────────────────────────────────────────────────────────────────────
+let drawerClinicId = null;
+function openDrawer(id) {
+  const c = getClinics().find(x => x.id === id);
+  if (!c) return;
+  drawerClinicId = id;
+  document.getElementById('drawer-name').textContent = c.name;
+  document.getElementById('drawer-location').textContent = `${c.city}, ${c.country}`;
+  document.getElementById('dd-plan').textContent = c.plan;
+  document.getElementById('dd-status').innerHTML = `<span class="badge badge-${c.status.toLowerCase()}">${c.status}</span>`;
+  document.getElementById('dd-fee').textContent = (c.fee || 0) + ' OMR/month';
+  document.getElementById('dd-phone').textContent = c.phone || '—';
+  document.getElementById('dd-contact').textContent = c.contact || '—';
+  document.getElementById('dd-bookings').textContent = c.totalBookings || 0;
+  document.getElementById('dd-ai').textContent = (c.aiBookings || 0) + ' (' + (c.totalBookings > 0 ? Math.round(c.aiBookings/c.totalBookings*100) : 0) + '%)';
+  document.getElementById('dd-since').textContent = formatDate(c.since);
+  document.getElementById('dd-notes').textContent = c.notes || '—';
+  document.getElementById('drawer-edit-btn').onclick = () => { closeDrawer(); openEditClinic(id); };
+  document.getElementById('drawer-suspend-btn').onclick = () => suspendClinic(id);
+  document.getElementById('clinic-drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('clinic-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+function suspendClinic(id) {
+  const clinics = getClinics();
+  const c = clinics.find(x => x.id === id);
+  if (!c) return;
+  c.status = c.status === 'Suspended' ? 'Active' : 'Suspended';
+  saveClinics(clinics);
+  closeDrawer();
+  renderClinics();
+  toast(`Clinic ${c.status === 'Suspended' ? 'suspended' : 'reactivated'}.`, 'success');
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function saveSettings() {
+  const pw = document.getElementById('new-pw').value.trim();
+  if (pw) { localStorage.setItem('lavora_admin_pw', pw); toast('Password updated.', 'success'); }
+  else toast('Settings saved.', 'success');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatDate(d) { if (!d) return '—'; try { return new Date(d+'T12:00:00').toLocaleDateString('en-OM',{year:'numeric',month:'short',day:'numeric'}); } catch { return d; } }
+function updateClock() { document.getElementById('clock').textContent = new Date().toLocaleString('en-OM',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`; el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
+}
+document.querySelectorAll('.modal-overlay').forEach(el => el.addEventListener('click', e => { if (e.target===el) el.classList.remove('open'); }));
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+if (localStorage.getItem('lavora_admin_auth') === '1') {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  initApp();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lavora AI — The AI Voice Receptionist Built for Gulf Clinics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #1a2744;
+  --navy-mid: #243356;
+  --navy-light: #2e4070;
+  --gold: #c9a84c;
+  --gold-light: #e8c97a;
+  --gold-pale: #fdf6e3;
+  --white: #ffffff;
+  --off-white: #f8fafc;
+  --text: #1a2744;
+  --text-mid: #4a5568;
+  --text-light: #718096;
+  --border: #e2e8f0;
+  --green: #10b981;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,.08);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,.15);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', 'Noto Sans Arabic', sans-serif; color: var(--text); background: var(--white); overflow-x: hidden; }
+[dir="rtl"] body, [dir="rtl"] * { font-family: 'Noto Sans Arabic', 'Inter', sans-serif; }
+a { text-decoration: none; color: inherit; }
+
+/* ── NAV ─────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(26,39,68,.95); backdrop-filter: blur(12px);
+  height: 68px; display: flex; align-items: center; padding: 0 40px; gap: 32px;
+}
+.nav-logo { font-size: 20px; font-weight: 800; letter-spacing: 3px; color: var(--gold); white-space: nowrap; }
+.nav-sub { font-size: 9px; color: rgba(255,255,255,.4); letter-spacing: 2px; }
+.nav-links { display: flex; gap: 28px; margin-left: 32px; }
+.nav-links a { font-size: 13px; font-weight: 500; color: rgba(255,255,255,.7); transition: color .2s; }
+.nav-links a:hover { color: var(--gold); }
+.nav-spacer { flex: 1; }
+.lang-btn {
+  padding: 6px 14px; border: 1px solid rgba(255,255,255,.2); border-radius: 20px;
+  font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7); cursor: pointer;
+  background: transparent; transition: all .2s; white-space: nowrap;
+}
+.lang-btn:hover { border-color: var(--gold); color: var(--gold); }
+.nav-cta {
+  padding: 10px 22px; background: var(--gold); color: var(--navy);
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: background .2s; white-space: nowrap;
+}
+.nav-cta:hover { background: var(--gold-light); }
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  nav { padding: 0 20px; gap: 12px; }
+}
+
+/* ── HERO ────────────────────────────────────────────── */
+.hero {
+  min-height: 100vh; background: linear-gradient(135deg, var(--navy) 0%, #0f1b38 60%, #1a2744 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 120px 24px 80px; position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(201,168,76,.08) 0%, transparent 70%);
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(201,168,76,.12); border: 1px solid rgba(201,168,76,.25);
+  border-radius: 20px; padding: 6px 16px; font-size: 12px; font-weight: 600;
+  color: var(--gold-light); margin-bottom: 28px; position: relative;
+}
+.badge-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.hero h1 {
+  font-size: clamp(32px, 5vw, 62px); font-weight: 800; line-height: 1.15;
+  color: white; max-width: 780px; margin-bottom: 24px; position: relative;
+}
+.hero h1 .gold { color: var(--gold); }
+.hero p {
+  font-size: clamp(15px, 2vw, 18px); color: rgba(255,255,255,.65);
+  max-width: 560px; line-height: 1.8; margin-bottom: 40px; position: relative;
+}
+.hero-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; position: relative; }
+.btn-hero {
+  padding: 16px 36px; background: var(--gold); color: var(--navy);
+  border: none; border-radius: 10px; font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-hero:hover { background: var(--gold-light); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201,168,76,.35); }
+.btn-hero-outline {
+  padding: 16px 32px; background: transparent; color: white;
+  border: 1.5px solid rgba(255,255,255,.25); border-radius: 10px;
+  font-size: 15px; font-weight: 600; cursor: pointer; transition: all .2s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-hero-outline:hover { border-color: var(--gold); color: var(--gold); }
+.hero-stats {
+  display: flex; gap: 40px; margin-top: 64px; position: relative;
+  padding-top: 40px; border-top: 1px solid rgba(255,255,255,.08);
+  flex-wrap: wrap; justify-content: center;
+}
+.hero-stat-num { font-size: 36px; font-weight: 800; color: var(--gold); }
+.hero-stat-lbl { font-size: 12px; color: rgba(255,255,255,.45); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* ── SECTIONS ─────────────────────────────────────────── */
+section { padding: 80px 24px; }
+.section-label { font-size: 12px; font-weight: 700; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; text-align: center; }
+.section-title { font-size: clamp(26px, 4vw, 40px); font-weight: 800; color: var(--text); text-align: center; margin-bottom: 16px; line-height: 1.25; }
+.section-sub { font-size: 16px; color: var(--text-mid); text-align: center; max-width: 560px; margin: 0 auto 56px; line-height: 1.7; }
+.container { max-width: 1100px; margin: 0 auto; }
+
+/* ── FEATURES ─────────────────────────────────────────── */
+.features-bg { background: var(--off-white); }
+.features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.feature-card {
+  background: white; border-radius: var(--radius); padding: 32px 28px;
+  border: 1px solid var(--border); transition: all .25s; position: relative; overflow: hidden;
+}
+.feature-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--navy), var(--gold)); opacity: 0; transition: opacity .25s; }
+.feature-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: transparent; }
+.feature-card:hover::before { opacity: 1; }
+.feature-icon { font-size: 36px; margin-bottom: 16px; }
+.feature-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.feature-desc { font-size: 14px; color: var(--text-mid); line-height: 1.7; }
+@media (max-width: 900px) { .features-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .features-grid { grid-template-columns: 1fr; } }
+
+/* ── HOW IT WORKS ─────────────────────────────────────── */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; position: relative; }
+.steps::before {
+  content: ''; position: absolute; top: 36px; left: 20%; right: 20%;
+  height: 2px; background: linear-gradient(90deg, var(--gold), var(--navy)); z-index: 0;
+}
+.step { text-align: center; padding: 0 24px; position: relative; }
+.step-num {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--navy), var(--navy-light));
+  color: var(--gold); font-size: 24px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 24px; border: 4px solid var(--gold-pale);
+  position: relative; z-index: 1; box-shadow: 0 4px 20px rgba(26,39,68,.2);
+}
+.step-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+.step-desc { font-size: 14px; color: var(--text-mid); line-height: 1.7; }
+@media (max-width: 700px) { .steps { grid-template-columns: 1fr; gap: 40px; } .steps::before { display: none; } }
+
+/* ── PRICING ──────────────────────────────────────────── */
+.pricing-bg { background: var(--navy); }
+.pricing-bg .section-title { color: white; }
+.pricing-bg .section-sub { color: rgba(255,255,255,.55); }
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.price-card {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px; padding: 36px 28px; position: relative; transition: all .25s;
+}
+.price-card.popular {
+  background: white; border: 2px solid var(--gold);
+  transform: scale(1.04); box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.popular-badge {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 800;
+  padding: 4px 16px; border-radius: 20px; letter-spacing: 1px; text-transform: uppercase;
+}
+.price-name { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; }
+.price-card.popular .price-name { color: var(--navy-mid); }
+.price-amount { font-size: 44px; font-weight: 800; color: white; line-height: 1; margin-bottom: 4px; }
+.price-card.popular .price-amount { color: var(--navy); }
+.price-period { font-size: 13px; color: rgba(255,255,255,.4); margin-bottom: 28px; }
+.price-card.popular .price-period { color: var(--text-mid); }
+.price-features { list-style: none; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
+.price-features li { font-size: 13px; color: rgba(255,255,255,.7); display: flex; align-items: flex-start; gap: 10px; line-height: 1.5; }
+.price-card.popular .price-features li { color: var(--text-mid); }
+.price-check { color: var(--green); flex-shrink: 0; font-weight: 700; }
+.price-btn {
+  width: 100%; padding: 14px; border-radius: 8px; font-size: 14px; font-weight: 700;
+  cursor: pointer; border: 1.5px solid rgba(255,255,255,.2); background: transparent;
+  color: white; transition: all .2s;
+}
+.price-btn:hover { background: rgba(255,255,255,.1); }
+.price-card.popular .price-btn { background: var(--navy); color: white; border-color: var(--navy); }
+.price-card.popular .price-btn:hover { background: var(--navy-light); }
+@media (max-width: 900px) { .pricing-grid { grid-template-columns: 1fr; } .price-card.popular { transform: none; } }
+
+/* ── TESTIMONIALS ─────────────────────────────────────── */
+.testimonials-bg { background: var(--gold-pale); }
+.testi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.testi-card {
+  background: white; border-radius: var(--radius); padding: 28px;
+  box-shadow: var(--shadow);
+}
+.testi-stars { color: var(--gold); font-size: 18px; margin-bottom: 16px; letter-spacing: 2px; }
+.testi-quote { font-size: 14px; color: var(--text-mid); line-height: 1.8; margin-bottom: 20px; font-style: italic; }
+.testi-author { font-size: 13px; font-weight: 700; color: var(--text); }
+.testi-role { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+@media (max-width: 900px) { .testi-grid { grid-template-columns: 1fr; } }
+
+/* ── FAQ ──────────────────────────────────────────────── */
+.faq-list { max-width: 720px; margin: 0 auto; }
+.faq-item {
+  border-bottom: 1px solid var(--border); padding: 20px 0; cursor: pointer;
+}
+.faq-q {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.faq-q .faq-arrow { color: var(--gold); font-size: 18px; transition: transform .25s; flex-shrink: 0; }
+.faq-item.open .faq-arrow { transform: rotate(180deg); }
+.faq-a {
+  font-size: 14px; color: var(--text-mid); line-height: 1.8;
+  margin-top: 0; max-height: 0; overflow: hidden; transition: all .3s;
+}
+.faq-item.open .faq-a { margin-top: 12px; max-height: 300px; }
+
+/* ── CTA SECTION ──────────────────────────────────────── */
+.cta-section {
+  background: linear-gradient(135deg, var(--navy), #0f1b38);
+  text-align: center; padding: 100px 24px;
+}
+.cta-section h2 { font-size: clamp(26px, 4vw, 44px); font-weight: 800; color: white; margin-bottom: 16px; }
+.cta-section p { font-size: 16px; color: rgba(255,255,255,.6); max-width: 480px; margin: 0 auto 40px; line-height: 1.7; }
+.cta-form { display: flex; gap: 12px; justify-content: center; max-width: 480px; margin: 0 auto; flex-wrap: wrap; }
+.cta-input {
+  flex: 1; min-width: 200px; padding: 14px 18px;
+  border: 1.5px solid rgba(255,255,255,.15); border-radius: 8px;
+  background: rgba(255,255,255,.07); color: white; font-size: 14px; font-family: inherit;
+}
+.cta-input::placeholder { color: rgba(255,255,255,.35); }
+.cta-input:focus { outline: none; border-color: var(--gold); }
+
+/* ── FOOTER ───────────────────────────────────────────── */
+footer {
+  background: #0f1b38; color: rgba(255,255,255,.45);
+  padding: 40px 24px; text-align: center;
+}
+.footer-logo { font-size: 18px; font-weight: 800; letter-spacing: 3px; color: var(--gold); margin-bottom: 12px; }
+.footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+.footer-links a { font-size: 12px; color: rgba(255,255,255,.4); transition: color .2s; }
+.footer-links a:hover { color: var(--gold); }
+.footer-copy { font-size: 11px; margin-top: 16px; }
+
+/* ── DEMO BADGE ───────────────────────────────────────── */
+.phone-mockup {
+  display: flex; flex-direction: column; background: #1c2a4a; border-radius: 16px;
+  padding: 20px; width: 300px; margin: 60px auto 0; position: relative;
+  border: 1px solid rgba(201,168,76,.2); box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.pm-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.pm-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--gold); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--navy); font-size: 16px; }
+.pm-name { font-size: 14px; font-weight: 600; color: white; }
+.pm-sub { font-size: 11px; color: var(--green); }
+.msg { padding: 10px 14px; border-radius: 12px; font-size: 12px; line-height: 1.6; margin-bottom: 10px; max-width: 90%; }
+.msg-ai { background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.2); color: rgba(255,255,255,.85); align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg-user { background: rgba(255,255,255,.06); color: rgba(255,255,255,.65); align-self: flex-end; margin-left: auto; border-bottom-right-radius: 4px; }
+.pm-confirmed { background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.25); border-radius: 10px; padding: 12px 14px; margin-top: 4px; }
+.pm-confirmed-title { font-size: 11px; font-weight: 700; color: var(--green); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.pm-confirmed-text { font-size: 12px; color: rgba(255,255,255,.7); line-height: 1.6; }
+.typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+.typing span { width: 6px; height: 6px; background: rgba(201,168,76,.5); border-radius: 50%; animation: bounce .8s infinite; }
+.typing span:nth-child(2) { animation-delay: .15s; }
+.typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+/* ── RTL (Arabic) ─────────────────────────────────────── */
+[dir="rtl"] .steps::before { left: 20%; right: 20%; background: linear-gradient(270deg, var(--gold), var(--navy)); }
+[dir="rtl"] .feature-card::before { background: linear-gradient(270deg, var(--navy), var(--gold)); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div>
+    <div class="nav-logo">LAVORA AI</div>
+    <div class="nav-sub">AI VOICE RECEPTIONIST</div>
+  </div>
+  <div class="nav-links" id="nav-links">
+    <a href="#features" data-en="Features" data-ar="المميزات">Features</a>
+    <a href="#how" data-en="How It Works" data-ar="كيف يعمل">How It Works</a>
+    <a href="#pricing" data-en="Pricing" data-ar="الأسعار">Pricing</a>
+    <a href="#faq" data-en="FAQ" data-ar="الأسئلة">FAQ</a>
+  </div>
+  <div class="nav-spacer"></div>
+  <button class="lang-btn" onclick="toggleLang()" id="lang-btn">العربية</button>
+  <button class="nav-cta" onclick="document.getElementById('cta-form').scrollIntoView({behavior:'smooth'})" data-en="Book a Demo →" data-ar="احجز عرضاً ←">Book a Demo →</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="hero-badge">
+    <span class="badge-dot"></span>
+    <span data-en="Now live in Oman, UAE & Saudi Arabia" data-ar="متاح الآن في عُمان والإمارات والسعودية">Now live in Oman, UAE & Saudi Arabia</span>
+  </div>
+  <h1 data-en='Turn Every Missed Call into a <span class="gold">Confirmed Booking</span>' data-ar='حوّل كل مكالمة فائتة إلى <span class="gold">حجز مؤكد</span>'>Turn Every Missed Call into a <span class="gold">Confirmed Booking</span></h1>
+  <p data-en="Your AI receptionist answers in Arabic and English, books appointments live during the call, and syncs instantly to Google Calendar — 24 hours a day, 7 days a week." data-ar="موظف الاستقبال الذكي يرد باللغتين العربية والإنجليزية، يحجز المواعيد أثناء المكالمة، ويزامن مع تقويم Google فوراً — 24 ساعة يومياً، 7 أيام أسبوعياً.">Your AI receptionist answers in Arabic and English, books appointments live during the call, and syncs instantly to Google Calendar — 24 hours a day, 7 days a week.</p>
+  <div class="hero-btns">
+    <button class="btn-hero" onclick="document.getElementById('cta-form').scrollIntoView({behavior:'smooth'})">
+      <span data-en="Book a Free Demo →" data-ar="احجز عرضاً مجانياً ←">Book a Free Demo →</span>
+    </button>
+    <button class="btn-hero-outline" onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">
+      <span data-en="▶ See How It Works" data-ar="▶ كيف يعمل">▶ See How It Works</span>
+    </button>
+  </div>
+
+  <!-- Phone mockup -->
+  <div class="phone-mockup">
+    <div class="pm-header">
+      <div class="pm-avatar">L</div>
+      <div>
+        <div class="pm-name">Lavora Assistant</div>
+        <div class="pm-sub">● Active Call</div>
+      </div>
+    </div>
+    <div class="msg msg-ai" data-en="Thank you for calling Lavora Clinic. How may I help you today?" data-ar="شكراً لاتصالك بعيادة لافورا. كيف يمكنني مساعدتك اليوم؟">Thank you for calling Lavora Clinic. How may I help you today?</div>
+    <div class="msg msg-user" data-en="I'd like to book a Botox appointment." data-ar="أريد حجز موعد للبوتوكس.">I'd like to book a Botox appointment.</div>
+    <div class="msg msg-ai" data-en="Of course! May I have your full name?" data-ar="بالطبع! ما اسمك الكريم؟">Of course! May I have your full name?</div>
+    <div class="typing"><span></span><span></span><span></span></div>
+    <div class="pm-confirmed" style="margin-top:8px">
+      <div class="pm-confirmed-title" data-en="✓ Booking Confirmed" data-ar="✓ تم تأكيد الحجز">✓ Booking Confirmed</div>
+      <div class="pm-confirmed-text" data-en="Botox • Sunday 15 Dec • 10:00 AM<br>Saved to Calendar & CRM" data-ar="بوتوكس • الأحد 15 ديسمبر • 10:00 صباحاً<br>محفوظ في التقويم و CRM">Botox • Sunday 15 Dec • 10:00 AM<br>Saved to Calendar & CRM</div>
+    </div>
+  </div>
+
+  <div class="hero-stats">
+    <div>
+      <div class="hero-stat-num">24/7</div>
+      <div class="hero-stat-lbl" data-en="Always Available" data-ar="متاح دائماً">Always Available</div>
+    </div>
+    <div>
+      <div class="hero-stat-num">2 Lang</div>
+      <div class="hero-stat-lbl" data-en="Arabic & English" data-ar="عربي وإنجليزي">Arabic & English</div>
+    </div>
+    <div>
+      <div class="hero-stat-num">&lt;30s</div>
+      <div class="hero-stat-lbl" data-en="To Book a Slot" data-ar="لحجز موعد">To Book a Slot</div>
+    </div>
+    <div>
+      <div class="hero-stat-num">Live</div>
+      <div class="hero-stat-lbl" data-en="Books During Call" data-ar="يحجز أثناء المكالمة">Books During Call</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features-bg" id="features">
+  <div class="container">
+    <div class="section-label" data-en="WHY LAVORA AI" data-ar="لماذا لافورا AI">WHY LAVORA AI</div>
+    <h2 class="section-title" data-en="Everything Your Clinic Needs" data-ar="كل ما تحتاجه عيادتك">Everything Your Clinic Needs</h2>
+    <p class="section-sub" data-en="Built specifically for medical aesthetic clinics in the Gulf — not a generic chatbot." data-ar="مصمم خصيصاً لعيادات الجماليات الطبية في الخليج — وليس روبوتاً عاماً.">Built specifically for medical aesthetic clinics in the Gulf — not a generic chatbot.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🎙️</div>
+        <div class="feature-title" data-en="Speaks Arabic & English" data-ar="يتحدث العربية والإنجليزية">Speaks Arabic & English</div>
+        <div class="feature-desc" data-en="Your AI receptionist detects the caller's language and switches seamlessly — natural, fluent, professional." data-ar="موظف الاستقبال يكتشف لغة المتصل وينتقل إليها بسلاسة — طبيعي، طلاق، احترافي.">Your AI receptionist detects the caller's language and switches seamlessly — natural, fluent, professional.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title" data-en="Books Live During the Call" data-ar="يحجز أثناء المكالمة مباشرة">Books Live During the Call</div>
+        <div class="feature-desc" data-en="No callbacks needed. The appointment is confirmed and saved before the patient hangs up." data-ar="لا داعي للاتصال مرة أخرى. يتم تأكيد الموعد وحفظه قبل أن ينهي المريض المكالمة.">No callbacks needed. The appointment is confirmed and saved before the patient hangs up.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title" data-en="Real-Time CRM Dashboard" data-ar="لوحة تحكم CRM لحظية">Real-Time CRM Dashboard</div>
+        <div class="feature-desc" data-en="See every appointment, call, and patient in one place. Filter, search, edit, and export with one click." data-ar="اطلع على كل موعد ومكالمة ومريض في مكان واحد. صفّح، ابحث، عدّل، وصدّر بنقرة واحدة.">See every appointment, call, and patient in one place. Filter, search, edit, and export with one click.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗓️</div>
+        <div class="feature-title" data-en="Google Calendar Sync" data-ar="مزامنة مع تقويم Google">Google Calendar Sync</div>
+        <div class="feature-desc" data-en="Every booking appears on your Google Calendar instantly. No manual entry, no double-booking." data-ar="يظهر كل حجز في تقويم Google فوراً. لا إدخال يدوي، ولا حجز مزدوج.">Every booking appears on your Google Calendar instantly. No manual entry, no double-booking.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⏰</div>
+        <div class="feature-title" data-en="24/7 Never Misses a Call" data-ar="لا يفوّت مكالمة أبداً">24/7 Never Misses a Call</div>
+        <div class="feature-desc" data-en="Evenings, weekends, public holidays — your clinic accepts bookings around the clock." data-ar="المساء وعطلات نهاية الأسبوع والإجازات الرسمية — عيادتك تقبل الحجوزات على مدار الساعة.">Evenings, weekends, public holidays — your clinic accepts bookings around the clock.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title" data-en="Live in 24 Hours" data-ar="جاهز خلال 24 ساعة">Live in 24 Hours</div>
+        <div class="feature-desc" data-en="No IT team required. We configure everything — phone number, voice, services — and hand it over ready to use." data-ar="لا حاجة لفريق تقني. نحن نهيئ كل شيء — رقم الهاتف والصوت والخدمات — ونسلمه جاهزاً للاستخدام.">No IT team required. We configure everything — phone number, voice, services — and hand it over ready to use.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="section-label" data-en="THE PROCESS" data-ar="طريقة العمل">THE PROCESS</div>
+    <h2 class="section-title" data-en="3 Steps. That's It." data-ar="٣ خطوات. فقط.">3 Steps. That's It.</h2>
+    <p class="section-sub" data-en="From missed call to confirmed booking — automatically, every time." data-ar="من المكالمة الفائتة إلى الحجز المؤكد — تلقائياً في كل مرة.">From missed call to confirmed booking — automatically, every time.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title" data-en="Patient Calls" data-ar="المريض يتصل">Patient Calls</div>
+        <div class="step-desc" data-en="The call is answered within 2 rings by your AI receptionist — day or night, in Arabic or English." data-ar="يُرد على المكالمة في غضون رنتين من قبل موظف الاستقبال الذكي — نهاراً أو ليلاً، بالعربية أو الإنجليزية.">The call is answered within 2 rings by your AI receptionist — day or night, in Arabic or English.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title" data-en="AI Collects Details" data-ar="الذكاء الاصطناعي يجمع التفاصيل">AI Collects Details</div>
+        <div class="step-desc" data-en="Name, phone, service, date, and time — collected conversationally, one question at a time." data-ar="الاسم والهاتف والخدمة والتاريخ والوقت — يُجمع بشكل محادثي، سؤالاً واحداً في كل مرة.">Name, phone, service, date, and time — collected conversationally, one question at a time.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title" data-en="Booking Saved Instantly" data-ar="يُحفظ الحجز فوراً">Booking Saved Instantly</div>
+        <div class="step-desc" data-en="Confirmed on the call, saved to your CRM, Google Sheets, and Google Calendar — before the patient hangs up." data-ar="يُؤكَّد في المكالمة، ويُحفظ في CRM وGoogle Sheets وتقويم Google — قبل إنهاء المريض للمكالمة.">Confirmed on the call, saved to your CRM, Google Sheets, and Google Calendar — before the patient hangs up.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing-bg" id="pricing">
+  <div class="container">
+    <div class="section-label" style="color:var(--gold-light)" data-en="TRANSPARENT PRICING" data-ar="أسعار شفافة">TRANSPARENT PRICING</div>
+    <h2 class="section-title" data-en="Simple. No Surprises." data-ar="بسيط. بلا مفاجآت.">Simple. No Surprises.</h2>
+    <p class="section-sub" data-en="Cancel any time. All plans include setup, onboarding, and ongoing support." data-ar="ألغِ في أي وقت. جميع الخطط تشمل الإعداد والتدريب والدعم المستمر.">Cancel any time. All plans include setup, onboarding, and ongoing support.</p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-name" data-en="Starter" data-ar="مبتدئ">Starter</div>
+        <div class="price-amount">99 <span style="font-size:20px">OMR</span></div>
+        <div class="price-period" data-en="per month" data-ar="شهرياً">per month</div>
+        <ul class="price-features">
+          <li><span class="price-check">✓</span> <span data-en="Up to 300 calls/month" data-ar="حتى 300 مكالمة/شهر">Up to 300 calls/month</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Arabic + English voice" data-ar="صوت عربي + إنجليزي">Arabic + English voice</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Google Calendar sync" data-ar="مزامنة تقويم Google">Google Calendar sync</span></li>
+          <li><span class="price-check">✓</span> <span data-en="CRM dashboard" data-ar="لوحة تحكم CRM">CRM dashboard</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Email support" data-ar="دعم بالبريد الإلكتروني">Email support</span></li>
+        </ul>
+        <button class="price-btn" onclick="document.getElementById('cta-form').scrollIntoView({behavior:'smooth'})" data-en="Get Started →" data-ar="ابدأ الآن ←">Get Started →</button>
+      </div>
+      <div class="price-card popular">
+        <div class="popular-badge" data-en="MOST POPULAR" data-ar="الأكثر طلباً">MOST POPULAR</div>
+        <div class="price-name" data-en="Professional" data-ar="احترافي">Professional</div>
+        <div class="price-amount">179 <span style="font-size:20px">OMR</span></div>
+        <div class="price-period" data-en="per month" data-ar="شهرياً">per month</div>
+        <ul class="price-features">
+          <li><span class="price-check">✓</span> <span data-en="Up to 800 calls/month" data-ar="حتى 800 مكالمة/شهر">Up to 800 calls/month</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Everything in Starter" data-ar="كل ما في خطة المبتدئ">Everything in Starter</span></li>
+          <li><span class="price-check">✓</span> <span data-en="WhatsApp confirmations" data-ar="تأكيدات واتساب">WhatsApp confirmations</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Multi-doctor scheduling" data-ar="جدولة متعددة الأطباء">Multi-doctor scheduling</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Analytics & reports" data-ar="تحليلات وتقارير">Analytics & reports</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Priority WhatsApp support" data-ar="دعم واتساب أولوي">Priority WhatsApp support</span></li>
+        </ul>
+        <button class="price-btn" onclick="document.getElementById('cta-form').scrollIntoView({behavior:'smooth'})" data-en="Get Started →" data-ar="ابدأ الآن ←">Get Started →</button>
+      </div>
+      <div class="price-card">
+        <div class="price-name" data-en="Enterprise" data-ar="مؤسسي">Enterprise</div>
+        <div class="price-amount" data-en="Custom" data-ar="مخصص">Custom</div>
+        <div class="price-period" data-en="tailored to your group" data-ar="مصمم لمجموعتك">tailored to your group</div>
+        <ul class="price-features">
+          <li><span class="price-check">✓</span> <span data-en="Unlimited calls" data-ar="مكالمات غير محدودة">Unlimited calls</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Multi-clinic / multi-branch" data-ar="متعدد العيادات والفروع">Multi-clinic / multi-branch</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Custom voice persona" data-ar="شخصية صوتية مخصصة">Custom voice persona</span></li>
+          <li><span class="price-check">✓</span> <span data-en="EMR / HIS integration" data-ar="تكامل مع نظام السجلات الطبية">EMR / HIS integration</span></li>
+          <li><span class="price-check">✓</span> <span data-en="Dedicated account manager" data-ar="مدير حساب مخصص">Dedicated account manager</span></li>
+          <li><span class="price-check">✓</span> <span data-en="SLA guarantee" data-ar="ضمان مستوى الخدمة">SLA guarantee</span></li>
+        </ul>
+        <button class="price-btn" onclick="document.getElementById('cta-form').scrollIntoView({behavior:'smooth'})" data-en="Contact Us →" data-ar="تواصل معنا ←">Contact Us →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials-bg" id="testimonials">
+  <div class="container">
+    <div class="section-label" data-en="WHAT CLINICS SAY" data-ar="ماذا تقول العيادات">WHAT CLINICS SAY</div>
+    <h2 class="section-title" data-en="Trusted by Clinics Across the Gulf" data-ar="موثوق به من عيادات في جميع أنحاء الخليج">Trusted by Clinics Across the Gulf</h2>
+    <div class="testi-grid" style="margin-top:48px">
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote" data-en='"We used to lose 30–40% of after-hours calls. Since installing Lavora AI, every single call becomes a booking. The Arabic voice sounds completely natural."' data-ar='"كنا نفقد 30–40٪ من المكالمات بعد ساعات العمل. منذ تثبيت لافورا AI، أصبحت كل مكالمة حجزاً. الصوت العربي يبدو طبيعياً تماماً."'>"We used to lose 30–40% of after-hours calls. Since installing Lavora AI, every single call becomes a booking. The Arabic voice sounds completely natural."</div>
+        <div class="testi-author" data-en="Dr. Soraya Al-Lawati" data-ar="د. ثريا اللواتية">Dr. Soraya Al-Lawati</div>
+        <div class="testi-role" data-en="Medical Director, Lavora Clinic — Muscat" data-ar="المدير الطبي، عيادة لافورا — مسقط">Medical Director, Lavora Clinic — Muscat</div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote" data-en='"Setup took one day. Our receptionist used to spend hours on the phone just booking appointments. Now she focuses on the patients in the clinic."' data-ar='"استغرق الإعداد يوماً واحداً. كانت موظفة الاستقبال تمضي ساعات في الهاتف فقط لحجز المواعيد. الآن تركز على المرضى داخل العيادة."'>"Setup took one day. Our receptionist used to spend hours on the phone just booking appointments. Now she focuses on the patients in the clinic."</div>
+        <div class="testi-author" data-en="Clinic Manager" data-ar="مدير العيادة">Clinic Manager</div>
+        <div class="testi-role" data-en="Premium Aesthetics Center — Dubai" data-ar="مركز الجماليات المتميز — دبي">Premium Aesthetics Center — Dubai</div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote" data-en='"The Google Calendar sync is a game changer. Doctors see their schedule update in real-time without any manual work. We would not go back."' data-ar='"مزامنة تقويم Google غيّرت قواعد اللعبة. يرى الأطباء جدولهم يتحدث في الوقت الفعلي دون أي عمل يدوي. لن نعود إلى الوراء."'>"The Google Calendar sync is a game changer. Doctors see their schedule update in real-time without any manual work. We would not go back."</div>
+        <div class="testi-author" data-en="Operations Director" data-ar="مدير العمليات">Operations Director</div>
+        <div class="testi-role" data-en="Luxury Dermatology Clinic — Riyadh" data-ar="عيادة الجلدية الفاخرة — الرياض">Luxury Dermatology Clinic — Riyadh</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <div class="section-label" data-en="FAQ" data-ar="الأسئلة الشائعة">FAQ</div>
+    <h2 class="section-title" data-en="Common Questions" data-ar="أسئلة شائعة">Common Questions</h2>
+    <div class="faq-list" style="margin-top:48px">
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">
+          <span data-en="How long does setup take?" data-ar="كم يستغرق الإعداد؟">How long does setup take?</span>
+          <span class="faq-arrow">▾</span>
+        </div>
+        <div class="faq-a" data-en="Typically 24 hours from signing up to going live. We handle everything: provisioning your phone number, configuring the AI voice, connecting your Google Calendar, and training the system on your services." data-ar="عادةً 24 ساعة من التسجيل حتى الانطلاق. نحن نتولى كل شيء: تخصيص رقم هاتفك، وتكوين الصوت الذكي، وربط تقويم Google، وتدريب النظام على خدماتك.">Typically 24 hours from signing up to going live. We handle everything: provisioning your phone number, configuring the AI voice, connecting your Google Calendar, and training the system on your services.</div>
+      </div>
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">
+          <span data-en="Does it really speak Arabic naturally?" data-ar="هل يتحدث العربية بشكل طبيعي حقاً؟">Does it really speak Arabic naturally?</span>
+          <span class="faq-arrow">▾</span>
+        </div>
+        <div class="faq-a" data-en="Yes. We use the latest AI voice technology (ElevenLabs) with a custom Gulf Arabic voice — not a robotic tone. The assistant detects when a caller speaks Arabic and responds fully in Arabic for the entire conversation." data-ar="نعم. نستخدم أحدث تقنيات الصوت الذكي (ElevenLabs) بصوت عربي خليجي مخصص — وليس نبرة آلية. يكتشف المساعد عندما يتحدث المتصل بالعربية ويرد بالعربية الكاملة طوال المحادثة.">Yes. We use the latest AI voice technology (ElevenLabs) with a custom Gulf Arabic voice — not a robotic tone. The assistant detects when a caller speaks Arabic and responds fully in Arabic for the entire conversation.</div>
+      </div>
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">
+          <span data-en="What happens if the AI can't handle a call?" data-ar="ماذا يحدث إذا لم يستطع الذكاء الاصطناعي التعامل مع مكالمة؟">What happens if the AI can't handle a call?</span>
+          <span class="faq-arrow">▾</span>
+        </div>
+        <div class="faq-a" data-en="The AI is designed only for booking. If a caller asks a medical question, it says 'Our specialists would be best to advise you — shall I book a consultation?' It never guesses or makes up information." data-ar="الذكاء الاصطناعي مصمم للحجز فقط. إذا سأل المتصل سؤالاً طبياً، يقول 'متخصصونا هم الأفضل لإرشادك — هل تريد حجز استشارة؟' لا يخمن أو يخترع معلومات أبداً.">The AI is designed only for booking. If a caller asks a medical question, it says 'Our specialists would be best to advise you — shall I book a consultation?' It never guesses or makes up information.</div>
+      </div>
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">
+          <span data-en="Is patient data secure?" data-ar="هل بيانات المرضى آمنة؟">Is patient data secure?</span>
+          <span class="faq-arrow">▾</span>
+        </div>
+        <div class="faq-a" data-en="All data is stored in your own Google Sheets and Google Calendar — you own it. We do not store patient data on our servers. Connections are encrypted via HTTPS. We comply with applicable Gulf data protection regulations." data-ar="تُخزَّن جميع البيانات في Google Sheets وتقويم Google الخاصين بك — أنت تملكها. نحن لا نخزن بيانات المرضى على خوادمنا. الاتصالات مشفرة عبر HTTPS. نلتزم بلوائح حماية البيانات الخليجية المعمول بها.">All data is stored in your own Google Sheets and Google Calendar — you own it. We do not store patient data on our servers. Connections are encrypted via HTTPS. We comply with applicable Gulf data protection regulations.</div>
+      </div>
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">
+          <span data-en="Can I keep my existing phone number?" data-ar="هل يمكنني الاحتفاظ برقم هاتفي الحالي؟">Can I keep my existing phone number?</span>
+          <span class="faq-arrow">▾</span>
+        </div>
+        <div class="faq-a" data-en="Yes, in most cases. We can forward calls from your existing number to the AI system, or we can provide a new number. Both options are available at no extra charge." data-ar="نعم، في معظم الحالات. يمكننا إعادة توجيه المكالمات من رقمك الحالي إلى نظام الذكاء الاصطناعي، أو يمكننا توفير رقم جديد. كلا الخيارين متاحان دون رسوم إضافية.">Yes, in most cases. We can forward calls from your existing number to the AI system, or we can provide a new number. Both options are available at no extra charge.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA SECTION -->
+<section class="cta-section" id="cta-form">
+  <h2 data-en="Ready to Stop Missing Bookings?" data-ar="هل أنت مستعد للتوقف عن تفويت الحجوزات؟">Ready to Stop Missing Bookings?</h2>
+  <p data-en="Book a free 20-minute demo. We'll show you the AI live with an actual call — in Arabic or English." data-ar="احجز عرضاً توضيحياً مجانياً لمدة 20 دقيقة. سنوضح لك الذكاء الاصطناعي مباشرةً بمكالمة فعلية — بالعربية أو الإنجليزية.">Book a free 20-minute demo. We'll show you the AI live with an actual call — in Arabic or English.</p>
+  <div class="cta-form">
+    <input class="cta-input" type="text" id="cta-name" placeholder="Clinic name / اسم العيادة">
+    <input class="cta-input" type="tel" id="cta-phone" placeholder="WhatsApp number / واتساب">
+    <button class="btn-hero" onclick="submitDemo()" data-en="Book Demo →" data-ar="احجز العرض ←">Book Demo →</button>
+  </div>
+  <div id="cta-confirm" style="display:none;margin-top:24px;color:var(--green);font-weight:600;font-size:15px"></div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">LAVORA AI</div>
+  <div style="font-size:12px;margin-top:4px;color:rgba(255,255,255,.3)" data-en="AI Voice Receptionist for Gulf Medical Clinics" data-ar="موظف الاستقبال الصوتي الذكي لعيادات الخليج الطبية">AI Voice Receptionist for Gulf Medical Clinics</div>
+  <div class="footer-links">
+    <a href="#features" data-en="Features" data-ar="المميزات">Features</a>
+    <a href="#pricing" data-en="Pricing" data-ar="الأسعار">Pricing</a>
+    <a href="#faq" data-en="FAQ" data-ar="الأسئلة">FAQ</a>
+    <a href="/dashboard" data-en="CRM Login" data-ar="دخول CRM">CRM Login</a>
+  </div>
+  <div class="footer-copy">© 2025 Lavora AI · Built for the Gulf · <span data-en="Made with care for clinic owners" data-ar="صُنع باعتناء لأصحاب العيادات">Made with care for clinic owners</span></div>
+</footer>
+
+<script>
+let isArabic = false;
+
+function toggleLang() {
+  isArabic = !isArabic;
+  const html = document.documentElement;
+  html.lang = isArabic ? 'ar' : 'en';
+  html.dir = isArabic ? 'rtl' : 'ltr';
+  document.getElementById('lang-btn').textContent = isArabic ? 'English' : 'العربية';
+
+  document.querySelectorAll('[data-en]').forEach(el => {
+    const key = isArabic ? 'ar' : 'en';
+    const val = el.getAttribute('data-' + key);
+    if (val) el.innerHTML = val;
+  });
+}
+
+function submitDemo() {
+  const name = document.getElementById('cta-name').value.trim();
+  const phone = document.getElementById('cta-phone').value.trim();
+  if (!name || !phone) {
+    alert(isArabic ? 'يرجى إدخال اسم العيادة ورقم واتساب' : 'Please enter your clinic name and WhatsApp number.');
+    return;
+  }
+  const msg = isArabic
+    ? `✅ تم استلام طلبك! سنتواصل معك على ${phone} خلال 24 ساعة.`
+    : `✅ Request received! We'll reach you at ${phone} within 24 hours.`;
+  const confirm = document.getElementById('cta-confirm');
+  confirm.textContent = msg;
+  confirm.style.display = 'block';
+  document.getElementById('cta-name').value = '';
+  document.getElementById('cta-phone').value = '';
+}
+
+// Smooth scroll for nav
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+  });
+});
+</script>
+</body>
+</html>

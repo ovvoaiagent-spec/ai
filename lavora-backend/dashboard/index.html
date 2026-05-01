@@ -110,6 +110,21 @@ header .spacer { flex: 1; }
 .stat-num { font-size: 28px; font-weight: 700; line-height: 1; }
 .stat-lbl { font-size: 10px; font-weight: 500; color: var(--text-light); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
 
+/* ── Tabs ── */
+.tabs-bar {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 24px; background: white; border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  padding: 13px 20px; font-size: 13px; font-weight: 600; color: var(--text-light);
+  border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .2s; white-space: nowrap;
+}
+.tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); }
+.tab-btn:hover:not(.active) { color: var(--text); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
 /* ── Main Layout ── */
 .main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 0 24px 24px; }
 
@@ -267,9 +282,34 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+/* ── Analytics ── */
+.analytics-main { padding: 0 24px 24px; }
+.analytics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 16px; }
+.chart-card { background: var(--white); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.chart-title { font-size: 13px; font-weight: 700; margin-bottom: 16px; color: var(--text); display: flex; align-items: center; justify-content: space-between; }
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+.bar-label { width: 120px; color: var(--text-mid); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-shrink: 0; }
+.bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width .6s; }
+.bar-val { font-weight: 600; width: 32px; text-align: right; flex-shrink: 0; }
+.donut-wrap { display: flex; align-items: center; gap: 20px; }
+.donut { width: 90px; height: 90px; border-radius: 50%; flex-shrink: 0; }
+.donut-legend { display: flex; flex-direction: column; gap: 8px; }
+.donut-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.donut-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.weekly-bars { display: flex; align-items: flex-end; gap: 8px; height: 80px; }
+.w-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.w-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--gold); transition: height .5s; min-height: 4px; }
+.w-day { font-size: 10px; color: var(--text-light); }
+
+/* ── Confirm btn ── */
+.btn-confirm { background: #ecfdf5; color: #065f46; }
+.btn-confirm:hover { background: #d1fae5; }
+
 @media (max-width: 1100px) {
   .main { grid-template-columns: 1fr; }
   .stats-bar { grid-template-columns: repeat(4, 1fr); }
+  .analytics-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .stats-bar { grid-template-columns: repeat(2, 1fr); }
@@ -336,7 +376,14 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
     <div class="stat-card cancelled"><div class="stat-num" id="s-cancelled">—</div><div class="stat-lbl">Cancelled</div></div>
   </div>
 
-  <!-- Main -->
+  <!-- Tabs -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="switchTab('appointments',this)">Appointments</button>
+    <button class="tab-btn" onclick="switchTab('analytics',this)">Analytics</button>
+  </div>
+
+  <!-- Tab: Appointments -->
+  <div class="tab-content active" id="tab-appointments">
   <div class="main">
 
     <!-- Appointments Panel -->
@@ -354,6 +401,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <input type="date" class="filter-select" id="f-date" onchange="renderTable()">
         <button class="btn-outline" id="refresh-btn" onclick="manualRefresh()">↻ Refresh</button>
         <button class="btn-outline" id="poll-btn" onclick="pollNow()">📞 Poll Calls</button>
+        <button class="btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
       <div class="table-wrap">
@@ -382,6 +430,53 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
       <div id="activity-list"></div>
     </div>
 
+  </div>
+  </div> <!-- end tab-appointments -->
+
+  <!-- Tab: Analytics -->
+  <div class="tab-content" id="tab-analytics">
+  <div class="analytics-main">
+    <div class="analytics-grid">
+
+      <!-- Weekly trend -->
+      <div class="chart-card">
+        <div class="chart-title">Bookings This Week</div>
+        <div class="weekly-bars" id="chart-weekly"></div>
+      </div>
+
+      <!-- AI vs Human donut -->
+      <div class="chart-card">
+        <div class="chart-title">AI vs Human Bookings</div>
+        <div class="donut-wrap" id="chart-ai-human"></div>
+      </div>
+
+      <!-- Top services -->
+      <div class="chart-card">
+        <div class="chart-title">Top Services</div>
+        <div id="chart-services"></div>
+      </div>
+
+      <!-- Status breakdown -->
+      <div class="chart-card">
+        <div class="chart-title">Appointment Status</div>
+        <div id="chart-status"></div>
+      </div>
+
+    </div>
+  </div>
+  </div> <!-- end tab-analytics -->
+
+</div>
+
+<!-- ── Patient History Modal ── -->
+<div class="modal-overlay" id="history-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">Patient History</span>
+      <button class="modal-close" onclick="closeModal('history-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="history-body" style="padding:0">
+    </div>
   </div>
 </div>
 
@@ -572,7 +667,7 @@ function renderTable() {
   tbody.innerHTML = rows.map(a => `
     <tr>
       <td>
-        <div class="cell-name">${esc(a.name)}</div>
+        <div class="cell-name" style="cursor:pointer;color:var(--navy)" onclick="openPatientHistory('${esc(a.phone)}')">${esc(a.name)}</div>
         <div class="cell-sub">${esc(a.phone)}</div>
       </td>
       <td>${esc(a.service)}</td>
@@ -584,6 +679,7 @@ function renderTable() {
       <td>
         <div class="actions">
           ${a.status !== 'Cancelled' ? `
+            ${a.status === 'Pending' ? `<button class="btn-sm btn-confirm" onclick="confirmAppointment('${esc(a.id)}')">Confirm</button>` : ''}
             <button class="btn-sm btn-edit" onclick="openEditModal('${esc(a.id)}')">Edit</button>
             <button class="btn-sm btn-cancel" onclick="openCancelModal('${esc(a.id)}','${esc(a.name)}')">Cancel</button>
           ` : '<span style="color:var(--text-light);font-size:11px">Cancelled</span>'}
@@ -891,6 +987,129 @@ function bootstrap() {
   startCountdown();
   updateClock();
   setInterval(updateClock, 10000);
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'analytics') renderAnalytics();
+}
+
+// ─── Confirm Appointment (Pending → Confirmed) ────────────────────────────────
+async function confirmAppointment(id) {
+  try {
+    await API.updateAppointment(id, { status: 'Confirmed' });
+    toast('Appointment confirmed', 'success');
+    await loadAll();
+    startCountdown();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function exportCSV() {
+  const headers = ['ID','Name','Phone','Service','Doctor','Date','Time','Status','Source'];
+  const rows = allAppointments.map(a => [
+    a.id, a.name, a.phone, a.service, a.doctor||'', a.date, a.time, a.status, a.source
+  ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `lavora-appointments-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── Patient History ──────────────────────────────────────────────────────────
+function openPatientHistory(phone) {
+  const apts = allAppointments.filter(a => a.phone === phone).sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
+  if (!apts.length) return;
+  const name = apts[0].name;
+  const body = document.getElementById('history-body');
+  body.innerHTML = `
+    <div style="padding:16px 24px;background:var(--bg);border-bottom:1px solid var(--border)">
+      <div style="font-weight:700;font-size:15px">${esc(name)}</div>
+      <div style="font-size:12px;color:var(--text-light);margin-top:2px">${esc(phone)} · ${apts.length} appointment${apts.length!==1?'s':''}</div>
+    </div>
+    <div style="max-height:400px;overflow-y:auto">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#fafbfc">
+        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Date</th>
+        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Service</th>
+        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Status</th>
+        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Source</th>
+      </tr></thead>
+      <tbody>
+        ${apts.map(a=>`<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:11px 16px;font-size:13px">${formatDate(a.date)} <span style="color:var(--text-light)">${esc(a.time)}</span></td>
+          <td style="padding:11px 16px;font-size:13px;font-weight:500">${esc(a.service)}</td>
+          <td style="padding:11px 16px"><span class="badge badge-${(a.status||'').toLowerCase()}">${esc(a.status)}</span></td>
+          <td style="padding:11px 16px"><span class="badge badge-${a.source==='AI Voice'?'ai':'human'}">${esc(a.source)}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>`;
+  openModal('history-modal');
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+function renderAnalytics() {
+  // Weekly bookings (last 7 days)
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date();
+  const counts = Array(7).fill(0);
+  allAppointments.forEach(a => {
+    if (!a.date) return;
+    const d = new Date(a.date + 'T12:00:00');
+    const diff = Math.floor((today - d) / 86400000);
+    if (diff >= 0 && diff < 7) counts[6 - diff]++;
+  });
+  const maxC = Math.max(...counts, 1);
+  document.getElementById('chart-weekly').innerHTML = counts.map((n, i) => {
+    const label = days[(today.getDay() - (6 - i) + 7) % 7];
+    const h = Math.max(Math.round(n / maxC * 72), 4);
+    return `<div class="w-bar-wrap"><div class="w-bar" style="height:${h}px"></div><div class="w-day">${label}</div></div>`;
+  }).join('');
+
+  // AI vs Human
+  const ai = allAppointments.filter(a => a.source === 'AI Voice').length;
+  const human = allAppointments.filter(a => a.source === 'Human').length;
+  const total = allAppointments.length || 1;
+  const aiPct = Math.round(ai / total * 100);
+  document.getElementById('chart-ai-human').innerHTML = `
+    <div class="donut" style="background:conic-gradient(var(--ai-color) 0% ${aiPct}%,var(--human-color) ${aiPct}% 100%)"></div>
+    <div class="donut-legend">
+      <div class="donut-item"><div class="donut-dot" style="background:var(--ai-color)"></div><span>AI Voice: <strong>${ai}</strong> (${aiPct}%)</span></div>
+      <div class="donut-item"><div class="donut-dot" style="background:var(--human-color)"></div><span>Human: <strong>${human}</strong> (${100-aiPct}%)</span></div>
+    </div>`;
+
+  // Top services
+  const svcMap = {};
+  allAppointments.forEach(a => { if (a.service) svcMap[a.service] = (svcMap[a.service]||0) + 1; });
+  const topSvc = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxS = topSvc[0]?.[1] || 1;
+  document.getElementById('chart-services').innerHTML = topSvc.map(([s,n])=>`
+    <div class="bar-row">
+      <span class="bar-label">${esc(s)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxS*100)}%;background:var(--navy)"></div></div>
+      <span class="bar-val">${n}</span>
+    </div>`).join('') || '<div style="color:var(--text-light);font-size:13px;padding:16px 0">No data yet</div>';
+
+  // Status breakdown
+  const statMap = { Confirmed: 0, Pending: 0, Cancelled: 0 };
+  allAppointments.forEach(a => { if (statMap[a.status]!==undefined) statMap[a.status]++; });
+  const maxSt = Math.max(...Object.values(statMap), 1);
+  const stColors = { Confirmed:'var(--confirmed)', Pending:'var(--pending)', Cancelled:'var(--cancelled)' };
+  document.getElementById('chart-status').innerHTML = Object.entries(statMap).map(([s,n])=>`
+    <div class="bar-row">
+      <span class="bar-label">${s}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxSt*100)}%;background:${stColors[s]}"></div></div>
+      <span class="bar-val">${n}</span>
+    </div>`).join('');
 }
 
 bootstrap();
