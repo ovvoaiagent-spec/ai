@@ -12,6 +12,7 @@ if (process.env.GOOGLE_TOKENS_JSON) {
 
 const sheetsService = require('./services/sheetsService');
 const activityService = require('./services/activityService');
+const pollingService = require('./services/pollingService');
 const webhookRoutes = require('./routes/webhooks');
 const apiRoutes = require('./routes/api');
 const toolRoutes = require('./routes/tools');
@@ -103,6 +104,9 @@ async function start() {
       console.warn('[STARTUP] Sheets init skipped (check credentials):', err.message);
     }
   }
+
+  // Start polling ElevenLabs for completed conversations
+  pollingService.start();
 
   app.listen(PORT, () => {
     console.log('\n╔══════════════════════════════════════════════════════╗');
