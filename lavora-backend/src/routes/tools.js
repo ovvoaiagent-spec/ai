@@ -14,6 +14,16 @@ const activityService = require('../services/activityService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
 
+// Normalise phone: strip spaces/dashes, add +968 if looks like an Oman local number
+function normalizePhone(raw) {
+  if (!raw) return raw;
+  let p = String(raw).replace(/[\s\-().]/g, '');
+  if (p.startsWith('00')) p = '+' + p.slice(2);
+  if (p.startsWith('0') && !p.startsWith('00')) p = '+968' + p.slice(1);
+  if (/^\d{8}$/.test(p)) p = '+968' + p; // bare 8-digit Oman number
+  return p;
+}
+
 // Lightweight auth — ElevenLabs sends the secret we configure in agent tools
 function verifyToolSecret(req, res) {
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
@@ -86,6 +96,7 @@ router.post('/book-appointment', async (req, res) => {
   const normalizedDate = parseDate(date) || date;
   const normalizedTime = parseTime(time) || time;
   const normalizedService = matchService(service) || service;
+  const normalizedPhone = normalizePhone(phone);
 
   console.log(`[TOOL] book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
 
@@ -103,7 +114,7 @@ router.post('/book-appointment', async (req, res) => {
     const apt = {
       id: aptId,
       name,
-      phone,
+      phone: normalizedPhone,
       service: normalizedService,
       doctor: '',
       date: normalizedDate,

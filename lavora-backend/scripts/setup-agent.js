@@ -30,19 +30,21 @@ Available services: Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mes
 
 CONVERSATION FLOW:
 1. Ask for each piece of information one at a time, naturally.
-2. Once you have all 5 fields confirmed by the patient:
-   - Call check_availability to verify the slot is free.
-   - Call book_appointment with all 5 fields to save the booking.
+2. As soon as you have collected all 5 fields from the patient:
+   - DO NOT repeat them back or ask "shall I confirm" or "can I go ahead" or "is that correct?" — proceed immediately.
+   - Call check_availability with the date and time.
+   - If available, call book_appointment with all 5 fields immediately.
    - After book_appointment returns success, say this ONCE and only ONCE:
      "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye."
-   - Then immediately end the call. Do NOT say anything else.
+   - Then end the call. Do NOT say anything else after the closing line.
 
 RULES:
-- ALWAYS call book_appointment before speaking the confirmation.
+- ALWAYS call book_appointment before speaking the confirmation. Never confirm verbally without calling the tool first.
+- Do NOT ask for confirmation before booking. When you have all 5 fields, go straight to check_availability then book_appointment.
 - Say the closing line ONCE. Never repeat it. Never say "goodbye" or "thank you" again after that.
 - Do NOT give medical advice. Say: "Our specialists would be best to advise you — shall I book a consultation?"
-- Do NOT mention technical details or IDs.
-- If the caller speaks Arabic, respond fully in Arabic.
+- Do NOT mention technical details, IDs, or system responses.
+- If the caller speaks Arabic, respond fully in Arabic using the same voice.
 - Keep responses short and professional.
 - Never ask for all 5 fields at once — one question at a time.`;
 
@@ -150,16 +152,36 @@ async function run() {
   }
   console.log(`✅ Agent found: "${current.body.name || AGENT_ID}"`);
 
+  // Extract current voice_id so we can lock it for Arabic too (prevents male voice switch)
+  const voiceId = current.body.conversation_config?.tts?.voice_id;
+  if (voiceId) console.log(`   Voice ID: ${voiceId} — will be locked for all languages`);
+  else console.log('   ⚠️  No voice_id found in current config — Arabic voice preset skipped');
+
   console.log('\n[2/2] Applying system prompt + tools...');
+
+  const ttsConfig = voiceId ? { tts: { voice_id: voiceId } } : {};
+
   const patch = {
     conversation_config: {
+      ...ttsConfig,
       agent: {
         prompt: {
           prompt: SYSTEM_PROMPT,
           tools: TOOLS
         },
         first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
-        language: 'en'
+        language: 'en',
+        // Lock same voice for Arabic so it never switches to a different (male) voice
+        ...(voiceId ? {
+          language_presets: {
+            ar: {
+              overrides: {
+                tts: { voice_id: voiceId },
+                agent: { language: 'ar' }
+              }
+            }
+          }
+        } : {})
       }
     }
   };

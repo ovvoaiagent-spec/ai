@@ -236,20 +236,23 @@ router.post('/setup-agent', async (req, res) => {
     return res.status(400).json({ error: 'ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY not set' });
   }
 
-  function elevenlabsPatch(body) {
+  function elevenlabsRequest(method, body) {
     return new Promise((resolve, reject) => {
-      const data = JSON.stringify(body);
+      const data = body ? JSON.stringify(body) : null;
+      const headers = { 'xi-api-key': API_KEY };
+      if (data) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(data); }
       const req2 = https.request({
         hostname: 'api.elevenlabs.io',
         path: `/v1/convai/agents/${AGENT_ID}`,
-        method: 'PATCH',
-        headers: { 'xi-api-key': API_KEY, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
-      }, r => { let raw=''; r.on('data',c=>raw+=c); r.on('end',()=>resolve({status:r.statusCode,body:JSON.parse(raw)})); });
+        method,
+        headers
+      }, r => { let raw=''; r.on('data',c=>raw+=c); r.on('end',()=>{ try{resolve({status:r.statusCode,body:JSON.parse(raw)});}catch{resolve({status:r.statusCode,body:raw});} }); });
       req2.on('error', reject);
-      req2.write(data);
+      if (data) req2.write(data);
       req2.end();
     });
   }
+  const elevenlabsPatch = (body) => elevenlabsRequest('PATCH', body);
 
   const SYSTEM_PROMPT = `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
 Your name is Lavora Assistant. You are professional, warm, and refined — reflecting a luxury medical aesthetic clinic.
@@ -265,19 +268,21 @@ Available services: Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mes
 
 CONVERSATION FLOW:
 1. Ask for each piece of information one at a time, naturally.
-2. Once you have all 5 fields confirmed by the patient:
-   - Call check_availability to verify the slot is free.
-   - Call book_appointment with all 5 fields to save the booking.
+2. As soon as you have collected all 5 fields from the patient:
+   - DO NOT repeat them back or ask "shall I confirm" or "can I go ahead" or "is that correct?" — proceed immediately.
+   - Call check_availability with the date and time.
+   - If available, call book_appointment with all 5 fields immediately.
    - After book_appointment returns success, say this ONCE and only ONCE:
      "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye."
-   - Then immediately end the call. Do NOT say anything else.
+   - Then end the call. Do NOT say anything else after the closing line.
 
 RULES:
-- ALWAYS call book_appointment before speaking the confirmation.
+- ALWAYS call book_appointment before speaking the confirmation. Never confirm verbally without calling the tool first.
+- Do NOT ask for confirmation before booking. When you have all 5 fields, go straight to check_availability then book_appointment.
 - Say the closing line ONCE. Never repeat it. Never say "goodbye" or "thank you" again after that.
 - Do NOT give medical advice. Say: "Our specialists would be best to advise you — shall I book a consultation?"
-- Do NOT mention technical details or IDs.
-- If the caller speaks Arabic, respond fully in Arabic.
+- Do NOT mention technical details, IDs, or system responses.
+- If the caller speaks Arabic, respond fully in Arabic using the same voice.
 - Keep responses short and professional.
 - Never ask for all 5 fields at once — one question at a time.`;
 
@@ -295,17 +300,33 @@ RULES:
   ];
 
   try {
-    const result = await elevenlabsPatch({
-      conversation_config: { agent: {
-        prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
-        first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
-        language: 'en'
-      }}
-    });
+    // Fetch current config to lock existing voice_id for Arabic (prevents male voice switch)
+    const current = await elevenlabsRequest('GET', null);
+    const voiceId = current.body?.conversation_config?.tts?.voice_id;
+
+    const agentConfig = {
+      prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
+      first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
+      language: 'en',
+      ...(voiceId ? {
+        language_presets: {
+          ar: { overrides: { tts: { voice_id: voiceId }, agent: { language: 'ar' } } }
+        }
+      } : {})
+    };
+
+    const patchBody = {
+      conversation_config: {
+        ...(voiceId ? { tts: { voice_id: voiceId } } : {}),
+        agent: agentConfig
+      }
+    };
+
+    const result = await elevenlabsPatch(patchBody);
     if (result.status !== 200) {
       return res.status(502).json({ error: 'ElevenLabs rejected update', detail: result.body });
     }
-    res.json({ success: true, message: 'Agent updated — book_appointment tool is now required before confirmation' });
+    res.json({ success: true, message: 'Agent updated', voiceLocked: !!voiceId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
