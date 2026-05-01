@@ -34,8 +34,10 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve CRM dashboard at /
-app.use(express.static(path.join(__dirname, '../dashboard')));
+// Serve CRM dashboard
+const DASHBOARD_DIR = path.join(__dirname, '../dashboard');
+console.log('[STATIC] Serving dashboard from:', DASHBOARD_DIR, '| exists:', fs.existsSync(DASHBOARD_DIR));
+app.use(express.static(DASHBOARD_DIR));
 
 // Mount routes
 app.use('/webhook', webhookRoutes);
@@ -77,6 +79,11 @@ app.get('/status', async (_req, res) => {
     } catch {}
   }
   res.json(status);
+});
+
+// Explicit root → dashboard (fallback if express.static misses it)
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(DASHBOARD_DIR, 'index.html'));
 });
 
 // 404 handler
