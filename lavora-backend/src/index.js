@@ -34,9 +34,15 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve CRM dashboard
-const DASHBOARD_DIR = path.join(__dirname, '../dashboard');
-console.log('[STATIC] Serving dashboard from:', DASHBOARD_DIR, '| exists:', fs.existsSync(DASHBOARD_DIR));
+// Serve CRM dashboard — try multiple candidate paths in case Railway CWD differs
+const DASHBOARD_CANDIDATES = [
+  path.join(__dirname, '../dashboard'),
+  path.join(process.cwd(), 'dashboard'),
+  path.join(process.cwd(), '../dashboard')
+];
+const DASHBOARD_DIR = DASHBOARD_CANDIDATES.find(p => fs.existsSync(p)) || DASHBOARD_CANDIDATES[0];
+console.log('[STATIC] __dirname:', __dirname, '| cwd:', process.cwd());
+console.log('[STATIC] Dashboard dir:', DASHBOARD_DIR, '| exists:', fs.existsSync(DASHBOARD_DIR));
 app.use(express.static(DASHBOARD_DIR));
 
 // Mount routes
@@ -83,7 +89,13 @@ app.get('/status', async (_req, res) => {
 
 // Explicit root → dashboard (fallback if express.static misses it)
 app.get('/', (_req, res) => {
-  res.sendFile(path.join(DASHBOARD_DIR, 'index.html'));
+  const indexPath = path.join(DASHBOARD_DIR, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    return res.status(500).send(
+      `Dashboard not found.<br>Tried: ${DASHBOARD_CANDIDATES.join('<br>')}<br>__dirname: ${__dirname}<br>cwd: ${process.cwd()}`
+    );
+  }
+  res.sendFile(indexPath);
 });
 
 // 404 handler
