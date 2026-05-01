@@ -299,34 +299,31 @@ RULES:
       api_schema:{ url:`${SERVER_URL}/tools/get-working-hours`, method:'POST', request_body_schema:{type:'object',properties:{}} } }
   ];
 
+  const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
+
   try {
-    // Fetch current config to lock existing voice_id for Arabic (prevents male voice switch)
-    const current = await elevenlabsRequest('GET', null);
-    const voiceId = current.body?.conversation_config?.tts?.voice_id;
-
-    const agentConfig = {
-      prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
-      first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
-      language: 'en',
-      ...(voiceId ? {
-        language_presets: {
-          ar: { overrides: { tts: { voice_id: voiceId }, agent: { language: 'ar' } } }
-        }
-      } : {})
-    };
-
-    const patchBody = {
+    const result = await elevenlabsPatch({
       conversation_config: {
-        ...(voiceId ? { tts: { voice_id: voiceId } } : {}),
-        agent: agentConfig
+        tts: { voice_id: VOICE_ID },
+        agent: {
+          prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
+          first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
+          language: 'en',
+          language_presets: {
+            ar: {
+              overrides: {
+                tts: { voice_id: VOICE_ID },
+                agent: { language: 'ar' }
+              }
+            }
+          }
+        }
       }
-    };
-
-    const result = await elevenlabsPatch(patchBody);
+    });
     if (result.status !== 200) {
       return res.status(502).json({ error: 'ElevenLabs rejected update', detail: result.body });
     }
-    res.json({ success: true, message: 'Agent updated', voiceLocked: !!voiceId });
+    res.json({ success: true, message: 'Agent updated', voice_id: VOICE_ID });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -152,18 +152,12 @@ async function run() {
   }
   console.log(`✅ Agent found: "${current.body.name || AGENT_ID}"`);
 
-  // Extract current voice_id so we can lock it for Arabic too (prevents male voice switch)
-  const voiceId = current.body.conversation_config?.tts?.voice_id;
-  if (voiceId) console.log(`   Voice ID: ${voiceId} — will be locked for all languages`);
-  else console.log('   ⚠️  No voice_id found in current config — Arabic voice preset skipped');
-
-  console.log('\n[2/2] Applying system prompt + tools...');
-
-  const ttsConfig = voiceId ? { tts: { voice_id: voiceId } } : {};
+  const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
+  console.log(`\n[2/2] Applying system prompt + tools (voice: ${VOICE_ID})...`);
 
   const patch = {
     conversation_config: {
-      ...ttsConfig,
+      tts: { voice_id: VOICE_ID },
       agent: {
         prompt: {
           prompt: SYSTEM_PROMPT,
@@ -171,17 +165,14 @@ async function run() {
         },
         first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant. How may I help you today?',
         language: 'en',
-        // Lock same voice for Arabic so it never switches to a different (male) voice
-        ...(voiceId ? {
-          language_presets: {
-            ar: {
-              overrides: {
-                tts: { voice_id: voiceId },
-                agent: { language: 'ar' }
-              }
+        language_presets: {
+          ar: {
+            overrides: {
+              tts: { voice_id: VOICE_ID },
+              agent: { language: 'ar' }
             }
           }
-        } : {})
+        }
       }
     }
   };
