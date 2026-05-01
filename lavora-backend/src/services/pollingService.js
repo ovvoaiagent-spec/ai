@@ -106,7 +106,7 @@ async function processConversation(conv) {
       doctor: '',
       date,
       time: time || '',
-      status: 'Pending',
+      status: 'Confirmed',
       source: 'AI Voice',
       callDuration: detail.metadata?.call_duration_secs || '',
       notes: `Conversation ID: ${convId}`,

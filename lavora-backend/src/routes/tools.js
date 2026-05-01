@@ -108,7 +108,7 @@ router.post('/book-appointment', async (req, res) => {
       doctor: '',
       date: normalizedDate,
       time: normalizedTime,
-      status: 'Pending',
+      status: 'Confirmed',
       source: 'AI Voice',
       callDuration: '',
       notes: 'Booked live during call via AI tool',
