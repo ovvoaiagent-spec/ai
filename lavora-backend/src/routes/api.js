@@ -224,6 +224,44 @@ router.get('/activity', (req, res) => {
   res.json({ activities: activityService.getActivities(limit) });
 });
 
+// ─── GET /api/debug ──────────────────────────────────────────────────────────
+router.get('/debug', async (req, res) => {
+  const info = {
+    googleConfigured: sheetsService.googleConfigured(),
+    sheetsId: process.env.GOOGLE_SHEETS_ID ? '✅ set' : '❌ missing',
+    credPath: process.env.GOOGLE_SERVICE_ACCOUNT_JSON_PATH ? '✅ set' : '❌ missing',
+    localDbCount: 0,
+    sheetsCount: null,
+    sheetsError: null,
+    rawSheetsSample: null
+  };
+
+  try {
+    const local = await sheetsService.getAllAppointments();
+    info.localDbCount = local.length;
+  } catch {}
+
+  // Direct Sheets read bypassing getAllAppointments cache logic
+  if (sheetsService.googleConfigured()) {
+    try {
+      const auth = await sheetsService.getAuth();
+      const { google } = require('googleapis');
+      const client = google.sheets({ version: 'v4', auth });
+      const r = await client.spreadsheets.values.get({
+        spreadsheetId: process.env.GOOGLE_SHEETS_ID,
+        range: 'Appointments!A:I'
+      });
+      const rows = r.data.values || [];
+      info.sheetsCount = rows.length;
+      info.rawSheetsSample = rows.slice(0, 4); // first 4 rows including header
+    } catch (err) {
+      info.sheetsError = err.message;
+    }
+  }
+
+  res.json(info);
+});
+
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {

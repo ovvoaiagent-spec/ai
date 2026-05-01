@@ -195,11 +195,15 @@ async function getAllAppointments() {
           spreadsheetId: process.env.GOOGLE_SHEETS_ID,
           range: `${TABS.APPOINTMENTS}!A:I`
         });
-        const rows = (res.data.values || []).slice(1); // skip header row
-        return rows.filter(r => r[0]).map(rowToApt);
+        const allRows = res.data.values || [];
+        // Skip header row(s) — any row whose first cell is literally 'ID'
+        const dataRows = allRows.filter(r => r[0] && r[0] !== 'ID');
+        console.log(`[SHEETS] getAllAppointments: ${allRows.length} total rows, ${dataRows.length} data rows`);
+        return dataRows.map(rowToApt);
       }
+      console.warn('[SHEETS] getAllAppointments: no client available, using local DB');
     } catch (err) {
-      console.warn('[SHEETS] getAllAppointments fallback to local:', err.message);
+      console.error('[SHEETS] getAllAppointments ERROR:', err.message);
     }
   }
   return db.getAllAppointments();
