@@ -352,6 +352,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
           <option>AI Voice</option><option>Human</option>
         </select>
         <input type="date" class="filter-select" id="f-date" onchange="renderTable()">
+        <button class="btn-outline" id="refresh-btn" onclick="manualRefresh()">↻ Refresh</button>
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
       <div class="table-wrap">
@@ -844,6 +845,17 @@ function actorClass(actor) {
 document.querySelectorAll('.modal-overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
 });
+
+// ─── Manual Refresh ──────────────────────────────────────────────────────────
+async function manualRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻ Refreshing…';
+  btn.disabled = true;
+  await loadAll();
+  startCountdown();
+  btn.textContent = '↻ Refresh';
+  btn.disabled = false;
+}
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 function bootstrap() {
