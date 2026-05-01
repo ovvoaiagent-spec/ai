@@ -286,7 +286,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
     <h2>Connect to Backend</h2>
     <div class="field">
       <label>Server URL</label>
-      <input id="cfg-url" type="url" placeholder="http://localhost:3000" value="http://localhost:3000">
+      <input id="cfg-url" type="url" placeholder="http://localhost:3000">
     </div>
     <div class="field">
       <label>CRM API Key</label>
@@ -478,7 +478,8 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 <script>
 // ─── Config ──────────────────────────────────────────────────────────────────
 const CFG = {
-  get url() { return localStorage.getItem('lavora_url') || ''; },
+  // Default server URL to the current origin so Railway-hosted dashboard auto-connects
+  get url() { return localStorage.getItem('lavora_url') || window.location.origin; },
   get key() { return localStorage.getItem('lavora_key') || ''; },
   set(url, key) {
     localStorage.setItem('lavora_url', url.replace(/\/$/, ''));
@@ -496,7 +497,7 @@ function saveConfig() {
 }
 
 function openSettings() {
-  document.getElementById('cfg-url').value = CFG.url;
+  document.getElementById('cfg-url').value = localStorage.getItem('lavora_url') || window.location.origin;
   document.getElementById('cfg-key').value = CFG.key;
   document.getElementById('setup-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
