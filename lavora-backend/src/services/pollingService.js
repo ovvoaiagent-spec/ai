@@ -8,7 +8,7 @@ const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('./extractionService');
 
 const PROCESSED_FILE = path.join(__dirname, '../../data/processed-conversations.json');
-const POLL_INTERVAL_MS = 60 * 1000; // every 60 seconds
+const POLL_INTERVAL_MS = 30 * 1000; // every 30 seconds
 
 const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 const API_KEY  = process.env.ELEVENLABS_API_KEY;
@@ -56,8 +56,8 @@ async function processConversation(conv) {
     const dc = detail.analysis?.data_collection_results || {};
     const action = getVal(dc, 'appointment_action');
 
-    // Only process booked appointments
-    if (action !== 'booked') {
+    // Skip only if explicitly marked as not booked
+    if (action && action !== 'booked') {
       console.log(`[POLL] Conv ${convId} — action=${action}, skipping`);
       return;
     }

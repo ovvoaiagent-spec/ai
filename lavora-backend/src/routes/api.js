@@ -224,6 +224,17 @@ router.get('/activity', (req, res) => {
   res.json({ activities: activityService.getActivities(limit) });
 });
 
+// ─── POST /api/poll-now ───────────────────────────────────────────────────────
+router.post('/poll-now', async (req, res) => {
+  try {
+    const pollingService = require('../services/pollingService');
+    await pollingService.poll();
+    res.json({ success: true, message: 'Poll completed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/debug ──────────────────────────────────────────────────────────
 router.get('/debug', async (req, res) => {
   const info = {
