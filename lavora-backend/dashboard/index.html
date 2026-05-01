@@ -309,7 +309,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
     <span class="clock" id="clock"></span>
     <div class="refresh-badge">
       <span class="refresh-dot"></span>
-      <span id="countdown">30s</span>
+      <span id="countdown">15s</span>
     </div>
     <span class="conn-status conn-ok" id="conn-status">● Live</span>
     <button id="header-settings" title="Settings" onclick="openSettings()">⚙</button>
@@ -531,7 +531,7 @@ const API = {
 // ─── State ────────────────────────────────────────────────────────────────────
 let allAppointments = [];
 let cancelTargetId = null;
-let countdownSecs = 30;
+let countdownSecs = 15;
 let countdownTimer = null;
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
@@ -549,8 +549,12 @@ function renderTable() {
     return matchSearch && matchStatus && matchSource && matchDate;
   });
 
-  // Sort: newest first
-  rows.sort((a, b) => b.timestamp?.localeCompare(a.timestamp || '') || 0);
+  // Sort: soonest appointment first; within same slot newest booking (by ID) first
+  rows.sort((a, b) => {
+    const da = (a.date || '9999') + (a.time || '99:99');
+    const db = (b.date || '9999') + (b.time || '99:99');
+    return da.localeCompare(db) || (b.id || '').localeCompare(a.id || '');
+  });
 
   const tbody = document.getElementById('apt-body');
   const empty = document.getElementById('empty-state');
@@ -677,7 +681,7 @@ function startCountdown() {
     countdownSecs--;
     updateCountdown();
     if (countdownSecs <= 0) {
-      countdownSecs = 30;
+      countdownSecs = 15;
       loadAll();
     }
   }, 1000);
