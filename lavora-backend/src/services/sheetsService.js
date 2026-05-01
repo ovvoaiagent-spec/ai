@@ -1,6 +1,7 @@
 /**
- * Data service — local JSON is primary storage (always works).
- * Google Sheets syncs automatically when credentials are configured.
+ * Data service — Google Sheets is the primary source of truth when credentials
+ * are configured (reads always come from Sheets so data survives server restarts).
+ * Local JSON is a write-through cache and fallback when Sheets is unreachable.
  */
 
 const { google } = require('googleapis');
@@ -182,15 +183,57 @@ async function appendActivity(entry) {
   });
 }
 
-async function getAllAppointments()        { return db.getAllAppointments(); }
-async function getAppointmentById(id)     { return db.getAppointmentById(id); }
-async function checkConflict(d, t, doc)   { return db.checkConflict(d, t, doc); }
-async function cancelAppointment(id)      { return db.cancelAppointment(id); }
+// When Google Sheets is configured it is the source of truth for reads.
+// Local DB is used as a write-cache so the system works without credentials too.
+
+async function getAllAppointments() {
+  if (googleConfigured()) {
+    try {
+      const client = await getGoogleClient();
+      if (client) {
+        const res = await client.spreadsheets.values.get({
+          spreadsheetId: process.env.GOOGLE_SHEETS_ID,
+          range: `${TABS.APPOINTMENTS}!A:I`
+        });
+        const rows = (res.data.values || []).slice(1); // skip header row
+        return rows.filter(r => r[0]).map(rowToApt);
+      }
+    } catch (err) {
+      console.warn('[SHEETS] getAllAppointments fallback to local:', err.message);
+    }
+  }
+  return db.getAllAppointments();
+}
+
+async function getAppointmentById(id) {
+  const all = await getAllAppointments();
+  return all.find(a => a.id === id) || null;
+}
+
+async function checkConflict(d, t, doc) {
+  const all = await getAllAppointments();
+  return all.some(apt => {
+    if (apt.status === 'Cancelled') return false;
+    const sameSlot = apt.date === d && apt.time === t;
+    return doc ? sameSlot && apt.doctor === doc : sameSlot;
+  });
+}
+
+async function cancelAppointment(id) {
+  return updateAppointment(id, { status: 'Cancelled' });
+}
 
 async function updateAppointment(id, updates) {
-  const updated = db.updateAppointment(id, updates);
+  // Fetch the current record — from Sheets if available, else local DB
+  const existing = await getAppointmentById(id);
+  if (!existing) throw new Error(`Appointment ${id} not found`);
+  const updated = { ...existing, ...updates };
+
+  // Keep local DB in sync (best-effort)
+  try { db.updateAppointment(id, updates); } catch { db.appendAppointment(updated); }
+
+  // Write back to Sheets
   syncToSheets(async (client) => {
-    // Find row in sheets by ID and update it
     const res = await client.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEETS_ID,
       range: `${TABS.APPOINTMENTS}!A:A`
