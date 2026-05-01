@@ -8,8 +8,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
-const sheetsService = require('../services/sheetsService');
-const calendarService = require('../services/calendarService');
+const db = require('../services/localDbService');
 const activityService = require('../services/activityService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
@@ -52,7 +51,7 @@ router.post('/check-availability', async (req, res) => {
   console.log(`[TOOL] check_availability → date=${normalizedDate}, time=${normalizedTime}`);
 
   try {
-    const conflict = await sheetsService.checkConflict(normalizedDate, normalizedTime);
+    const conflict = db.checkConflict(normalizedDate, normalizedTime);
     if (conflict) {
       res.json({
         result: `That slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different date or time to the patient.`,
@@ -102,7 +101,7 @@ router.post('/book-appointment', async (req, res) => {
 
   try {
     // Final conflict check
-    const conflict = await sheetsService.checkConflict(normalizedDate, normalizedTime);
+    const conflict = db.checkConflict(normalizedDate, normalizedTime);
     if (conflict) {
       return res.json({
         result: `That slot is no longer available. Please inform the patient and suggest a different time.`,
@@ -122,25 +121,13 @@ router.post('/book-appointment', async (req, res) => {
       status: 'Confirmed',
       source: 'AI Voice',
       callDuration: '',
-      notes: 'Booked live during call via AI tool',
-      timestamp: new Date().toISOString(),
-      calendarEventId: ''
+      notes: '',
+      timestamp: new Date().toISOString()
     };
 
-    // Create Google Calendar event immediately
-    let calendarEventId = '';
-    try {
-      const auth = await sheetsService.getAuth();
-      calendarEventId = await calendarService.createEvent(apt, 'AI Voice', auth);
-      apt.calendarEventId = calendarEventId;
-      console.log(`[TOOL] ✅ Calendar event created: ${calendarEventId}`);
-    } catch (calErr) {
-      console.error('[TOOL] Calendar error (non-fatal):', calErr.message);
-    }
-
-    // Write to Google Sheets
-    await sheetsService.appendAppointment(apt);
-    console.log(`[TOOL] ✅ Appointment written to Sheets: ${aptId}`);
+    // Save to CRM dashboard (local DB)
+    db.appendAppointment(apt);
+    console.log(`[TOOL] ✅ Appointment saved to dashboard: ${aptId}`);
 
     await activityService.addActivity({
       actor: 'AI Voice',
