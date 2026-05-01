@@ -17,8 +17,7 @@ const TABS = {
 
 const APT_COLS = {
   ID:0, NAME:1, PHONE:2, SERVICE:3, DOCTOR:4,
-  DATE:5, TIME:6, STATUS:7, SOURCE:8, DURATION:9,
-  NOTES:10, TIMESTAMP:11, CALENDAR_ID:12
+  DATE:5, TIME:6, STATUS:7, SOURCE:8
 };
 
 let auth   = null;
@@ -72,10 +71,7 @@ async function syncToSheets(fn) {
 function aptToRow(apt) {
   return [
     apt.id, apt.name, apt.phone, apt.service, apt.doctor || '',
-    apt.date, apt.time, apt.status || 'Pending', apt.source || 'AI Voice',
-    apt.callDuration || '', apt.notes || '',
-    apt.timestamp || new Date().toISOString(),
-    apt.calendarEventId || ''
+    apt.date, apt.time, apt.status || 'Pending', apt.source || 'AI Voice'
   ];
 }
 
@@ -85,9 +81,7 @@ function rowToApt(row) {
     phone: row[APT_COLS.PHONE]||'', service: row[APT_COLS.SERVICE]||'',
     doctor: row[APT_COLS.DOCTOR]||'', date: row[APT_COLS.DATE]||'',
     time: row[APT_COLS.TIME]||'', status: row[APT_COLS.STATUS]||'',
-    source: row[APT_COLS.SOURCE]||'', callDuration: row[APT_COLS.DURATION]||'',
-    notes: row[APT_COLS.NOTES]||'', timestamp: row[APT_COLS.TIMESTAMP]||'',
-    calendarEventId: row[APT_COLS.CALENDAR_ID]||''
+    source: row[APT_COLS.SOURCE]||''
   };
 }
 
@@ -100,6 +94,28 @@ async function initializeSheets() {
   }
   const client = await getGoogleClient();
   if (!client) { console.log('[SHEETS] Could not connect to Google Sheets'); return; }
+
+  // Set / refresh headers on each startup so column changes propagate automatically
+  const headers = {
+    [TABS.APPOINTMENTS]: [['ID','Patient Name','Phone','Service','Doctor','Date','Time','Status','Source']],
+    [TABS.MISSED]:       [['ID','Twilio Phone','Partial Data','Missing Fields','Timestamp','Resolved']],
+    [TABS.CALL_LOG]:     [['Call SID','From','To','Duration','Status','Timestamp']],
+    [TABS.ACTIVITY]:     [['ID','Actor','Action','Patient Name','Details','Timestamp']]
+  };
+
+  for (const [tab, values] of Object.entries(headers)) {
+    try {
+      await client.spreadsheets.values.update({
+        spreadsheetId: process.env.GOOGLE_SHEETS_ID,
+        range: `${tab}!A1`,
+        valueInputOption: 'RAW',
+        requestBody: { values }
+      });
+    } catch {
+      // Tab may not exist yet — silently skip
+    }
+  }
+
   console.log('[SHEETS] Google Sheets connected ✅');
 }
 
@@ -108,7 +124,7 @@ async function appendAppointment(apt) {
   syncToSheets(async (client) => {
     await client.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-      range: `${TABS.APPOINTMENTS}!A:M`,
+      range: `${TABS.APPOINTMENTS}!A:I`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [aptToRow(apt)] }
@@ -185,7 +201,7 @@ async function updateAppointment(id, updates) {
     const sheetRow = rowIdx + 1;
     await client.spreadsheets.values.update({
       spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-      range: `${TABS.APPOINTMENTS}!A${sheetRow}:M${sheetRow}`,
+      range: `${TABS.APPOINTMENTS}!A${sheetRow}:I${sheetRow}`,
       valueInputOption: 'RAW',
       requestBody: { values: [aptToRow(updated)] }
     });
