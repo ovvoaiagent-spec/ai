@@ -846,6 +846,10 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 function bootstrap() {
+  // Pre-fill Server URL with current origin so user doesn't have to type it
+  const urlInput = document.getElementById('cfg-url');
+  if (!urlInput.value) urlInput.value = localStorage.getItem('lavora_url') || window.location.origin;
+
   if (!CFG.url || !CFG.key) {
     document.getElementById('setup-screen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
