@@ -139,7 +139,7 @@ router.post('/book-appointment', async (req, res) => {
     });
 
     res.json({
-      result: `The appointment has been confirmed and saved. Tell the patient: "${name}, your ${normalizedService} appointment is confirmed for ${normalizedDate} at ${normalizedTime}. Our team will send you a confirmation via WhatsApp or SMS shortly. Thank you for calling Lavora Clinic."`,
+      result: `Booking saved successfully.`,
       success: true,
       appointment_id: aptId,
       date: normalizedDate,
