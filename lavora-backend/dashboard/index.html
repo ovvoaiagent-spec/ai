@@ -635,6 +635,7 @@ async function loadAll() {
     setConn(true);
   } catch (err) {
     setConn(false);
+    toast('Connection error: ' + err.message, 'error');
     console.error('Load error:', err.message);
   }
   loadIntegrationStatus();
