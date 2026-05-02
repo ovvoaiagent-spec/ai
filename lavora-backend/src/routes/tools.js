@@ -30,6 +30,19 @@ function verifyToolSecret(req, res) {
   return true;
 }
 
+// Find the most recent active appointment for a phone number
+async function findActiveAppointment(phone) {
+  const normalized = normalizePhone(phone);
+  const all = await db.getAllAppointments();
+  const matches = all.filter(a =>
+    a.status !== 'Cancelled' &&
+    (normalizePhone(a.phone) === normalized || a.phone === phone)
+  );
+  // Return most upcoming, or most recent if all in past
+  matches.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return matches[matches.length - 1] || null;
+}
+
 // ─── Tool: check_availability ─────────────────────────────────────────────────
 router.post('/check-availability', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
@@ -123,7 +136,7 @@ router.post('/book-appointment', async (req, res) => {
       actor: 'AI Voice',
       actionType: activityService.ACTION_TYPES.BOOKED,
       patientName: name,
-      details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | Live tool booking | ID: ${aptId}`
+      details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | Live booking | ID: ${aptId}`
     });
 
     res.json({
@@ -139,9 +152,160 @@ router.post('/book-appointment', async (req, res) => {
     console.error('[TOOL] book_appointment error:', err.message);
     res.json({
       result: 'There was a technical issue saving the appointment. Please tell the patient: "I have noted your request and our team will confirm within the hour." Then end the call politely.',
-      success: false,
-      error: err.message
+      success: false
     });
+  }
+});
+
+// ─── Tool: find_appointment ───────────────────────────────────────────────────
+router.post('/find-appointment', async (req, res) => {
+  if (!verifyToolSecret(req, res)) return;
+
+  const { phone } = req.body;
+  if (!phone) {
+    return res.json({ result: 'I need a phone number to look up the appointment.', found: false });
+  }
+
+  console.log(`[TOOL] find_appointment → phone=${phone}`);
+
+  try {
+    const apt = await findActiveAppointment(phone);
+    if (!apt) {
+      return res.json({
+        result: 'I could not find any upcoming appointment for this number.',
+        found: false
+      });
+    }
+
+    res.json({
+      result: `I found an appointment: ${apt.service} on ${apt.date} at ${apt.time}.`,
+      found: true,
+      appointment_id: apt.id,
+      name: apt.name,
+      service: apt.service,
+      date: apt.date,
+      time: apt.time,
+      phone: apt.phone,
+      status: apt.status
+    });
+  } catch (err) {
+    console.error('[TOOL] find_appointment error:', err.message);
+    res.json({ result: 'I was unable to look up the appointment right now.', found: false });
+  }
+});
+
+// ─── Tool: cancel_appointment ─────────────────────────────────────────────────
+router.post('/cancel-appointment', async (req, res) => {
+  if (!verifyToolSecret(req, res)) return;
+
+  const { appointment_id, phone } = req.body;
+
+  console.log(`[TOOL] cancel_appointment → id=${appointment_id}, phone=${phone}`);
+
+  try {
+    let apt = null;
+
+    if (appointment_id) {
+      apt = await db.getAppointmentById(appointment_id);
+    } else if (phone) {
+      apt = await findActiveAppointment(phone);
+    }
+
+    if (!apt) {
+      return res.json({
+        result: 'I could not find that appointment to cancel.',
+        success: false
+      });
+    }
+
+    await db.cancelAppointment(apt.id);
+
+    await activityService.addActivity({
+      actor: 'AI Voice',
+      actionType: activityService.ACTION_TYPES.CANCELLED,
+      patientName: apt.name,
+      details: `${apt.service} on ${apt.date} at ${apt.time} | Cancelled via voice | ID: ${apt.id}`
+    });
+
+    console.log(`[TOOL] ✅ Appointment cancelled: ${apt.id}`);
+
+    res.json({
+      result: `Appointment cancelled successfully.`,
+      success: true,
+      service: apt.service,
+      date: apt.date,
+      time: apt.time
+    });
+  } catch (err) {
+    console.error('[TOOL] cancel_appointment error:', err.message);
+    res.json({ result: 'There was a technical issue cancelling the appointment. Our team will follow up.', success: false });
+  }
+});
+
+// ─── Tool: reschedule_appointment ─────────────────────────────────────────────
+router.post('/reschedule-appointment', async (req, res) => {
+  if (!verifyToolSecret(req, res)) return;
+
+  const { appointment_id, phone, new_date, new_time } = req.body;
+
+  if (!new_date || !new_time) {
+    return res.json({ result: 'I need both a new date and a new time to reschedule.', success: false });
+  }
+
+  const normalizedDate = parseDate(new_date) || new_date;
+  const normalizedTime = parseTime(new_time) || new_time;
+
+  console.log(`[TOOL] reschedule_appointment → id=${appointment_id}, new=${normalizedDate} ${normalizedTime}`);
+
+  try {
+    let apt = null;
+
+    if (appointment_id) {
+      apt = await db.getAppointmentById(appointment_id);
+    } else if (phone) {
+      apt = await findActiveAppointment(phone);
+    }
+
+    if (!apt) {
+      return res.json({ result: 'I could not find that appointment to reschedule.', success: false });
+    }
+
+    // Check new slot is free
+    const conflict = await db.checkConflict(normalizedDate, normalizedTime);
+    if (conflict) {
+      return res.json({
+        result: `The new slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different time.`,
+        success: false,
+        available: false
+      });
+    }
+
+    await db.updateAppointment(apt.id, {
+      date: normalizedDate,
+      time: normalizedTime,
+      status: 'Confirmed'
+    });
+
+    await activityService.addActivity({
+      actor: 'AI Voice',
+      actionType: activityService.ACTION_TYPES.RESCHEDULED,
+      patientName: apt.name,
+      details: `${apt.service} rescheduled from ${apt.date} ${apt.time} → ${normalizedDate} ${normalizedTime} | ID: ${apt.id}`
+    });
+
+    console.log(`[TOOL] ✅ Appointment rescheduled: ${apt.id}`);
+
+    res.json({
+      result: `Appointment rescheduled successfully.`,
+      success: true,
+      service: apt.service,
+      date: normalizedDate,
+      time: normalizedTime,
+      phone: apt.phone
+    });
+  } catch (err) {
+    console.error('[TOOL] reschedule_appointment error:', err.message);
+    res.json({ result: 'There was a technical issue rescheduling. Our team will follow up.', success: false });
   }
 });
 
@@ -154,8 +318,7 @@ router.post('/get-services', (_req, res) => {
       'PRP', 'Mesotherapy', 'Exosomes', 'Stem Cell',
       'Frax Pro', 'Picoway', 'RedTouch', 'Chemical Peels',
       'Laser Hair Removal', 'Onda Plus', 'Redustim', 'Body Wraps',
-      'Aesthetic Gynecology', 'Vaginoplasty', 'Labiaplasty',
-      'Medical Skin Care', 'Dermatology', 'Consultation'
+      'Aesthetic Gynecology', 'Medical Skin Care', 'Dermatology', 'Consultation'
     ]
   });
 });
