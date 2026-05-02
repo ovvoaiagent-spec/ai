@@ -1,11 +1,8 @@
 /**
  * Real-time tool endpoints — called by the ElevenLabs agent MID-CONVERSATION.
- * The agent uses these to check availability and confirm bookings live,
- * before the call ends, so the patient gets an immediate confirmation.
  */
 
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
 const db = require('../services/localDbService');
@@ -13,20 +10,18 @@ const activityService = require('../services/activityService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
 
-// Normalise phone: strip spaces/dashes, add +968 if looks like an Oman local number
 function normalizePhone(raw) {
   if (!raw) return raw;
   let p = String(raw).replace(/[\s\-().]/g, '');
   if (p.startsWith('00')) p = '+' + p.slice(2);
   if (p.startsWith('0') && !p.startsWith('00')) p = '+968' + p.slice(1);
-  if (/^\d{8}$/.test(p)) p = '+968' + p; // bare 8-digit Oman number
+  if (/^\d{8}$/.test(p)) p = '+968' + p;
   return p;
 }
 
-// Lightweight auth — ElevenLabs sends the secret we configure in agent tools
 function verifyToolSecret(req, res) {
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
-  if (!secret) return true; // skip if not configured
+  if (!secret) return true;
   const incoming = req.headers['x-tool-secret'] || req.headers['xi-api-key'];
   if (incoming !== secret) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -36,7 +31,6 @@ function verifyToolSecret(req, res) {
 }
 
 // ─── Tool: check_availability ─────────────────────────────────────────────────
-// Agent calls this before confirming a slot with the patient.
 router.post('/check-availability', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
 
@@ -51,7 +45,7 @@ router.post('/check-availability', async (req, res) => {
   console.log(`[TOOL] check_availability → date=${normalizedDate}, time=${normalizedTime}`);
 
   try {
-    const conflict = db.checkConflict(normalizedDate, normalizedTime);
+    const conflict = await db.checkConflict(normalizedDate, normalizedTime);
     if (conflict) {
       res.json({
         result: `That slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different date or time to the patient.`,
@@ -72,8 +66,6 @@ router.post('/check-availability', async (req, res) => {
 });
 
 // ─── Tool: book_appointment ───────────────────────────────────────────────────
-// Agent calls this once it has all 5 fields confirmed by the patient.
-// Writes to Google Sheets AND creates a Google Calendar event immediately.
 router.post('/book-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
 
@@ -100,8 +92,7 @@ router.post('/book-appointment', async (req, res) => {
   console.log(`[TOOL] book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
 
   try {
-    // Final conflict check
-    const conflict = db.checkConflict(normalizedDate, normalizedTime);
+    const conflict = await db.checkConflict(normalizedDate, normalizedTime);
     if (conflict) {
       return res.json({
         result: `That slot is no longer available. Please inform the patient and suggest a different time.`,
@@ -125,9 +116,8 @@ router.post('/book-appointment', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    // Save to CRM dashboard (local DB)
-    db.appendAppointment(apt);
-    console.log(`[TOOL] ✅ Appointment saved to dashboard: ${aptId}`);
+    await db.appendAppointment(apt);
+    console.log(`[TOOL] ✅ Appointment saved: ${aptId}`);
 
     await activityService.addActivity({
       actor: 'AI Voice',
@@ -156,7 +146,6 @@ router.post('/book-appointment', async (req, res) => {
 });
 
 // ─── Tool: get_services ───────────────────────────────────────────────────────
-// Agent can call this to list available services if the patient is unsure.
 router.post('/get-services', (_req, res) => {
   res.json({
     result: 'Here are the available services at Lavora Clinic.',

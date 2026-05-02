@@ -10,12 +10,6 @@ const ACTION_TYPES = {
   CALL_RECEIVED: 'CALL_RECEIVED'
 };
 
-let sheetsService = null;
-
-function init(sheets) {
-  sheetsService = sheets;
-}
-
 async function addActivity({ actor, actionType, patientName = '', details = '' }) {
   const entry = {
     id: uuidv4(),
@@ -25,28 +19,18 @@ async function addActivity({ actor, actionType, patientName = '', details = '' }
     details,
     timestamp: new Date().toISOString()
   };
-
   console.log(`[ACTIVITY] ${actor} | ${actionType} | ${patientName} | ${details}`);
-
-  if (sheetsService) {
-    try {
-      await sheetsService.appendActivity(entry);
-    } catch (err) {
-      console.error('[ACTIVITY] Failed to sync:', err.message);
-    }
-  } else {
-    db.appendActivity(entry);
-  }
-
+  await db.appendActivity(entry);
   return entry;
 }
 
-function getActivities(limit = 50) {
+async function getActivities(limit = 50) {
   try {
-    return db.getAllActivities().slice(0, limit);
+    const all = await db.getAllActivities();
+    return all.slice(0, limit);
   } catch {
     return [];
   }
 }
 
-module.exports = { init, addActivity, getActivities, ACTION_TYPES };
+module.exports = { addActivity, getActivities, ACTION_TYPES };

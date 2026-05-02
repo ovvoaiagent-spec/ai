@@ -1,14 +1,13 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const sheetsService = require('./sheetsService');
-const calendarService = require('./calendarService');
+const db = require('./localDbService');
 const activityService = require('./activityService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('./extractionService');
 
 const PROCESSED_FILE = path.join(__dirname, '../../data/processed-conversations.json');
-const POLL_INTERVAL_MS = 30 * 1000; // every 30 seconds
+const POLL_INTERVAL_MS = 30 * 1000;
 
 const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 const API_KEY  = process.env.ELEVENLABS_API_KEY;
@@ -20,9 +19,7 @@ function loadProcessed() {
 
 function saveProcessed(ids) {
   fs.mkdirSync(path.dirname(PROCESSED_FILE), { recursive: true });
-  // keep last 1000 IDs
-  const trimmed = ids.slice(-1000);
-  fs.writeFileSync(PROCESSED_FILE, JSON.stringify(trimmed));
+  fs.writeFileSync(PROCESSED_FILE, JSON.stringify(ids.slice(-1000)));
 }
 
 function elevenlabsGet(path) {
@@ -56,20 +53,17 @@ async function processConversation(conv) {
     const dc = detail.analysis?.data_collection_results || {};
     const action = getVal(dc, 'appointment_action');
 
-    // Skip only if explicitly marked as not booked
     if (action && action !== 'booked') {
       console.log(`[POLL] Conv ${convId} — action=${action}, skipping`);
       return;
     }
 
-    // Extract fields from ElevenLabs data collection
     let name    = getVal(dc, 'patient_full_name');
     let phone   = getVal(dc, 'patient_phone_number');
     let dateRaw = getVal(dc, 'appointment_date_time');
     let service = getVal(dc, 'appointment_service');
     const reason = getVal(dc, 'reason_for_call') || '';
 
-    // Use reason_for_call to get real service if appointment_service is generic
     if (!service || service === 'other' || service === 'consultation') {
       service = matchService(reason) || matchService(
         (detail.transcript || []).map(t => t.message || '').join(' ')
@@ -78,10 +72,8 @@ async function processConversation(conv) {
       service = matchService(service) || service;
     }
 
-    // Parse date and time from ISO or natural language
     let date = null, time = null;
     if (dateRaw) {
-      // ISO format: 2026-05-04T09:00:00+04:00
       const isoMatch = dateRaw.match(/(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
       if (isoMatch) {
         date = isoMatch[1];
@@ -94,6 +86,16 @@ async function processConversation(conv) {
 
     if (!name || !phone || !date || !service) {
       console.log(`[POLL] Conv ${convId} — incomplete: name=${name}, phone=${phone}, date=${date}, service=${service}`);
+      return;
+    }
+
+    // Duplicate check
+    const existing = await db.getAllAppointments();
+    const duplicate = existing.some(a =>
+      a.name === name && a.date === date && a.time === time && a.status !== 'Cancelled'
+    );
+    if (duplicate) {
+      console.log(`[POLL] Conv ${convId} — duplicate appointment, skipping`);
       return;
     }
 
@@ -110,31 +112,10 @@ async function processConversation(conv) {
       source: 'AI Voice',
       callDuration: detail.metadata?.call_duration_secs || '',
       notes: `Conversation ID: ${convId}`,
-      timestamp: new Date().toISOString(),
-      calendarEventId: ''
+      timestamp: new Date().toISOString()
     };
 
-    // Check for duplicate (same name + date + time)
-    const existing = await sheetsService.getAllAppointments();
-    const duplicate = existing.some(a =>
-      a.name === name && a.date === date && a.time === time && a.status !== 'Cancelled'
-    );
-    if (duplicate) {
-      console.log(`[POLL] Conv ${convId} — duplicate appointment, skipping`);
-      return;
-    }
-
-    // Save to calendar
-    try {
-      const auth = await sheetsService.getAuth();
-      const calEventId = await calendarService.createEvent(apt, 'AI Voice', auth);
-      if (calEventId) apt.calendarEventId = calEventId;
-    } catch (e) {
-      console.warn('[POLL] Calendar error (non-fatal):', e.message);
-    }
-
-    // Save to DB + Sheets
-    await sheetsService.appendAppointment(apt);
+    await db.appendAppointment(apt);
 
     await activityService.addActivity({
       actor: 'AI Voice',
@@ -181,8 +162,8 @@ function start() {
     console.log('[POLL] ElevenLabs not configured — polling disabled');
     return;
   }
-  console.log('[POLL] Starting ElevenLabs conversation polling (every 60s)');
-  poll(); // run immediately on start
+  console.log('[POLL] Starting ElevenLabs conversation polling (every 30s)');
+  poll();
   setInterval(poll, POLL_INTERVAL_MS);
 }
 

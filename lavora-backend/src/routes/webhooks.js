@@ -1,14 +1,11 @@
 const express = require('express');
 const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
 const db = require('../services/localDbService');
 const extractionService = require('../services/extractionService');
 const activityService = require('../services/activityService');
-const { extractPhone } = require('../services/extractionService');
 
-// ─── ElevenLabs Signature Verification ───────────────────────────────────────
 function verifyElevenLabsSignature(req) {
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
   if (!secret) return true;
@@ -58,7 +55,7 @@ router.post('/elevenlabs', async (req, res) => {
     if (!isComplete) {
       console.log(`[WEBHOOK] Incomplete booking — missing: ${missing.join(', ')}`);
 
-      db.appendMissedCapture({
+      await db.appendMissedCapture({
         id: `MISS-${Date.now()}`,
         twilioPhone: data.metadata?.caller_id || '',
         partialData: fields,
@@ -76,10 +73,10 @@ router.post('/elevenlabs', async (req, res) => {
       return;
     }
 
-    const hasConflict = db.checkConflict(fields.date, fields.time, null);
+    const hasConflict = await db.checkConflict(fields.date, fields.time, null);
     if (hasConflict) {
       console.warn(`[WEBHOOK] Conflict detected for ${fields.date} ${fields.time} — not booking`);
-      db.appendMissedCapture({
+      await db.appendMissedCapture({
         id: `CONF-${Date.now()}`,
         twilioPhone: fields.phone,
         partialData: fields,
@@ -105,8 +102,8 @@ router.post('/elevenlabs', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    db.appendAppointment(apt);
-    console.log(`[WEBHOOK] ✅ Appointment saved to dashboard: ${aptId}`);
+    await db.appendAppointment(apt);
+    console.log(`[WEBHOOK] ✅ Appointment saved: ${aptId}`);
 
     await activityService.addActivity({
       actor: 'AI Voice',
@@ -132,7 +129,7 @@ router.post('/twilio/call-status', async (req, res) => {
 
     console.log(`[TWILIO] CallSid=${CallSid} | From=${From} | Status=${CallStatus} | Duration=${CallDuration}s`);
 
-    db.appendCallLog({
+    await db.appendCallLog({
       callSid: CallSid,
       from: From,
       to: To,

@@ -1,5 +1,4 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
 const dayjs = require('dayjs');
 const router = express.Router();
 
@@ -9,13 +8,12 @@ const activityService = require('../services/activityService');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 
-// All CRM endpoints require API key
 router.use(requireApiKey);
 
 // ─── GET /api/appointments ────────────────────────────────────────────────────
-router.get('/appointments', (req, res) => {
+router.get('/appointments', async (req, res) => {
   try {
-    let appointments = db.getAllAppointments();
+    let appointments = await db.getAllAppointments();
 
     const { date, status, source } = req.query;
     if (date) appointments = appointments.filter(a => a.date === date);
@@ -30,10 +28,10 @@ router.get('/appointments', (req, res) => {
 });
 
 // ─── GET /api/appointments/today ─────────────────────────────────────────────
-router.get('/appointments/today', (req, res) => {
+router.get('/appointments/today', async (req, res) => {
   try {
     const today = dayjs().format('YYYY-MM-DD');
-    const all = db.getAllAppointments();
+    const all = await db.getAllAppointments();
     const todayApts = all.filter(a => a.date === today && a.status !== 'Cancelled');
     res.json({ date: today, count: todayApts.length, appointments: todayApts });
   } catch (err) {
@@ -61,7 +59,7 @@ router.post('/appointments', async (req, res) => {
     const normalizedTime = parseTime(time) || time;
     const normalizedService = matchService(service) || service;
 
-    const conflict = db.checkConflict(normalizedDate, normalizedTime, doctor);
+    const conflict = await db.checkConflict(normalizedDate, normalizedTime, doctor);
     if (conflict) {
       return res.status(409).json({
         error: 'Conflict: the requested date/time slot is already booked',
@@ -86,7 +84,7 @@ router.post('/appointments', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    db.appendAppointment(apt);
+    await db.appendAppointment(apt);
 
     await activityService.addActivity({
       actor: 'Human',
@@ -110,7 +108,7 @@ router.put('/appointments/:id', async (req, res) => {
     const { id } = req.params;
     const { name, phone, service, doctor, date, time, status, notes } = req.body;
 
-    const existing = db.getAppointmentById(id);
+    const existing = await db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
     const updates = {};
@@ -126,7 +124,7 @@ router.put('/appointments/:id', async (req, res) => {
     const newDate = updates.date || existing.date;
     const newTime = updates.time || existing.time;
     if (updates.date || updates.time) {
-      const others = db.getAllAppointments().filter(a => a.id !== id && a.status !== 'Cancelled');
+      const others = (await db.getAllAppointments()).filter(a => a.id !== id && a.status !== 'Cancelled');
       const conflict = others.some(a => a.date === newDate && a.time === newTime);
       if (conflict) {
         return res.status(409).json({
@@ -136,7 +134,7 @@ router.put('/appointments/:id', async (req, res) => {
       }
     }
 
-    const updated = db.updateAppointment(id, updates);
+    const updated = await db.updateAppointment(id, updates);
 
     const isReschedule = updates.date || updates.time;
     await activityService.addActivity({
@@ -161,10 +159,10 @@ router.delete('/appointments/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = db.getAppointmentById(id);
+    const existing = await db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
-    db.cancelAppointment(id);
+    await db.cancelAppointment(id);
 
     await activityService.addActivity({
       actor: 'Human',
@@ -182,9 +180,9 @@ router.delete('/appointments/:id', async (req, res) => {
 });
 
 // ─── GET /api/activity ────────────────────────────────────────────────────────
-router.get('/activity', (req, res) => {
+router.get('/activity', async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
-  res.json({ activities: activityService.getActivities(limit) });
+  res.json({ activities: await activityService.getActivities(limit) });
 });
 
 // ─── POST /api/setup-agent ────────────────────────────────────────────────────
@@ -337,11 +335,11 @@ router.post('/poll-now', async (req, res) => {
 });
 
 // ─── GET /api/debug ───────────────────────────────────────────────────────────
-router.get('/debug', (req, res) => {
+router.get('/debug', async (req, res) => {
   try {
-    const all = db.getAllAppointments();
+    const all = await db.getAllAppointments();
     res.json({
-      storage: 'local DB',
+      storage: process.env.DATABASE_URL ? 'postgresql' : 'local-json',
       appointmentCount: all.length,
       sample: all.slice(-3)
     });
@@ -351,9 +349,9 @@ router.get('/debug', (req, res) => {
 });
 
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
-    res.json(db.getStats());
+    res.json(await db.getStats());
   } catch (err) {
     console.error('[API] GET /stats error:', err.message);
     res.status(500).json({ error: err.message });
