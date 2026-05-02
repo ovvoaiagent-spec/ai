@@ -4,8 +4,7 @@ const dayjs = require('dayjs');
 const router = express.Router();
 
 const { requireApiKey } = require('../middleware/auth');
-const sheetsService = require('../services/sheetsService');
-const calendarService = require('../services/calendarService');
+const db = require('../services/localDbService');
 const activityService = require('../services/activityService');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
@@ -14,11 +13,10 @@ const { parseDate, parseTime } = require('../utils/dateParser');
 router.use(requireApiKey);
 
 // ─── GET /api/appointments ────────────────────────────────────────────────────
-router.get('/appointments', async (req, res) => {
+router.get('/appointments', (req, res) => {
   try {
-    let appointments = await sheetsService.getAllAppointments();
+    let appointments = db.getAllAppointments();
 
-    // Filters
     const { date, status, source } = req.query;
     if (date) appointments = appointments.filter(a => a.date === date);
     if (status) appointments = appointments.filter(a => a.status.toLowerCase() === status.toLowerCase());
@@ -32,10 +30,10 @@ router.get('/appointments', async (req, res) => {
 });
 
 // ─── GET /api/appointments/today ─────────────────────────────────────────────
-router.get('/appointments/today', async (req, res) => {
+router.get('/appointments/today', (req, res) => {
   try {
     const today = dayjs().format('YYYY-MM-DD');
-    const all = await sheetsService.getAllAppointments();
+    const all = db.getAllAppointments();
     const todayApts = all.filter(a => a.date === today && a.status !== 'Cancelled');
     res.json({ date: today, count: todayApts.length, appointments: todayApts });
   } catch (err) {
@@ -63,8 +61,7 @@ router.post('/appointments', async (req, res) => {
     const normalizedTime = parseTime(time) || time;
     const normalizedService = matchService(service) || service;
 
-    // Conflict check
-    const conflict = await sheetsService.checkConflict(normalizedDate, normalizedTime, doctor);
+    const conflict = db.checkConflict(normalizedDate, normalizedTime, doctor);
     if (conflict) {
       return res.status(409).json({
         error: 'Conflict: the requested date/time slot is already booked',
@@ -86,21 +83,10 @@ router.post('/appointments', async (req, res) => {
       source: 'Human',
       callDuration: '',
       notes: notes || '',
-      timestamp: new Date().toISOString(),
-      calendarEventId: ''
+      timestamp: new Date().toISOString()
     };
 
-    // Google Calendar
-    let calendarEventId = '';
-    try {
-      const auth = await sheetsService.getAuth();
-      calendarEventId = await calendarService.createEvent(apt, 'Human', auth);
-      apt.calendarEventId = calendarEventId;
-    } catch (calErr) {
-      console.error('[API] Calendar error (non-fatal):', calErr.message);
-    }
-
-    await sheetsService.appendAppointment(apt);
+    db.appendAppointment(apt);
 
     await activityService.addActivity({
       actor: 'Human',
@@ -124,7 +110,7 @@ router.put('/appointments/:id', async (req, res) => {
     const { id } = req.params;
     const { name, phone, service, doctor, date, time, status, notes } = req.body;
 
-    const existing = await sheetsService.getAppointmentById(id);
+    const existing = db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
     const updates = {};
@@ -137,12 +123,10 @@ router.put('/appointments/:id', async (req, res) => {
     if (status !== undefined) updates.status = status;
     if (notes !== undefined) updates.notes = notes;
 
-    // Check for reschedule conflict
     const newDate = updates.date || existing.date;
     const newTime = updates.time || existing.time;
     if (updates.date || updates.time) {
-      const others = (await sheetsService.getAllAppointments())
-        .filter(a => a.id !== id && a.status !== 'Cancelled');
+      const others = db.getAllAppointments().filter(a => a.id !== id && a.status !== 'Cancelled');
       const conflict = others.some(a => a.date === newDate && a.time === newTime);
       if (conflict) {
         return res.status(409).json({
@@ -152,18 +136,7 @@ router.put('/appointments/:id', async (req, res) => {
       }
     }
 
-    const updated = await sheetsService.updateAppointment(id, updates);
-
-    // Update Calendar event
-    if (existing.calendarEventId) {
-      try {
-        const auth = await sheetsService.getAuth();
-        const merged = { ...existing, ...updates };
-        await calendarService.updateEvent(existing.calendarEventId, merged, auth);
-      } catch (calErr) {
-        console.error('[API] Calendar update error (non-fatal):', calErr.message);
-      }
-    }
+    const updated = db.updateAppointment(id, updates);
 
     const isReschedule = updates.date || updates.time;
     await activityService.addActivity({
@@ -188,20 +161,10 @@ router.delete('/appointments/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = await sheetsService.getAppointmentById(id);
+    const existing = db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
-    await sheetsService.cancelAppointment(id);
-
-    // Delete Calendar event
-    if (existing.calendarEventId) {
-      try {
-        const auth = await sheetsService.getAuth();
-        await calendarService.deleteEvent(existing.calendarEventId, auth);
-      } catch (calErr) {
-        console.error('[API] Calendar delete error (non-fatal):', calErr.message);
-      }
-    }
+    db.cancelAppointment(id);
 
     await activityService.addActivity({
       actor: 'Human',
@@ -225,7 +188,6 @@ router.get('/activity', (req, res) => {
 });
 
 // ─── POST /api/setup-agent ────────────────────────────────────────────────────
-// Re-applies the system prompt + tools to ElevenLabs agent
 router.post('/setup-agent', async (req, res) => {
   const https = require('https');
   const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
@@ -252,7 +214,6 @@ router.post('/setup-agent', async (req, res) => {
       req2.end();
     });
   }
-  const elevenlabsPatch = (body) => elevenlabsRequest('PATCH', body);
 
   const SYSTEM_PROMPT = `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
 Your name is Lavora Assistant. You are professional, warm, and refined — reflecting a luxury medical aesthetic clinic.
@@ -260,7 +221,7 @@ Your name is Lavora Assistant. You are professional, warm, and refined — refle
 CONVERSATION FLOW — follow this exact order:
 1. The first message asks the patient if they prefer Arabic or English. Switch fully to their chosen language immediately.
 2. Ask what service or treatment they want.
-3. Ask for their preferred appointment date.
+3. Ask for their preferred appointment day.
 4. Ask for their preferred appointment time.
 5. Ask for their full name.
 6. Ask: "Would you like us to contact you on the number you are calling from, or a different number?"
@@ -337,7 +298,7 @@ RULES:
   const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
 
   try {
-    const result = await elevenlabsPatch({
+    const result = await elevenlabsRequest('PATCH', {
       conversation_config: {
         tts: { voice_id: VOICE_ID },
         agent: {
@@ -375,62 +336,24 @@ router.post('/poll-now', async (req, res) => {
   }
 });
 
-// ─── GET /api/debug ──────────────────────────────────────────────────────────
-router.get('/debug', async (req, res) => {
-  const info = {
-    googleConfigured: sheetsService.googleConfigured(),
-    sheetsId: process.env.GOOGLE_SHEETS_ID ? '✅ set' : '❌ missing',
-    credPath: process.env.GOOGLE_SERVICE_ACCOUNT_JSON_PATH ? '✅ set' : '❌ missing',
-    localDbCount: 0,
-    sheetsCount: null,
-    sheetsError: null,
-    rawSheetsSample: null
-  };
-
+// ─── GET /api/debug ───────────────────────────────────────────────────────────
+router.get('/debug', (req, res) => {
   try {
-    const local = await sheetsService.getAllAppointments();
-    info.localDbCount = local.length;
-  } catch {}
-
-  // Direct Sheets read bypassing getAllAppointments cache logic
-  if (sheetsService.googleConfigured()) {
-    try {
-      const auth = await sheetsService.getAuth();
-      const { google } = require('googleapis');
-      const client = google.sheets({ version: 'v4', auth });
-      const r = await client.spreadsheets.values.get({
-        spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-        range: 'Appointments!A:I'
-      });
-      const rows = r.data.values || [];
-      info.sheetsCount = rows.length;
-      info.rawSheetsSample = rows.slice(0, 4); // first 4 rows including header
-    } catch (err) {
-      info.sheetsError = err.message;
-    }
+    const all = db.getAllAppointments();
+    res.json({
+      storage: 'local DB',
+      appointmentCount: all.length,
+      sample: all.slice(-3)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.json(info);
 });
 
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
-router.get('/stats', async (req, res) => {
+router.get('/stats', (req, res) => {
   try {
-    const all = await sheetsService.getAllAppointments();
-    const today = dayjs().format('YYYY-MM-DD');
-
-    const todayApts = all.filter(a => a.date === today);
-    const stats = {
-      today_total: todayApts.length,
-      ai_booked: all.filter(a => a.source === 'AI Voice').length,
-      human_booked: all.filter(a => a.source === 'Human').length,
-      pending: all.filter(a => a.status === 'Pending').length,
-      confirmed: all.filter(a => a.status === 'Confirmed').length,
-      cancelled: all.filter(a => a.status === 'Cancelled').length,
-      total: all.length
-    };
-
-    res.json(stats);
+    res.json(db.getStats());
   } catch (err) {
     console.error('[API] GET /stats error:', err.message);
     res.status(500).json({ error: err.message });
