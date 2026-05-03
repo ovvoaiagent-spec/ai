@@ -5,7 +5,8 @@
 const express = require('express');
 const router = express.Router();
 
-const db = require('../services/localDbService');
+const db          = require('../services/localDbService');
+const googleSync  = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
@@ -23,14 +24,10 @@ function verifyToolSecret(req, res) {
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
   if (!secret) return true;
   const incoming = req.headers['x-tool-secret'] || req.headers['xi-api-key'];
-  if (incoming !== secret) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return false;
-  }
+  if (incoming !== secret) { res.status(401).json({ error: 'Unauthorized' }); return false; }
   return true;
 }
 
-// Find the most recent active appointment for a phone number
 async function findActiveAppointment(phone) {
   const normalized = normalizePhone(phone);
   const all = await db.getAllAppointments();
@@ -38,298 +35,183 @@ async function findActiveAppointment(phone) {
     a.status !== 'Cancelled' &&
     (normalizePhone(a.phone) === normalized || a.phone === phone)
   );
-  // Return most upcoming, or most recent if all in past
   matches.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   return matches[matches.length - 1] || null;
 }
 
-// ─── Tool: check_availability ─────────────────────────────────────────────────
+// ─── check_availability ───────────────────────────────────────────────────────
 router.post('/check-availability', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
-
   const { date, time } = req.body;
-  if (!date || !time) {
-    return res.json({ result: 'I need both a date and a time to check availability.' });
-  }
+  if (!date || !time) return res.json({ result: 'I need both a date and a time to check availability.' });
 
   const normalizedDate = parseDate(date) || date;
   const normalizedTime = parseTime(time) || time;
-
-  console.log(`[TOOL] check_availability → date=${normalizedDate}, time=${normalizedTime}`);
+  console.log(`[TOOL] check_availability → ${normalizedDate} ${normalizedTime}`);
 
   try {
     const conflict = await db.checkConflict(normalizedDate, normalizedTime);
     if (conflict) {
-      res.json({
-        result: `That slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different date or time to the patient.`,
-        available: false
-      });
+      res.json({ result: `That slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different date or time.`, available: false });
     } else {
-      res.json({
-        result: `The slot on ${normalizedDate} at ${normalizedTime} is available. You can proceed to confirm the booking.`,
-        available: true,
-        date: normalizedDate,
-        time: normalizedTime
-      });
+      res.json({ result: `The slot on ${normalizedDate} at ${normalizedTime} is available.`, available: true, date: normalizedDate, time: normalizedTime });
     }
   } catch (err) {
-    console.error('[TOOL] check_availability error:', err.message);
-    res.json({ result: 'I was unable to check availability right now. Please proceed with the booking and the team will confirm.' });
+    res.json({ result: 'Unable to check availability right now. Please proceed and the team will confirm.' });
   }
 });
 
-// ─── Tool: book_appointment ───────────────────────────────────────────────────
+// ─── book_appointment ─────────────────────────────────────────────────────────
 router.post('/book-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
-
   const { name, phone, date, time, service } = req.body;
 
   const missing = [];
   if (!name) missing.push('full name');
   if (!phone) missing.push('phone number');
-  if (!date) missing.push('appointment date');
-  if (!time) missing.push('appointment time');
+  if (!date) missing.push('date');
+  if (!time) missing.push('time');
   if (!service) missing.push('service');
+  if (missing.length) return res.json({ result: `I still need: ${missing.join(', ')}.` });
 
-  if (missing.length) {
-    return res.json({
-      result: `I still need the following information before I can book: ${missing.join(', ')}. Please ask the patient for these details.`
-    });
-  }
-
-  const normalizedDate = parseDate(date) || date;
-  const normalizedTime = parseTime(time) || time;
+  const normalizedDate    = parseDate(date) || date;
+  const normalizedTime    = parseTime(time) || time;
   const normalizedService = matchService(service) || service;
-  const normalizedPhone = normalizePhone(phone);
+  const normalizedPhone   = normalizePhone(phone);
 
   console.log(`[TOOL] book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
 
   try {
-    const conflict = await db.checkConflict(normalizedDate, normalizedTime);
-    if (conflict) {
-      return res.json({
-        result: `That slot is no longer available. Please inform the patient and suggest a different time.`,
-        success: false
-      });
+    if (await db.checkConflict(normalizedDate, normalizedTime)) {
+      return res.json({ result: `That slot is no longer available. Please suggest a different time.`, success: false });
     }
 
     const aptId = `APT-${Date.now()}`;
     const apt = {
-      id: aptId,
-      name,
-      phone: normalizedPhone,
-      service: normalizedService,
-      doctor: '',
-      date: normalizedDate,
-      time: normalizedTime,
-      status: 'Confirmed',
-      source: 'AI Voice',
-      callDuration: '',
-      notes: '',
-      timestamp: new Date().toISOString()
+      id: aptId, name, phone: normalizedPhone,
+      service: normalizedService, doctor: '',
+      date: normalizedDate, time: normalizedTime,
+      status: 'Confirmed', source: 'AI Voice',
+      callDuration: '', notes: '',
+      timestamp: new Date().toISOString(),
+      calendarEventId: ''
     };
 
     await db.appendAppointment(apt);
-    console.log(`[TOOL] ✅ Appointment saved: ${aptId}`);
+    googleSync.book(apt);   // Sheets + Calendar in background
 
     await activityService.addActivity({
-      actor: 'AI Voice',
-      actionType: activityService.ACTION_TYPES.BOOKED,
+      actor: 'AI Voice', actionType: activityService.ACTION_TYPES.BOOKED,
       patientName: name,
-      details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | Live booking | ID: ${aptId}`
+      details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | ID: ${aptId}`
     });
 
-    res.json({
-      result: `Booking saved successfully.`,
-      success: true,
-      appointment_id: aptId,
-      date: normalizedDate,
-      time: normalizedTime,
-      service: normalizedService
-    });
+    console.log(`[TOOL] ✅ Booked: ${aptId}`);
+    res.json({ result: `Booking saved successfully.`, success: true, appointment_id: aptId, date: normalizedDate, time: normalizedTime, service: normalizedService });
 
   } catch (err) {
     console.error('[TOOL] book_appointment error:', err.message);
-    res.json({
-      result: 'There was a technical issue saving the appointment. Please tell the patient: "I have noted your request and our team will confirm within the hour." Then end the call politely.',
-      success: false
-    });
+    res.json({ result: 'Technical issue saving the appointment. Our team will confirm within the hour.', success: false });
   }
 });
 
-// ─── Tool: find_appointment ───────────────────────────────────────────────────
+// ─── find_appointment ─────────────────────────────────────────────────────────
 router.post('/find-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
-
   const { phone } = req.body;
-  if (!phone) {
-    return res.json({ result: 'I need a phone number to look up the appointment.', found: false });
-  }
+  if (!phone) return res.json({ result: 'I need a phone number to look up the appointment.', found: false });
 
-  console.log(`[TOOL] find_appointment → phone=${phone}`);
-
+  console.log(`[TOOL] find_appointment → ${phone}`);
   try {
     const apt = await findActiveAppointment(phone);
-    if (!apt) {
-      return res.json({
-        result: 'I could not find any upcoming appointment for this number.',
-        found: false
-      });
-    }
-
-    res.json({
-      result: `I found an appointment: ${apt.service} on ${apt.date} at ${apt.time}.`,
-      found: true,
-      appointment_id: apt.id,
-      name: apt.name,
-      service: apt.service,
-      date: apt.date,
-      time: apt.time,
-      phone: apt.phone,
-      status: apt.status
-    });
+    if (!apt) return res.json({ result: 'I could not find any upcoming appointment for this number.', found: false });
+    res.json({ result: `I found your ${apt.service} appointment on ${apt.date} at ${apt.time}.`, found: true, appointment_id: apt.id, name: apt.name, service: apt.service, date: apt.date, time: apt.time, phone: apt.phone, status: apt.status });
   } catch (err) {
-    console.error('[TOOL] find_appointment error:', err.message);
-    res.json({ result: 'I was unable to look up the appointment right now.', found: false });
+    res.json({ result: 'Unable to look up the appointment right now.', found: false });
   }
 });
 
-// ─── Tool: cancel_appointment ─────────────────────────────────────────────────
+// ─── cancel_appointment ───────────────────────────────────────────────────────
 router.post('/cancel-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
-
   const { appointment_id, phone } = req.body;
-
   console.log(`[TOOL] cancel_appointment → id=${appointment_id}, phone=${phone}`);
 
   try {
-    let apt = null;
+    const apt = appointment_id
+      ? await db.getAppointmentById(appointment_id)
+      : await findActiveAppointment(phone);
 
-    if (appointment_id) {
-      apt = await db.getAppointmentById(appointment_id);
-    } else if (phone) {
-      apt = await findActiveAppointment(phone);
-    }
-
-    if (!apt) {
-      return res.json({
-        result: 'I could not find that appointment to cancel.',
-        success: false
-      });
-    }
+    if (!apt) return res.json({ result: 'Could not find that appointment to cancel.', success: false });
 
     await db.cancelAppointment(apt.id);
+    googleSync.cancel(apt);   // Sheets + Calendar in background
 
     await activityService.addActivity({
-      actor: 'AI Voice',
-      actionType: activityService.ACTION_TYPES.CANCELLED,
+      actor: 'AI Voice', actionType: activityService.ACTION_TYPES.CANCELLED,
       patientName: apt.name,
       details: `${apt.service} on ${apt.date} at ${apt.time} | Cancelled via voice | ID: ${apt.id}`
     });
 
-    console.log(`[TOOL] ✅ Appointment cancelled: ${apt.id}`);
+    console.log(`[TOOL] ✅ Cancelled: ${apt.id}`);
+    res.json({ result: `Appointment cancelled successfully.`, success: true, service: apt.service, date: apt.date, time: apt.time });
 
-    res.json({
-      result: `Appointment cancelled successfully.`,
-      success: true,
-      service: apt.service,
-      date: apt.date,
-      time: apt.time
-    });
   } catch (err) {
     console.error('[TOOL] cancel_appointment error:', err.message);
-    res.json({ result: 'There was a technical issue cancelling the appointment. Our team will follow up.', success: false });
+    res.json({ result: 'Technical issue cancelling. Our team will follow up.', success: false });
   }
 });
 
-// ─── Tool: reschedule_appointment ─────────────────────────────────────────────
+// ─── reschedule_appointment ───────────────────────────────────────────────────
 router.post('/reschedule-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
-
   const { appointment_id, phone, new_date, new_time } = req.body;
-
-  if (!new_date || !new_time) {
-    return res.json({ result: 'I need both a new date and a new time to reschedule.', success: false });
-  }
+  if (!new_date || !new_time) return res.json({ result: 'I need a new date and time to reschedule.', success: false });
 
   const normalizedDate = parseDate(new_date) || new_date;
   const normalizedTime = parseTime(new_time) || new_time;
-
-  console.log(`[TOOL] reschedule_appointment → id=${appointment_id}, new=${normalizedDate} ${normalizedTime}`);
+  console.log(`[TOOL] reschedule_appointment → new=${normalizedDate} ${normalizedTime}`);
 
   try {
-    let apt = null;
+    const apt = appointment_id
+      ? await db.getAppointmentById(appointment_id)
+      : await findActiveAppointment(phone);
 
-    if (appointment_id) {
-      apt = await db.getAppointmentById(appointment_id);
-    } else if (phone) {
-      apt = await findActiveAppointment(phone);
+    if (!apt) return res.json({ result: 'Could not find that appointment to reschedule.', success: false });
+
+    if (await db.checkConflict(normalizedDate, normalizedTime)) {
+      return res.json({ result: `The slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different time.`, success: false, available: false });
     }
 
-    if (!apt) {
-      return res.json({ result: 'I could not find that appointment to reschedule.', success: false });
-    }
-
-    // Check new slot is free
-    const conflict = await db.checkConflict(normalizedDate, normalizedTime);
-    if (conflict) {
-      return res.json({
-        result: `The new slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different time.`,
-        success: false,
-        available: false
-      });
-    }
-
-    await db.updateAppointment(apt.id, {
-      date: normalizedDate,
-      time: normalizedTime,
-      status: 'Confirmed'
-    });
+    const updated = await db.updateAppointment(apt.id, { date: normalizedDate, time: normalizedTime, status: 'Confirmed' });
+    googleSync.reschedule({ ...apt, date: normalizedDate, time: normalizedTime, status: 'Confirmed' });
 
     await activityService.addActivity({
-      actor: 'AI Voice',
-      actionType: activityService.ACTION_TYPES.RESCHEDULED,
+      actor: 'AI Voice', actionType: activityService.ACTION_TYPES.RESCHEDULED,
       patientName: apt.name,
-      details: `${apt.service} rescheduled from ${apt.date} ${apt.time} → ${normalizedDate} ${normalizedTime} | ID: ${apt.id}`
+      details: `${apt.service} rescheduled ${apt.date} ${apt.time} → ${normalizedDate} ${normalizedTime} | ID: ${apt.id}`
     });
 
-    console.log(`[TOOL] ✅ Appointment rescheduled: ${apt.id}`);
+    console.log(`[TOOL] ✅ Rescheduled: ${apt.id}`);
+    res.json({ result: `Appointment rescheduled successfully.`, success: true, service: apt.service, date: normalizedDate, time: normalizedTime, phone: apt.phone });
 
-    res.json({
-      result: `Appointment rescheduled successfully.`,
-      success: true,
-      service: apt.service,
-      date: normalizedDate,
-      time: normalizedTime,
-      phone: apt.phone
-    });
   } catch (err) {
     console.error('[TOOL] reschedule_appointment error:', err.message);
-    res.json({ result: 'There was a technical issue rescheduling. Our team will follow up.', success: false });
+    res.json({ result: 'Technical issue rescheduling. Our team will follow up.', success: false });
   }
 });
 
-// ─── Tool: get_services ───────────────────────────────────────────────────────
+// ─── get_services ─────────────────────────────────────────────────────────────
 router.post('/get-services', (_req, res) => {
   res.json({
     result: 'Here are the available services at Lavora Clinic.',
-    services: [
-      'Botox', 'Fillers', 'Profhilo', 'Thread Lifting', 'Endolift',
-      'PRP', 'Mesotherapy', 'Exosomes', 'Stem Cell',
-      'Frax Pro', 'Picoway', 'RedTouch', 'Chemical Peels',
-      'Laser Hair Removal', 'Onda Plus', 'Redustim', 'Body Wraps',
-      'Aesthetic Gynecology', 'Medical Skin Care', 'Dermatology', 'Consultation'
-    ]
+    services: ['Botox','Fillers','Profhilo','Thread Lifting','Endolift','PRP','Mesotherapy','Exosomes','Stem Cell','Frax Pro','Picoway','RedTouch','Chemical Peels','Laser Hair Removal','Onda Plus','Redustim','Body Wraps','Aesthetic Gynecology','Medical Skin Care','Dermatology','Consultation']
   });
 });
 
-// ─── Tool: get_working_hours ──────────────────────────────────────────────────
+// ─── get_working_hours ────────────────────────────────────────────────────────
 router.post('/get-working-hours', (_req, res) => {
-  res.json({
-    result: 'Lavora Clinic is open Saturday through Thursday, 9:00 AM to 6:00 PM. The clinic is closed on Fridays.',
-    hours: 'Saturday–Thursday: 9:00 AM – 6:00 PM',
-    closed: 'Friday'
-  });
+  res.json({ result: 'Lavora Clinic is open Saturday through Thursday, 9:00 AM to 6:00 PM. Closed on Fridays.', hours: 'Saturday–Thursday: 9:00 AM – 6:00 PM', closed: 'Friday' });
 });
 
 module.exports = router;

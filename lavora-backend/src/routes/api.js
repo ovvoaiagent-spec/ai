@@ -4,6 +4,7 @@ const router = express.Router();
 
 const { requireApiKey } = require('../middleware/auth');
 const db = require('../services/localDbService');
+const googleSync = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
@@ -85,6 +86,7 @@ router.post('/appointments', async (req, res) => {
     };
 
     await db.appendAppointment(apt);
+    googleSync.book(apt);   // Sheets + Calendar in background
 
     await activityService.addActivity({
       actor: 'Human',
@@ -135,6 +137,7 @@ router.put('/appointments/:id', async (req, res) => {
     }
 
     const updated = await db.updateAppointment(id, updates);
+    if (updates.date || updates.time) googleSync.reschedule(updated);
 
     const isReschedule = updates.date || updates.time;
     await activityService.addActivity({
@@ -163,6 +166,7 @@ router.delete('/appointments/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
     await db.cancelAppointment(id);
+    googleSync.cancel(existing);   // Sheets + Calendar in background
 
     await activityService.addActivity({
       actor: 'Human',
