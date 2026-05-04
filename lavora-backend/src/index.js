@@ -52,13 +52,17 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/status', (_req, res) => {
+  const customPipeline = !!(process.env.ANTHROPIC_API_KEY && process.env.DEEPGRAM_API_KEY);
   res.json({
     server: true,
     database: !!process.env.DATABASE_URL,
     sheets: sheetsService.googleConfigured(),
     calendar: !!process.env.GOOGLE_CALENDAR_ID,
     elevenlabs: !!process.env.ELEVENLABS_API_KEY,
-    twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+    twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    deepgram: !!process.env.DEEPGRAM_API_KEY,
+    pipeline: customPipeline ? 'custom' : 'elevenlabs'
   });
 });
 
