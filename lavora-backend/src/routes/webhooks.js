@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const https = require('https');
 const router = express.Router();
 
 const db = require('../services/localDbService');
@@ -21,6 +22,72 @@ function verifyElevenLabsSignature(req) {
 
   return signature === `sha256=${expected}` || signature === expected;
 }
+
+// ─── POST /webhook/voice ─────────────────────────────────────────────────────
+// Twilio calls this when someone dials +14173029310.
+// We proxy to ElevenLabs' register-call endpoint, injecting caller_id so tools work.
+router.post('/voice', async (req, res) => {
+  const from = req.body.From || req.body.from || '';
+  const to   = req.body.To   || req.body.to   || '';
+  const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
+  const API_KEY  = process.env.ELEVENLABS_API_KEY;
+
+  console.log(`[VOICE] Inbound call from ${from} to ${to}`);
+
+  if (!AGENT_ID || !API_KEY) {
+    res.set('Content-Type', 'text/xml');
+    return res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Service not configured. Please try again later.</Say></Response>');
+  }
+
+  const body = JSON.stringify({
+    agent_id: AGENT_ID,
+    from_number: from,
+    to_number: to,
+    direction: 'inbound',
+    conversation_initiation_client_data: {
+      dynamic_variables: { caller_id: from }
+    }
+  });
+
+  const options = {
+    hostname: 'api.elevenlabs.io',
+    path: '/v1/convai/twilio/register-call',
+    method: 'POST',
+    headers: {
+      'xi-api-key': API_KEY,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body)
+    }
+  };
+
+  try {
+    const twiml = await new Promise((resolve, reject) => {
+      const req2 = https.request(options, r => {
+        let raw = '';
+        r.on('data', c => raw += c);
+        r.on('end', () => resolve({ status: r.statusCode, body: raw }));
+      });
+      req2.on('error', reject);
+      req2.write(body);
+      req2.end();
+    });
+
+    if (twiml.status === 200) {
+      console.log(`[VOICE] ElevenLabs TwiML received, caller_id=${from}`);
+      res.set('Content-Type', 'text/xml');
+      return res.send(twiml.body);
+    }
+
+    console.error(`[VOICE] ElevenLabs returned ${twiml.status}: ${twiml.body}`);
+    res.set('Content-Type', 'text/xml');
+    res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>We are unable to connect your call right now. Please try again shortly.</Say></Response>');
+
+  } catch (err) {
+    console.error('[VOICE] Error connecting to ElevenLabs:', err.message);
+    res.set('Content-Type', 'text/xml');
+    res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>A technical error occurred. Please try again.</Say></Response>');
+  }
+});
 
 // ─── POST /webhook/elevenlabs ─────────────────────────────────────────────────
 router.post('/elevenlabs', async (req, res) => {

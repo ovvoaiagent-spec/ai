@@ -32,16 +32,16 @@ A2. Ask for their preferred appointment day.
 A3. Ask for their preferred appointment time.
 A4. Ask for their full name.
 A5. Ask: "Would you like us to contact you on the number you are calling from, or a different number?"
-    - If they say "this number", "same number", or "yes": use {{caller_id}} as their phone number.
-    - If they give a different number: use that number.
+    - If they say "this number", "same number", or similar: the system will use their calling number automatically. Do NOT ask for a phone number.
+    - If they give a different number: note it down, then call book_appointment with that number in the phone field.
 A6. Call check_availability immediately — no words, no filler.
-A7. If available, call book_appointment immediately with all 5 fields.
+A7. If available, call book_appointment immediately. If using their calling number, do NOT pass a phone field — the system fills it in automatically. If they gave a different number, pass that number as the phone field.
 A8. After book_appointment returns success, say this ONCE and only ONCE:
-    "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye."
+    "Your [Service] appointment is confirmed for [Date] at [Time]. Thank you for calling Lavora Clinic. Goodbye."
 A9. End the call. Say nothing else.
 
 ━━━ FLOW B: CANCELLATION ━━━
-B1. Call find_appointment with {{caller_id}} to look up their appointment.
+B1. Call find_appointment to look up their appointment by caller number.
 B2. Read back the appointment details: "I found your [Service] appointment on [Date] at [Time]. Shall I cancel this?"
 B3. If they confirm, call cancel_appointment with the appointment_id.
 B4. After cancel_appointment returns success, say ONCE:
@@ -49,7 +49,7 @@ B4. After cancel_appointment returns success, say ONCE:
 B5. End the call. Say nothing else.
 
 ━━━ FLOW C: RESCHEDULE ━━━
-C1. Call find_appointment with {{caller_id}} to look up their appointment.
+C1. Call find_appointment to look up their appointment by caller number.
 C2. Read back: "I found your [Service] appointment on [Date] at [Time]. What is your preferred new day?"
 C3. Ask for their preferred new time.
 C4. Call check_availability for the new date and time.
@@ -99,7 +99,7 @@ const TOOLS = [
         type: 'object',
         properties: {
           name:    { type: 'string', description: 'Patient full name', dynamic_variable: '', constant_value: '' },
-          phone:   { type: 'string', description: 'Patient phone number including country code', dynamic_variable: '', constant_value: '' },
+          phone:   { type: 'string', dynamic_variable: 'caller_id', constant_value: '' },
           date:    { type: 'string', description: 'Appointment date in YYYY-MM-DD format', dynamic_variable: '', constant_value: '' },
           time:    { type: 'string', description: 'Appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' },
           service: { type: 'string', description: 'Service or treatment requested', dynamic_variable: '', constant_value: '' }
@@ -118,7 +118,7 @@ const TOOLS = [
       request_body_schema: {
         type: 'object',
         properties: {
-          phone: { type: 'string', description: 'Patient phone number to search by', dynamic_variable: '', constant_value: '' }
+          phone: { type: 'string', dynamic_variable: 'caller_id', constant_value: '' }
         },
         required: ['phone']
       }
@@ -135,7 +135,7 @@ const TOOLS = [
         type: 'object',
         properties: {
           appointment_id: { type: 'string', description: 'The appointment ID returned by find_appointment', dynamic_variable: '', constant_value: '' },
-          phone:          { type: 'string', description: 'Patient phone number (fallback if no appointment_id)', dynamic_variable: '', constant_value: '' }
+          phone:          { type: 'string', dynamic_variable: 'caller_id', constant_value: '' }
         },
         required: []
       }
@@ -152,7 +152,7 @@ const TOOLS = [
         type: 'object',
         properties: {
           appointment_id: { type: 'string', description: 'The appointment ID returned by find_appointment', dynamic_variable: '', constant_value: '' },
-          phone:          { type: 'string', description: 'Patient phone number (fallback if no appointment_id)', dynamic_variable: '', constant_value: '' },
+          phone:          { type: 'string', dynamic_variable: 'caller_id', constant_value: '' },
           new_date:       { type: 'string', description: 'New appointment date in YYYY-MM-DD format', dynamic_variable: '', constant_value: '' },
           new_time:       { type: 'string', description: 'New appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' }
         },
