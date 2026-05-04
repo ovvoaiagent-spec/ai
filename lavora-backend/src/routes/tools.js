@@ -5,9 +5,11 @@
 const express = require('express');
 const router = express.Router();
 
-const db          = require('../services/localDbService');
-const googleSync  = require('../services/googleSync');
+const db             = require('../services/localDbService');
+const googleSync     = require('../services/googleSync');
 const activityService = require('../services/activityService');
+const sms            = require('../services/smsService');
+const log            = require('../services/logger').child('TOOL');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
 
@@ -47,7 +49,7 @@ router.post('/check-availability', async (req, res) => {
 
   const normalizedDate = parseDate(date) || date;
   const normalizedTime = parseTime(time) || time;
-  console.log(`[TOOL] check_availability → ${normalizedDate} ${normalizedTime}`);
+  log.info(`check_availability → ${normalizedDate} ${normalizedTime}`);
 
   try {
     const conflict = await db.checkConflict(normalizedDate, normalizedTime);
@@ -57,6 +59,7 @@ router.post('/check-availability', async (req, res) => {
       res.json({ result: `The slot on ${normalizedDate} at ${normalizedTime} is available.`, available: true, date: normalizedDate, time: normalizedTime });
     }
   } catch (err) {
+    log.error(`check_availability error: ${err.message}`);
     res.json({ result: 'Unable to check availability right now. Please proceed and the team will confirm.' });
   }
 });
@@ -67,10 +70,10 @@ router.post('/book-appointment', async (req, res) => {
   const { name, phone, date, time, service } = req.body;
 
   const missing = [];
-  if (!name) missing.push('full name');
-  if (!phone) missing.push('phone number');
-  if (!date) missing.push('date');
-  if (!time) missing.push('time');
+  if (!name)    missing.push('full name');
+  if (!phone)   missing.push('phone number');
+  if (!date)    missing.push('date');
+  if (!time)    missing.push('time');
   if (!service) missing.push('service');
   if (missing.length) return res.json({ result: `I still need: ${missing.join(', ')}.` });
 
@@ -79,11 +82,11 @@ router.post('/book-appointment', async (req, res) => {
   const normalizedService = matchService(service) || service;
   const normalizedPhone   = normalizePhone(phone);
 
-  console.log(`[TOOL] book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
+  log.info(`book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
 
   try {
     if (await db.checkConflict(normalizedDate, normalizedTime)) {
-      return res.json({ result: `That slot is no longer available. Please suggest a different time.`, success: false });
+      return res.json({ result: 'That slot is no longer available. Please suggest a different time.', success: false });
     }
 
     const aptId = `APT-${Date.now()}`;
@@ -98,7 +101,8 @@ router.post('/book-appointment', async (req, res) => {
     };
 
     await db.appendAppointment(apt);
-    googleSync.book(apt);   // Sheets + Calendar in background
+    googleSync.book(apt);
+    sms.sendBookingConfirmation(apt);   // SMS to patient
 
     await activityService.addActivity({
       actor: 'AI Voice', actionType: activityService.ACTION_TYPES.BOOKED,
@@ -106,11 +110,11 @@ router.post('/book-appointment', async (req, res) => {
       details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | ID: ${aptId}`
     });
 
-    console.log(`[TOOL] ✅ Booked: ${aptId}`);
-    res.json({ result: `Booking saved successfully.`, success: true, appointment_id: aptId, date: normalizedDate, time: normalizedTime, service: normalizedService });
+    log.info(`Booked: ${aptId}`);
+    res.json({ result: 'Booking saved successfully.', success: true, appointment_id: aptId, date: normalizedDate, time: normalizedTime, service: normalizedService });
 
   } catch (err) {
-    console.error('[TOOL] book_appointment error:', err.message);
+    log.error(`book_appointment error: ${err.message}`);
     res.json({ result: 'Technical issue saving the appointment. Our team will confirm within the hour.', success: false });
   }
 });
@@ -121,12 +125,13 @@ router.post('/find-appointment', async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.json({ result: 'I need a phone number to look up the appointment.', found: false });
 
-  console.log(`[TOOL] find_appointment → ${phone}`);
+  log.info(`find_appointment → ${phone}`);
   try {
     const apt = await findActiveAppointment(phone);
     if (!apt) return res.json({ result: 'I could not find any upcoming appointment for this number.', found: false });
     res.json({ result: `I found your ${apt.service} appointment on ${apt.date} at ${apt.time}.`, found: true, appointment_id: apt.id, name: apt.name, service: apt.service, date: apt.date, time: apt.time, phone: apt.phone, status: apt.status });
   } catch (err) {
+    log.error(`find_appointment error: ${err.message}`);
     res.json({ result: 'Unable to look up the appointment right now.', found: false });
   }
 });
@@ -135,7 +140,7 @@ router.post('/find-appointment', async (req, res) => {
 router.post('/cancel-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
   const { appointment_id, phone } = req.body;
-  console.log(`[TOOL] cancel_appointment → id=${appointment_id}, phone=${phone}`);
+  log.info(`cancel_appointment → id=${appointment_id}, phone=${phone}`);
 
   try {
     const apt = appointment_id
@@ -145,7 +150,8 @@ router.post('/cancel-appointment', async (req, res) => {
     if (!apt) return res.json({ result: 'Could not find that appointment to cancel.', success: false });
 
     await db.cancelAppointment(apt.id);
-    googleSync.cancel(apt);   // Sheets + Calendar in background
+    googleSync.cancel(apt);
+    sms.sendCancellationConfirmation(apt);   // SMS to patient
 
     await activityService.addActivity({
       actor: 'AI Voice', actionType: activityService.ACTION_TYPES.CANCELLED,
@@ -153,11 +159,11 @@ router.post('/cancel-appointment', async (req, res) => {
       details: `${apt.service} on ${apt.date} at ${apt.time} | Cancelled via voice | ID: ${apt.id}`
     });
 
-    console.log(`[TOOL] ✅ Cancelled: ${apt.id}`);
-    res.json({ result: `Appointment cancelled successfully.`, success: true, service: apt.service, date: apt.date, time: apt.time });
+    log.info(`Cancelled: ${apt.id}`);
+    res.json({ result: 'Appointment cancelled successfully.', success: true, service: apt.service, date: apt.date, time: apt.time });
 
   } catch (err) {
-    console.error('[TOOL] cancel_appointment error:', err.message);
+    log.error(`cancel_appointment error: ${err.message}`);
     res.json({ result: 'Technical issue cancelling. Our team will follow up.', success: false });
   }
 });
@@ -170,7 +176,7 @@ router.post('/reschedule-appointment', async (req, res) => {
 
   const normalizedDate = parseDate(new_date) || new_date;
   const normalizedTime = parseTime(new_time) || new_time;
-  console.log(`[TOOL] reschedule_appointment → new=${normalizedDate} ${normalizedTime}`);
+  log.info(`reschedule_appointment → new=${normalizedDate} ${normalizedTime}`);
 
   try {
     const apt = appointment_id
@@ -184,7 +190,9 @@ router.post('/reschedule-appointment', async (req, res) => {
     }
 
     const updated = await db.updateAppointment(apt.id, { date: normalizedDate, time: normalizedTime, status: 'Confirmed' });
-    googleSync.reschedule({ ...apt, date: normalizedDate, time: normalizedTime, status: 'Confirmed' });
+    const rescheduled = { ...apt, date: normalizedDate, time: normalizedTime, status: 'Confirmed' };
+    googleSync.reschedule(rescheduled);
+    sms.sendRescheduleConfirmation(rescheduled);   // SMS to patient
 
     await activityService.addActivity({
       actor: 'AI Voice', actionType: activityService.ACTION_TYPES.RESCHEDULED,
@@ -192,11 +200,11 @@ router.post('/reschedule-appointment', async (req, res) => {
       details: `${apt.service} rescheduled ${apt.date} ${apt.time} → ${normalizedDate} ${normalizedTime} | ID: ${apt.id}`
     });
 
-    console.log(`[TOOL] ✅ Rescheduled: ${apt.id}`);
-    res.json({ result: `Appointment rescheduled successfully.`, success: true, service: apt.service, date: normalizedDate, time: normalizedTime, phone: apt.phone });
+    log.info(`Rescheduled: ${apt.id}`);
+    res.json({ result: 'Appointment rescheduled successfully.', success: true, service: apt.service, date: normalizedDate, time: normalizedTime, phone: apt.phone });
 
   } catch (err) {
-    console.error('[TOOL] reschedule_appointment error:', err.message);
+    log.error(`reschedule_appointment error: ${err.message}`);
     res.json({ result: 'Technical issue rescheduling. Our team will follow up.', success: false });
   }
 });

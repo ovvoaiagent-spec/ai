@@ -6,6 +6,8 @@ const { requireApiKey } = require('../middleware/auth');
 const db = require('../services/localDbService');
 const googleSync = require('../services/googleSync');
 const activityService = require('../services/activityService');
+const sms = require('../services/smsService');
+const log = require('../services/logger').child('API');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 
@@ -86,7 +88,8 @@ router.post('/appointments', async (req, res) => {
     };
 
     await db.appendAppointment(apt);
-    googleSync.book(apt);   // Sheets + Calendar in background
+    googleSync.book(apt);
+    sms.sendBookingConfirmation(apt);
 
     await activityService.addActivity({
       actor: 'Human',
@@ -95,7 +98,7 @@ router.post('/appointments', async (req, res) => {
       details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | ID: ${aptId}`
     });
 
-    console.log(`[API] ✅ Manual appointment created: ${aptId}`);
+    log.info(`Manual appointment created: ${aptId}`);
     res.status(201).json({ success: true, appointment: apt });
 
   } catch (err) {
@@ -137,7 +140,10 @@ router.put('/appointments/:id', async (req, res) => {
     }
 
     const updated = await db.updateAppointment(id, updates);
-    if (updates.date || updates.time) googleSync.reschedule(updated);
+    if (updates.date || updates.time) {
+      googleSync.reschedule(updated);
+      sms.sendRescheduleConfirmation(updated);
+    }
 
     const isReschedule = updates.date || updates.time;
     await activityService.addActivity({
@@ -166,7 +172,8 @@ router.delete('/appointments/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
     await db.cancelAppointment(id);
-    googleSync.cancel(existing);   // Sheets + Calendar in background
+    googleSync.cancel(existing);
+    sms.sendCancellationConfirmation(existing);
 
     await activityService.addActivity({
       actor: 'Human',

@@ -5,13 +5,17 @@ const fs = require('fs');
 
 const db = require('./services/localDbService');
 const sheetsService = require('./services/sheetsService');
-const activityService = require('./services/activityService');
 const pollingService = require('./services/pollingService');
+const log = require('./services/logger').child('SERVER');
+
+const { toolsLimiter, apiLimiter, webhookLimiter } = require('./middleware/rateLimiter');
 const webhookRoutes = require('./routes/webhooks');
 const apiRoutes = require('./routes/api');
 const toolRoutes = require('./routes/tools');
 
 const app = express();
+
+app.set('trust proxy', 1);   // needed for rate-limiter behind Railway proxy
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -32,9 +36,9 @@ const DASHBOARD_CANDIDATES = [
 const DASHBOARD_DIR = DASHBOARD_CANDIDATES.find(p => fs.existsSync(p)) || DASHBOARD_CANDIDATES[0];
 app.use(express.static(DASHBOARD_DIR));
 
-app.use('/webhook', webhookRoutes);
-app.use('/api', apiRoutes);
-app.use('/tools', toolRoutes);
+app.use('/webhook', webhookLimiter, webhookRoutes);
+app.use('/api',     apiLimiter,     apiRoutes);
+app.use('/tools',   toolsLimiter,   toolRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -66,29 +70,27 @@ app.get('/', (_req, res) => {
 
 app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use((err, _req, res, _next) => {
-  console.error('[ERROR]', err.message);
+  log.error(`Unhandled error: ${err.message}`, { stack: err.stack });
   res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 3000;
 
 async function start() {
-  // PostgreSQL tables
   await db.initDb();
-
-  // Google Sheets headers (non-fatal)
   try { await sheetsService.initializeSheets(); } catch {}
-
   pollingService.start();
 
   app.listen(PORT, () => {
-    console.log('\n╔══════════════════════════════════════════════════════╗');
-    console.log('║     Lavora Clinic — AI Voice Receptionist Backend    ║');
-    console.log('╚══════════════════════════════════════════════════════╝');
-    console.log(`\n✅ Server running on port ${PORT}`);
-    console.log(`   Database  : ${process.env.DATABASE_URL ? 'PostgreSQL ✅' : 'Local JSON'}`);
-    console.log(`   Sheets    : ${sheetsService.googleConfigured() ? 'Connected ✅' : 'Not configured'}`);
-    console.log(`   Calendar  : ${process.env.GOOGLE_CALENDAR_ID ? 'Configured ✅' : 'Not configured'}\n`);
+    log.info('═══════════════════════════════════════════════════');
+    log.info('  Lavora Clinic — AI Voice Receptionist Backend');
+    log.info('═══════════════════════════════════════════════════');
+    log.info(`Port      : ${PORT}`);
+    log.info(`Database  : ${process.env.DATABASE_URL ? 'PostgreSQL ✅' : 'Local JSON'}`);
+    log.info(`Sheets    : ${sheetsService.googleConfigured() ? 'Connected ✅' : 'Not configured'}`);
+    log.info(`Calendar  : ${process.env.GOOGLE_CALENDAR_ID ? 'Configured ✅' : 'Not configured'}`);
+    log.info(`Twilio    : ${process.env.TWILIO_ACCOUNT_SID ? 'Configured ✅' : 'Missing SID'}`);
+    log.info(`SMS/Remind: ✅ active`);
   });
 }
 

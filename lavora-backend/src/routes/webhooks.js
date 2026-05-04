@@ -6,6 +6,7 @@ const router = express.Router();
 const db = require('../services/localDbService');
 const extractionService = require('../services/extractionService');
 const activityService = require('../services/activityService');
+const log = require('../services/logger').child('WEBHOOK');
 
 function verifyElevenLabsSignature(req) {
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
@@ -24,19 +25,48 @@ function verifyElevenLabsSignature(req) {
 }
 
 // ─── POST /webhook/voice ─────────────────────────────────────────────────────
-// Twilio calls this when someone dials +14173029310.
-// We proxy to ElevenLabs' register-call endpoint, injecting caller_id so tools work.
+// Twilio calls this when someone dials the clinic number.
+// Looks up caller history, then proxies to ElevenLabs with enriched dynamic vars.
 router.post('/voice', async (req, res) => {
   const from = req.body.From || req.body.from || '';
   const to   = req.body.To   || req.body.to   || '';
   const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
   const API_KEY  = process.env.ELEVENLABS_API_KEY;
 
-  console.log(`[VOICE] Inbound call from ${from} to ${to}`);
+  log.info(`Inbound call from ${from} to ${to}`);
 
   if (!AGENT_ID || !API_KEY) {
     res.set('Content-Type', 'text/xml');
     return res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Service not configured. Please try again later.</Say></Response>');
+  }
+
+  // Build dynamic vars — start with caller identity
+  const dynamicVars = { caller_id: from };
+
+  // Look up caller history for personalised greeting
+  try {
+    const all = await db.getAllAppointments();
+    const normalize = p => String(p || '').replace(/[\s\-().]/g, '');
+    const history = all.filter(a =>
+      a.status !== 'Cancelled' &&
+      normalize(a.phone) === normalize(from)
+    ).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+    if (history.length > 0) {
+      const last = history[history.length - 1];
+      dynamicVars.is_returning     = 'true';
+      dynamicVars.patient_name     = last.name;
+      dynamicVars.last_service     = last.service;
+      dynamicVars.last_visit_date  = last.date;
+      log.info(`Returning patient: ${last.name}, last: ${last.service} on ${last.date}`);
+    } else {
+      dynamicVars.is_returning = 'false';
+      dynamicVars.patient_name = '';
+      dynamicVars.last_service = '';
+      dynamicVars.last_visit_date = '';
+    }
+  } catch (err) {
+    log.warn(`Could not look up caller history: ${err.message}`);
   }
 
   const body = JSON.stringify({
@@ -45,7 +75,7 @@ router.post('/voice', async (req, res) => {
     to_number: to,
     direction: 'inbound',
     conversation_initiation_client_data: {
-      dynamic_variables: { caller_id: from }
+      dynamic_variables: dynamicVars
     }
   });
 
@@ -73,17 +103,17 @@ router.post('/voice', async (req, res) => {
     });
 
     if (twiml.status === 200) {
-      console.log(`[VOICE] ElevenLabs TwiML received, caller_id=${from}`);
+      log.info(`TwiML returned for ${from}, is_returning=${dynamicVars.is_returning}`);
       res.set('Content-Type', 'text/xml');
       return res.send(twiml.body);
     }
 
-    console.error(`[VOICE] ElevenLabs returned ${twiml.status}: ${twiml.body}`);
+    log.error(`ElevenLabs returned ${twiml.status}`, { body: twiml.body });
     res.set('Content-Type', 'text/xml');
     res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>We are unable to connect your call right now. Please try again shortly.</Say></Response>');
 
   } catch (err) {
-    console.error('[VOICE] Error connecting to ElevenLabs:', err.message);
+    log.error(`Error connecting to ElevenLabs: ${err.message}`);
     res.set('Content-Type', 'text/xml');
     res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>A technical error occurred. Please try again.</Say></Response>');
   }
@@ -91,10 +121,10 @@ router.post('/voice', async (req, res) => {
 
 // ─── POST /webhook/elevenlabs ─────────────────────────────────────────────────
 router.post('/elevenlabs', async (req, res) => {
-  console.log('\n[WEBHOOK] ElevenLabs webhook received');
+  log.info('ElevenLabs post-call webhook received');
 
   if (!verifyElevenLabsSignature(req)) {
-    console.warn('[WEBHOOK] ElevenLabs signature verification failed');
+    log.warn('ElevenLabs signature verification failed');
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
@@ -103,31 +133,38 @@ router.post('/elevenlabs', async (req, res) => {
   try {
     const payload = req.body;
     const data = payload.data || payload;
-
     const status = data.status || payload.type;
+
     if (status === 'failed' || status === 'error') {
-      console.log('[WEBHOOK] Conversation ended with error — skipping');
+      log.warn(`Conversation ended with status: ${status} — skipping`);
       return;
     }
 
     const { fields, missing, isComplete, callDuration, conversationId } = extractionService.extractFromWebhook(payload);
 
+    // Store transcript if available
+    const transcript = data.transcript || payload.transcript || null;
+    const transcriptText = Array.isArray(transcript)
+      ? transcript.map(t => `${t.role}: ${t.message}`).join('\n')
+      : (typeof transcript === 'string' ? transcript : '');
+
     await activityService.addActivity({
       actor: 'AI Voice',
       actionType: activityService.ACTION_TYPES.CALL_RECEIVED,
       patientName: fields.name || 'Unknown',
-      details: `Conversation ${conversationId || 'N/A'} | Duration: ${callDuration}s`
+      details: `Conversation ${conversationId || 'N/A'} | Duration: ${callDuration}s${transcriptText ? ' | Transcript stored' : ''}`
     });
 
     if (!isComplete) {
-      console.log(`[WEBHOOK] Incomplete booking — missing: ${missing.join(', ')}`);
+      log.info(`Incomplete booking — missing: ${missing.join(', ')}`);
 
       await db.appendMissedCapture({
         id: `MISS-${Date.now()}`,
         twilioPhone: data.metadata?.caller_id || '',
         partialData: fields,
         missingFields: missing,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        transcript: transcriptText
       });
 
       await activityService.addActivity({
@@ -142,7 +179,7 @@ router.post('/elevenlabs', async (req, res) => {
 
     const hasConflict = await db.checkConflict(fields.date, fields.time, null);
     if (hasConflict) {
-      console.warn(`[WEBHOOK] Conflict detected for ${fields.date} ${fields.time} — not booking`);
+      log.warn(`Conflict for ${fields.date} ${fields.time} — not booking`);
       await db.appendMissedCapture({
         id: `CONF-${Date.now()}`,
         twilioPhone: fields.phone,
@@ -165,12 +202,13 @@ router.post('/elevenlabs', async (req, res) => {
       status: 'Pending',
       source: 'AI Voice',
       callDuration,
-      notes: `Conversation ID: ${conversationId || 'N/A'}`,
+      notes: `Conversation: ${conversationId || 'N/A'}`,
+      transcript: transcriptText,
       timestamp: new Date().toISOString()
     };
 
     await db.appendAppointment(apt);
-    console.log(`[WEBHOOK] ✅ Appointment saved: ${aptId}`);
+    log.info(`Appointment saved: ${aptId}`);
 
     await activityService.addActivity({
       actor: 'AI Voice',
@@ -179,22 +217,18 @@ router.post('/elevenlabs', async (req, res) => {
       details: `${fields.service} on ${fields.date} at ${fields.time} | ID: ${aptId}`
     });
 
-    console.log(`[WEBHOOK] ✅ Full pipeline complete for ${fields.name}`);
-
   } catch (err) {
-    console.error('[WEBHOOK] ElevenLabs processing error:', err.message, err.stack);
+    log.error(`ElevenLabs webhook processing error: ${err.message}`, { stack: err.stack });
   }
 });
 
 // ─── POST /webhook/twilio/call-status ────────────────────────────────────────
 router.post('/twilio/call-status', async (req, res) => {
-  console.log('\n[TWILIO] Call status webhook received');
   res.status(200).send('<Response></Response>');
 
   try {
     const { CallSid, From, To, CallStatus, CallDuration = 0 } = req.body;
-
-    console.log(`[TWILIO] CallSid=${CallSid} | From=${From} | Status=${CallStatus} | Duration=${CallDuration}s`);
+    log.info(`Call status: ${CallSid} ${From}→${To} ${CallStatus} ${CallDuration}s`);
 
     await db.appendCallLog({
       callSid: CallSid,
@@ -213,7 +247,7 @@ router.post('/twilio/call-status', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[TWILIO] Error processing call status:', err.message);
+    log.error(`Twilio call-status error: ${err.message}`);
   }
 });
 
