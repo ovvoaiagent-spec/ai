@@ -359,6 +359,34 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// ─── POST /api/test-llm ───────────────────────────────────────────────────────
+router.post('/test-llm', async (req, res) => {
+  try {
+    const llm = require('../pipeline/llmService');
+    const context = {
+      caller_id: '+96899999999',
+      is_returning: 'false',
+      patient_name: '', last_service: '', last_visit_date: '',
+      sessionId: 'test'
+    };
+    const history = [
+      { role: 'user', content: 'English please' },
+      { role: 'assistant', content: 'What service would you like?' },
+      { role: 'user', content: 'Botox' },
+      { role: 'assistant', content: 'What day and time?' },
+      { role: 'user', content: 'May 15th at 3pm' },
+      { role: 'assistant', content: 'What is your full name?' },
+      { role: 'user', content: 'Test User' },
+      { role: 'assistant', content: 'Shall I contact you on +96899999999?' },
+      { role: 'user', content: 'Yes same number' }
+    ];
+    const result = await llm.chat(history, context);
+    res.json({ response: result.text, turns: result.history.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message, stack: err.stack?.split('\n').slice(0,5) });
+  }
+});
+
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
