@@ -12,6 +12,8 @@
     "google-setup": "node scripts/google-autosetup.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.37.0",
+    "@deepgram/sdk": "^3.9.0",
     "axios": "^1.6.2",
     "chrono-node": "^2.7.0",
     "dayjs": "^1.11.10",
@@ -22,7 +24,8 @@
     "pg": "^8.20.0",
     "twilio": "^4.19.0",
     "uuid": "^9.0.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

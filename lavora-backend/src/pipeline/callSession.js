@@ -1,0 +1,178 @@
+/**
+ * Per-call session state machine.
+ *
+ * States: IDLE → GREETING → LISTENING → PROCESSING → SPEAKING → ENDED
+ *
+ * Audio flow:
+ *   Twilio (MULAW 8kHz) → onAudio() → Deepgram STT → onTranscript()
+ *                                                          ↓
+ *                                                    Claude LLM (with tools)
+ *                                                          ↓
+ *                                                  ElevenLabs TTS (ulaw_8000)
+ *                                                          ↓
+ *                                                  sendAudio() → Twilio
+ */
+
+const sttService = require('./sttService');
+const llmService = require('./llmService');
+const ttsService = require('./ttsService');
+const log        = require('../services/logger').child('SESSION');
+
+const STATES = {
+  IDLE:       'idle',
+  GREETING:   'greeting',
+  LISTENING:  'listening',
+  PROCESSING: 'processing',
+  SPEAKING:   'speaking',
+  ENDED:      'ended'
+};
+
+class CallSession {
+  /**
+   * @param {object} opts
+   * @param {string}   opts.callSid
+   * @param {string}   opts.streamSid
+   * @param {string}   opts.caller_id
+   * @param {string}   opts.is_returning      'true' | 'false'
+   * @param {string}   opts.patient_name
+   * @param {string}   opts.last_service
+   * @param {string}   opts.last_visit_date
+   * @param {function} opts.sendAudio(base64)  — send MULAW chunk to Twilio
+   * @param {function} opts.clearAudio()       — send Twilio "clear" (barge-in)
+   * @param {function} opts.hangUp()           — end the call via Twilio REST
+   */
+  constructor(opts) {
+    this.callSid    = opts.callSid;
+    this.streamSid  = opts.streamSid;
+    this.sendAudio  = opts.sendAudio;
+    this.clearAudio = opts.clearAudio;
+    this.hangUp     = opts.hangUp || (() => {});
+
+    this.context = {
+      caller_id:       opts.caller_id       || '',
+      is_returning:    opts.is_returning     || 'false',
+      patient_name:    opts.patient_name     || '',
+      last_service:    opts.last_service     || '',
+      last_visit_date: opts.last_visit_date  || '',
+      sessionId:       opts.callSid          || `sess-${Date.now()}`
+    };
+
+    this.history   = [];
+    this.state     = STATES.IDLE;
+    this.stt       = null;
+    this.abortRef  = { aborted: false };  // set to abort mid-stream TTS
+
+    log.info(`Session created: ${this.callSid} | returning=${this.context.is_returning}`);
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  /** Called once when the Twilio Media Stream opens. */
+  async start() {
+    this._setState(STATES.GREETING);
+
+    // Initialise Deepgram — but only start sending audio after greeting
+    this.stt = sttService.create({
+      onTranscript: (text, lang) => this._onTranscript(text, lang),
+      onError:      (err)        => log.error(`STT error [${this.callSid}]: ${err?.message || err}`)
+    });
+
+    const greeting = this.context.is_returning === 'true'
+      ? `Welcome back, ${this.context.patient_name}. How can I help you today?`
+      : 'Thank you for calling Lavora Clinic. Do you prefer Arabic or English?';
+
+    await this._speak(greeting);
+    this._setState(STATES.LISTENING);
+  }
+
+  /** Called for every audio chunk arriving from Twilio. */
+  onAudio(base64Payload) {
+    if (this.state !== STATES.LISTENING) return;
+    const buf = Buffer.from(base64Payload, 'base64');
+    this.stt?.send(buf);
+  }
+
+  /** Called when the Twilio Media Stream closes. */
+  async stop() {
+    if (this.state === STATES.ENDED) return;
+    this._setState(STATES.ENDED);
+    this.abortRef.aborted = true;
+    this.stt?.close();
+    log.info(`Session ended: ${this.callSid}`);
+  }
+
+  // ── Internal ──────────────────────────────────────────────────────────────
+
+  async _onTranscript(text, lang) {
+    if (this.state !== STATES.LISTENING) return;  // ignore late transcripts
+
+    log.info(`[${this.callSid}] User [${lang || 'en'}]: "${text}"`);
+    this._setState(STATES.PROCESSING);
+
+    this.history.push({ role: 'user', content: text });
+
+    try {
+      const { text: reply, history } = await llmService.chat(this.history, this.context);
+      this.history = history;
+
+      log.info(`[${this.callSid}] Agent: "${reply}"`);
+      await this._speak(reply);
+
+      // Detect end-of-call phrase
+      if (this._isGoodbye(reply)) {
+        await this._endCall();
+        return;
+      }
+    } catch (err) {
+      log.error(`[${this.callSid}] LLM error: ${err.message}`);
+      await this._speak('I apologise for the technical difficulty. Our team will reach out to you shortly. Goodbye.');
+      await this._endCall();
+      return;
+    }
+
+    if (this.state !== STATES.ENDED) {
+      this._setState(STATES.LISTENING);
+    }
+  }
+
+  async _speak(text) {
+    if (!text || this.state === STATES.ENDED) return;
+    this._setState(STATES.SPEAKING);
+
+    // Reset abort flag before speaking
+    this.abortRef = { aborted: false };
+
+    try {
+      await ttsService.synthesize(text, {
+        abortRef: this.abortRef,
+        onChunk: (buf) => {
+          if (this.abortRef.aborted || this.state === STATES.ENDED) return;
+          this.sendAudio(buf.toString('base64'));
+        }
+      });
+    } catch (err) {
+      log.error(`[${this.callSid}] TTS error: ${err.message}`);
+    }
+  }
+
+  async _endCall() {
+    if (this.state === STATES.ENDED) return;
+    // Brief pause so the final audio can finish playing
+    await new Promise(r => setTimeout(r, 3000));
+    await this.stop();
+    try { this.hangUp(); } catch {}
+  }
+
+  _isGoodbye(text) {
+    const lower = (text || '').toLowerCase();
+    return lower.includes('goodbye') || lower.includes('وداع') || lower.includes('مع السلامة');
+  }
+
+  _setState(s) {
+    if (this.state === STATES.ENDED && s !== STATES.ENDED) return;
+    this.state = s;
+    log.debug(`[${this.callSid}] → ${s}`);
+  }
+}
+
+module.exports = CallSession;

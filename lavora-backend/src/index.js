@@ -81,7 +81,7 @@ async function start() {
   try { await sheetsService.initializeSheets(); } catch {}
   pollingService.start();
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     log.info('═══════════════════════════════════════════════════');
     log.info('  Lavora Clinic — AI Voice Receptionist Backend');
     log.info('═══════════════════════════════════════════════════');
@@ -91,6 +91,14 @@ async function start() {
     log.info(`Calendar  : ${process.env.GOOGLE_CALENDAR_ID ? 'Configured ✅' : 'Not configured'}`);
     log.info(`Twilio    : ${process.env.TWILIO_ACCOUNT_SID ? 'Configured ✅' : 'Missing SID'}`);
     log.info(`SMS/Remind: ✅ active`);
+
+    const pipelineReady = !!(process.env.ANTHROPIC_API_KEY && process.env.DEEPGRAM_API_KEY);
+    log.info(`Pipeline  : ${pipelineReady ? 'Custom (Deepgram+Claude+ElevenLabs) ✅' : 'ElevenLabs ConvAI (fallback)'}`);
+
+    if (pipelineReady) {
+      const pipeline = require('./pipeline');
+      pipeline.attach(server);
+    }
   });
 }
 

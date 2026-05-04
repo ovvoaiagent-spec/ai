@@ -8,6 +8,14 @@ const extractionService = require('../services/extractionService');
 const activityService = require('../services/activityService');
 const log = require('../services/logger').child('WEBHOOK');
 
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function verifyElevenLabsSignature(req) {
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
   if (!secret) return true;
@@ -69,6 +77,33 @@ router.post('/voice', async (req, res) => {
     log.warn(`Could not look up caller history: ${err.message}`);
   }
 
+  // ── Custom pipeline: Twilio Media Streams → Deepgram → Claude → ElevenLabs TTS
+  const useCustomPipeline = !!(process.env.ANTHROPIC_API_KEY && process.env.DEEPGRAM_API_KEY);
+
+  if (useCustomPipeline) {
+    const SERVER_URL = (process.env.SERVER_URL || 'https://ai-production-5456.up.railway.app')
+      .replace(/\/$/, '');
+    const wsUrl = SERVER_URL.replace(/^https?:\/\//, 'wss://') + '/media-stream';
+
+    const paramTags = Object.entries(dynamicVars)
+      .map(([k, v]) => `      <Parameter name="${k}" value="${escapeXml(String(v))}"/>`)
+      .join('\n');
+
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${wsUrl}">
+${paramTags}
+    </Stream>
+  </Connect>
+</Response>`;
+
+    log.info(`Custom pipeline TwiML for ${from}, is_returning=${dynamicVars.is_returning}`);
+    res.set('Content-Type', 'text/xml');
+    return res.send(twiml);
+  }
+
+  // ── Fallback: ElevenLabs Conversational AI (register-call) ──────────────
   const body = JSON.stringify({
     agent_id: AGENT_ID,
     from_number: from,
@@ -103,7 +138,7 @@ router.post('/voice', async (req, res) => {
     });
 
     if (twiml.status === 200) {
-      log.info(`TwiML returned for ${from}, is_returning=${dynamicVars.is_returning}`);
+      log.info(`ElevenLabs TwiML returned for ${from}, is_returning=${dynamicVars.is_returning}`);
       res.set('Content-Type', 'text/xml');
       return res.send(twiml.body);
     }
