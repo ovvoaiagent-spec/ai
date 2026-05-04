@@ -57,10 +57,11 @@ class CallSession {
       sessionId:       opts.callSid          || `sess-${Date.now()}`
     };
 
-    this.history   = [];
-    this.state     = STATES.IDLE;
-    this.stt       = null;
-    this.abortRef  = { aborted: false };  // set to abort mid-stream TTS
+    this.history         = [];
+    this.state           = STATES.IDLE;
+    this.stt             = null;
+    this.abortRef        = { aborted: false };  // set to abort mid-stream TTS
+    this.detectedLanguage = 'en';              // updated from STT and LLM responses
 
     log.info(`Session created: ${this.callSid} | returning=${this.context.is_returning}`);
   }
@@ -106,7 +107,13 @@ class CallSession {
   async _onTranscript(text, lang) {
     if (this.state !== STATES.LISTENING) return;  // ignore late transcripts
 
-    log.info(`[${this.callSid}] User [${lang || 'en'}]: "${text}"`);
+    // Update language from STT detection (secondary signal)
+    if (lang && lang.toLowerCase().startsWith('ar')) {
+      this.detectedLanguage = 'ar';
+      this.context.language = 'ar';
+    }
+
+    log.info(`[${this.callSid}] User [${this.detectedLanguage}]: "${text}"`);
     this._setState(STATES.PROCESSING);
 
     this.history.push({ role: 'user', content: text });
@@ -115,7 +122,17 @@ class CallSession {
       const { text: reply, history } = await llmService.chat(this.history, this.context);
       this.history = history;
 
-      log.info(`[${this.callSid}] Agent: "${reply}"`);
+      // Update language from LLM response (primary signal — more reliable than STT)
+      if (reply) {
+        if (/[؀-ۿ]/.test(reply)) {
+          this.detectedLanguage = 'ar';
+        } else if (/[a-zA-Z]/.test(reply)) {
+          this.detectedLanguage = 'en';
+        }
+        this.context.language = this.detectedLanguage;
+      }
+
+      log.info(`[${this.callSid}] Agent [${this.detectedLanguage}]: "${reply}"`);
       await this._speak(reply);
 
       // Detect end-of-call phrase
@@ -144,6 +161,7 @@ class CallSession {
 
     try {
       await ttsService.synthesize(text, {
+        languageCode: this.detectedLanguage,
         abortRef: this.abortRef,
         onChunk: (buf) => {
           if (this.abortRef.aborted || this.state === STATES.ENDED) return;
@@ -165,7 +183,10 @@ class CallSession {
 
   _isGoodbye(text) {
     const lower = (text || '').toLowerCase();
-    return lower.includes('goodbye') || lower.includes('وداع') || lower.includes('مع السلامة');
+    return lower.includes('goodbye') ||
+      lower.includes('وداع') ||
+      lower.includes('مع السلامة') ||
+      lower.includes('شكراً على اتصالك بعيادة لافورا');
   }
 
   _setState(s) {

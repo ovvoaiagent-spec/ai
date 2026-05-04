@@ -17,7 +17,7 @@ const MODEL         = 'eleven_turbo_v2_5';        // lowest ElevenLabs latency
  * Pass abortRef = { aborted: false } to support mid-stream cancellation.
  * Set abortRef.aborted = true from the caller to stop delivering chunks.
  */
-function synthesize(text, { onChunk, onDone, onError, abortRef } = {}) {
+function synthesize(text, { onChunk, onDone, onError, abortRef, languageCode } = {}) {
   return new Promise((resolve, reject) => {
     const apiKey  = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE;
@@ -33,7 +33,7 @@ function synthesize(text, { onChunk, onDone, onError, abortRef } = {}) {
       return resolve();
     }
 
-    const body = JSON.stringify({
+    const bodyObj = {
       text,
       model_id: MODEL,
       voice_settings: {
@@ -41,7 +41,9 @@ function synthesize(text, { onChunk, onDone, onError, abortRef } = {}) {
         similarity_boost: 0.75,
         speed:            1.0
       }
-    });
+    };
+    if (languageCode) bodyObj.language_code = languageCode;
+    const body = JSON.stringify(bodyObj);
 
     const req = https.request({
       hostname: 'api.elevenlabs.io',

@@ -218,6 +218,37 @@ async function executeTool(name, input, context) {
   }
 }
 
+// ── Confirmation text builders (bypass LLM to guarantee correct output) ─────
+
+function buildBookingConfirmation(booking, lang) {
+  const { service, date, time, phone } = booking;
+  const d = require('dayjs')(date);
+  const t = require('dayjs')(`2000-01-01T${time}:00`);
+  if (lang === 'ar') {
+    return `تم تأكيد موعدك لـ ${service} بتاريخ ${d.format('D/M/YYYY')} الساعة ${time}. سنتواصل معك على ${phone}. شكراً على اتصالك بعيادة لافورا. مع السلامة.`;
+  }
+  return `Your ${service} appointment is confirmed for ${d.format('MMMM D')} at ${t.format('h:mm A')}. We will reach you at ${phone}. Thank you for calling Lavora Clinic. Goodbye.`;
+}
+
+function buildCancelConfirmation(result, lang) {
+  const { service, date } = result;
+  const d = require('dayjs')(date);
+  if (lang === 'ar') {
+    return `تم إلغاء موعدك لـ ${service} بتاريخ ${d.format('D/M/YYYY')}. شكراً على اتصالك بعيادة لافورا. مع السلامة.`;
+  }
+  return `Your ${service} appointment on ${d.format('MMMM D')} has been cancelled. Thank you for calling Lavora Clinic. Goodbye.`;
+}
+
+function buildRescheduleConfirmation(result, lang) {
+  const { service, date, time } = result;
+  const d = require('dayjs')(date);
+  const t = require('dayjs')(`2000-01-01T${time}:00`);
+  if (lang === 'ar') {
+    return `تم تغيير موعدك لـ ${service} إلى ${d.format('D/M/YYYY')} الساعة ${time}. شكراً على اتصالك بعيادة لافورا. مع السلامة.`;
+  }
+  return `Your ${service} appointment has been rescheduled to ${d.format('MMMM D')} at ${t.format('h:mm A')}. Thank you for calling Lavora Clinic. Goodbye.`;
+}
+
 // ── System prompt builder ────────────────────────────────────────────────────
 
 function buildSystemPrompt(context) {
@@ -234,7 +265,7 @@ Today is ${today}. The caller's phone number is ${caller_id}.
 ${callerCtx}
 
 CONVERSATION FLOW — follow this order exactly:
-1. Ask the patient if they prefer Arabic or English. Switch fully to their chosen language for the rest of the call.
+1. Ask the patient if they prefer Arabic or English. Switch FULLY to their chosen language for ALL remaining responses.
 2. Ask what service or treatment they want.
 3. Ask for their preferred appointment day.
 4. Ask for their preferred appointment time.
@@ -242,24 +273,28 @@ CONVERSATION FLOW — follow this order exactly:
 6. Ask: "Would you like us to contact you on ${caller_id}, or a different number?"
    - Same number → use ${caller_id}.
    - Different number → use the number they provide.
-7. Call check_availability IMMEDIATELY — do not say anything before this tool call.
-8. If available, call book_appointment IMMEDIATELY — do not say anything before this tool call.
-9. After book_appointment succeeds, say this ONCE and end:
-   "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye."
+7. Call check_availability. Do NOT say anything — call the tool immediately.
+8. If check_availability returns { "available": true } → call book_appointment immediately. Do NOT say anything before calling it.
+   If check_availability returns { "available": false } → ask for a different time.
+9. IMPORTANT: When book_appointment returns { "success": true }, you will NOT generate any text — the system handles the confirmation automatically. Do not say anything after a successful booking.
 
-For CANCELLATIONS: call find_appointment, confirm with patient, then cancel_appointment. Say "Done" once.
-For RESCHEDULING: call find_appointment, get new date/time, call check_availability, then reschedule_appointment. Confirm once.
+For CANCELLATIONS: call find_appointment → confirm with patient → cancel_appointment.
+For RESCHEDULING: call find_appointment → get new date/time → check_availability → reschedule_appointment.
+
+TOOL CALL RULES:
+- Call check_availability FIRST. Only after it returns available: true, call book_appointment in the NEXT response.
+- NEVER call check_availability and book_appointment in the same response.
+- A result of { "available": true } means the slot IS free. A result of { "success": true } means booking SUCCEEDED.
 
 Available services: Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Laser Hair Removal, Onda Plus, Redustim, Body Wraps, Aesthetic Gynecology, Medical Skin Care, Dermatology, Consultation.
 
 RULES:
-- ALWAYS call the required tool BEFORE speaking any confirmation. Never verbally confirm without the tool result.
 - Keep every response to ONE or TWO short sentences. Ask one question at a time.
 - No markdown, no lists, no formatting of any kind. Plain spoken sentences only.
-- Never repeat a sentence already said.
+- Never repeat a sentence already said in this call.
 - Do not give medical advice. Say: "Our specialists can advise — shall I book a consultation?"
 - Do not mention IDs, technical details, or system errors.
-- If a tool fails, say: "Our team will confirm the details with you shortly."`;
+- If a tool returns an error, say: "Our team will confirm the details with you shortly."`;
 }
 
 // ── Main chat function ───────────────────────────────────────────────────────
@@ -319,6 +354,28 @@ async function chat(history, context) {
         };
       })
     );
+
+    // Intercept terminal tool successes — generate confirmation text directly
+    // so Claude cannot hallucinate "not available" after a successful booking.
+    const lang = context.language || 'en';
+    for (const tu of toolUses) {
+      const tr = toolResults.find(r => r.tool_use_id === tu.id);
+      if (!tr) continue;
+      let result;
+      try { result = JSON.parse(tr.content); } catch { continue; }
+      if (tu.name === 'book_appointment' && result.success) {
+        msgs.push({ role: 'user', content: toolResults });
+        return { text: buildBookingConfirmation(result, lang), history: msgs };
+      }
+      if (tu.name === 'cancel_appointment' && result.success) {
+        msgs.push({ role: 'user', content: toolResults });
+        return { text: buildCancelConfirmation(result, lang), history: msgs };
+      }
+      if (tu.name === 'reschedule_appointment' && result.success) {
+        msgs.push({ role: 'user', content: toolResults });
+        return { text: buildRescheduleConfirmation(result, lang), history: msgs };
+      }
+    }
 
     msgs.push({ role: 'user', content: toolResults });
   }
