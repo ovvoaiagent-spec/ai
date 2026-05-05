@@ -18,14 +18,16 @@ function create({ onTranscript, onError, onClose } = {}) {
   const deepgram = createClient(apiKey);
 
   const conn = deepgram.listen.live({
-    encoding:        'mulaw',
-    sample_rate:     8000,
-    language:        'multi',    // Arabic + English auto-detect
-    model:           'nova-2',   // nova-2 has best multilingual support
-    smart_format:    true,
-    interim_results: false,
-    endpointing:     400,        // 400 ms silence = utterance end
-    punctuate:       true,
+    encoding:           'mulaw',
+    sample_rate:        8000,
+    language:           'multi',          // Arabic + English auto-detect
+    model:              'nova-2-general', // best multilingual support
+    smart_format:       true,
+    interim_results:    false,
+    endpointing:        300,              // 300 ms silence = utterance end
+    utterance_end_ms:   1000,
+    vad_events:         true,
+    punctuate:          true,
   });
 
   // Send KeepAlive every 8 s so Deepgram doesn't close the WS while
