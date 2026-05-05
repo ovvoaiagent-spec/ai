@@ -18,20 +18,28 @@ function create({ onTranscript, onError, onClose } = {}) {
   const deepgram = createClient(apiKey);
 
   const conn = deepgram.listen.live({
-    encoding:          'mulaw',
-    sample_rate:       8000,
-    language:          'multi',        // Arabic + English auto-detect
-    model:             'nova-2-general',
-    smart_format:      true,
-    interim_results:   false,
-    endpointing:       300,            // 300 ms silence = utterance end
-    utterance_end_ms:  1000,
-    vad_events:        true,
-    punctuate:         true,
+    encoding:        'mulaw',
+    sample_rate:     8000,
+    language:        'multi',    // Arabic + English auto-detect
+    model:           'nova-2',   // nova-2 has best multilingual support
+    smart_format:    true,
+    interim_results: false,
+    endpointing:     400,        // 400 ms silence = utterance end
+    punctuate:       true,
   });
 
+  // Send KeepAlive every 8 s so Deepgram doesn't close the WS while
+  // the agent is speaking and no caller audio is being forwarded.
+  let keepAliveTimer = setInterval(() => {
+    try {
+      if (conn.getReadyState() === 1) {
+        conn.send(JSON.stringify({ type: 'KeepAlive' }));
+      }
+    } catch {}
+  }, 8000);
+
   conn.on(LiveTranscriptionEvents.Open, () => {
-    log.debug('Deepgram connection opened');
+    log.info('Deepgram connection opened');
   });
 
   conn.on(LiveTranscriptionEvents.Transcript, (data) => {
@@ -40,7 +48,7 @@ function create({ onTranscript, onError, onClose } = {}) {
     const text = alt.transcript.trim();
     if (!text) return;
     const lang = data.channel?.detected_language || null;
-    log.debug(`Transcript [${lang || '?'}]: "${text}"`);
+    log.info(`Transcript [${lang || '?'}]: "${text}"`);
     onTranscript?.(text, lang);
   });
 
@@ -50,7 +58,8 @@ function create({ onTranscript, onError, onClose } = {}) {
   });
 
   conn.on(LiveTranscriptionEvents.Close, () => {
-    log.debug('Deepgram connection closed');
+    clearInterval(keepAliveTimer);
+    log.info('Deepgram connection closed');
     onClose?.();
   });
 
@@ -63,6 +72,7 @@ function create({ onTranscript, onError, onClose } = {}) {
       }
     },
     close() {
+      clearInterval(keepAliveTimer);
       try { conn.finish(); } catch {}
     }
   };

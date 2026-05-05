@@ -57,11 +57,12 @@ class CallSession {
       sessionId:       opts.callSid          || `sess-${Date.now()}`
     };
 
-    this.history         = [];
-    this.state           = STATES.IDLE;
-    this.stt             = null;
-    this.abortRef        = { aborted: false };  // set to abort mid-stream TTS
-    this.detectedLanguage = 'en';              // updated from STT and LLM responses
+    this.history          = [];
+    this.state            = STATES.IDLE;
+    this.stt              = null;
+    this.abortRef         = { aborted: false };
+    this.detectedLanguage = 'en';
+    this._silenceTimer    = null;
 
     log.info(`Session created: ${this.callSid} | returning=${this.context.is_returning}`);
   }
@@ -84,6 +85,7 @@ class CallSession {
 
     await this._speak(greeting);
     this._setState(STATES.LISTENING);
+    this._resetSilenceTimer();
   }
 
   /** Called for every audio chunk arriving from Twilio. */
@@ -98,6 +100,7 @@ class CallSession {
     if (this.state === STATES.ENDED) return;
     this._setState(STATES.ENDED);
     this.abortRef.aborted = true;
+    clearTimeout(this._silenceTimer);
     this.stt?.close();
     log.info(`Session ended: ${this.callSid}`);
   }
@@ -113,6 +116,7 @@ class CallSession {
       this.context.language = 'ar';
     }
 
+    clearTimeout(this._silenceTimer);
     log.info(`[${this.callSid}] User [${this.detectedLanguage}]: "${text}"`);
     this._setState(STATES.PROCESSING);
 
@@ -149,6 +153,7 @@ class CallSession {
 
     if (this.state !== STATES.ENDED) {
       this._setState(STATES.LISTENING);
+      this._resetSilenceTimer();
     }
   }
 
@@ -187,6 +192,22 @@ class CallSession {
       lower.includes('وداع') ||
       lower.includes('مع السلامة') ||
       lower.includes('شكراً على اتصالك بعيادة لافورا');
+  }
+
+  _resetSilenceTimer() {
+    clearTimeout(this._silenceTimer);
+    this._silenceTimer = setTimeout(async () => {
+      if (this.state !== STATES.LISTENING) return;
+      log.warn(`[${this.callSid}] Silence timeout — prompting user`);
+      const prompt = this.detectedLanguage === 'ar'
+        ? 'عذراً، لم أسمعك. هل يمكنك الإجابة مرة أخرى؟'
+        : "I'm sorry, I didn't catch that. Could you please repeat?";
+      await this._speak(prompt);
+      if (this.state !== STATES.ENDED) {
+        this._setState(STATES.LISTENING);
+        this._resetSilenceTimer();
+      }
+    }, 10000);
   }
 
   _setState(s) {
