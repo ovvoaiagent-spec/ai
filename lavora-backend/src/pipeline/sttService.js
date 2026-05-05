@@ -30,16 +30,6 @@ function create({ onTranscript, onError, onClose } = {}) {
     punctuate:          true,
   });
 
-  // Send KeepAlive every 8 s so Deepgram doesn't close the WS while
-  // the agent is speaking and no caller audio is being forwarded.
-  let keepAliveTimer = setInterval(() => {
-    try {
-      if (conn.getReadyState() === 1) {
-        conn.send(JSON.stringify({ type: 'KeepAlive' }));
-      }
-    } catch {}
-  }, 8000);
-
   conn.on(LiveTranscriptionEvents.Open, () => {
     log.info('Deepgram connection opened');
   });
@@ -60,7 +50,6 @@ function create({ onTranscript, onError, onClose } = {}) {
   });
 
   conn.on(LiveTranscriptionEvents.Close, () => {
-    clearInterval(keepAliveTimer);
     log.info('Deepgram connection closed');
     onClose?.();
   });
@@ -74,7 +63,6 @@ function create({ onTranscript, onError, onClose } = {}) {
       }
     },
     close() {
-      clearInterval(keepAliveTimer);
       try { conn.finish(); } catch {}
     }
   };
