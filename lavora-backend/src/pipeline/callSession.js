@@ -73,10 +73,7 @@ class CallSession {
     this._setState(STATES.GREETING);
 
     // Initialise Deepgram — but only start sending audio after greeting
-    this.stt = sttService.create({
-      onTranscript: (text, lang) => this._onTranscript(text, lang),
-      onError:      (err)        => log.error(`STT error [${this.callSid}]: ${err?.message || err}`)
-    });
+    this.stt = this._createStt();
 
     const greeting = this.context.is_returning === 'true'
       ? `Welcome back, ${this.context.patient_name}. Do you prefer Arabic or English today?`
@@ -187,6 +184,20 @@ class CallSession {
       lower.includes('وداع') ||
       lower.includes('مع السلامة') ||
       lower.includes('شكراً على اتصالك بعيادة لافورا');
+  }
+
+  _createStt() {
+    return sttService.create({
+      onTranscript: (text, lang) => this._onTranscript(text, lang),
+      onError: (err) => log.error(`STT error [${this.callSid}]: ${err?.message || err}`),
+      onClose: () => {
+        log.warn(`[${this.callSid}] Deepgram connection closed (state=${this.state})`);
+        if (this.state === STATES.LISTENING) {
+          log.info(`[${this.callSid}] Restarting STT connection`);
+          this.stt = this._createStt();
+        }
+      }
+    });
   }
 
   _setState(s) {

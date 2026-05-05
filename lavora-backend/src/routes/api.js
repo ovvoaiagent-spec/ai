@@ -423,6 +423,53 @@ router.get('/test-tts', async (req, res) => {
   r.end();
 });
 
+// ─── GET /api/test-deepgram ──────────────────────────────────────────────────
+router.get('/test-deepgram', async (req, res) => {
+  const apiKey = process.env.DEEPGRAM_API_KEY;
+  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set' });
+
+  try {
+    const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
+    const deepgram = createClient(apiKey);
+
+    const result = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({ ok: true, opened: false, error: 'timed out waiting for Open event' }), 5000);
+
+      let opened = false;
+      const conn = deepgram.listen.live({
+        encoding: 'mulaw', sample_rate: 8000,
+        language: 'multi', model: 'nova-2-general',
+        smart_format: true, interim_results: false,
+        endpointing: 300, utterance_end_ms: 1000, vad_events: true, punctuate: true,
+      });
+
+      conn.on(LiveTranscriptionEvents.Open, () => {
+        opened = true;
+        clearTimeout(timer);
+        try { conn.finish(); } catch {}
+        resolve({ ok: true, opened: true, model: 'nova-2-general', language: 'multi' });
+      });
+
+      conn.on(LiveTranscriptionEvents.Error, (err) => {
+        clearTimeout(timer);
+        try { conn.finish(); } catch {}
+        resolve({ ok: false, opened, error: err?.message || String(err) });
+      });
+
+      conn.on(LiveTranscriptionEvents.Close, () => {
+        if (!opened) {
+          clearTimeout(timer);
+          resolve({ ok: false, opened: false, error: 'connection closed before opening' });
+        }
+      });
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
