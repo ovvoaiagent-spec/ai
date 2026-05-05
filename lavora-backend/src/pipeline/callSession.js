@@ -83,11 +83,6 @@ class CallSession {
       ? `Welcome back, ${this.context.patient_name}. Do you prefer Arabic or English today?`
       : 'Thank you for calling Lavora Clinic. Do you prefer Arabic or English?';
 
-    // Seed history so Claude knows the greeting was already spoken.
-    // Without this, Claude sees User: "English" with no prior context and
-    // gets confused about what the user is answering.
-    this.history = [{ role: 'assistant', content: greeting }];
-
     await this._speak(greeting);
     this._setState(STATES.LISTENING);
     this._resetSilenceTimer();
