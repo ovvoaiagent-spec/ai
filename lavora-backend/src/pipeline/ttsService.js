@@ -6,8 +6,9 @@
 const https = require('https');
 const log   = require('../services/logger').child('TTS');
 
-const DEFAULT_VOICE = 'MoRbPlz3injOLU6hNLMY';  // Lavora clinic voice
-const MODEL         = 'eleven_turbo_v2_5';        // lowest ElevenLabs latency
+const DEFAULT_VOICE   = 'MoRbPlz3injOLU6hNLMY';  // Lavora clinic voice
+const MODEL_EN        = 'eleven_turbo_v2_5';        // fastest — English
+const MODEL_MULTI     = 'eleven_multilingual_v2';   // multilingual — Arabic etc.
 
 /**
  * Synthesize text to MULAW 8kHz audio.
@@ -33,16 +34,18 @@ function synthesize(text, { onChunk, onDone, onError, abortRef, languageCode } =
       return resolve();
     }
 
+    // Use multilingual model for Arabic (auto-detects from text — no language_code needed)
+    // Use turbo model for English/default (lower latency)
+    const model = (languageCode === 'ar') ? MODEL_MULTI : MODEL_EN;
     const bodyObj = {
       text,
-      model_id: MODEL,
+      model_id: model,
       voice_settings: {
         stability:        0.5,
         similarity_boost: 0.75,
         speed:            1.0
       }
     };
-    if (languageCode) bodyObj.language_code = languageCode;
     const body = JSON.stringify(bodyObj);
 
     const req = https.request({

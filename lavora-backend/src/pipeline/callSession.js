@@ -79,7 +79,7 @@ class CallSession {
     });
 
     const greeting = this.context.is_returning === 'true'
-      ? `Welcome back, ${this.context.patient_name}. How can I help you today?`
+      ? `Welcome back, ${this.context.patient_name}. Do you prefer Arabic or English today?`
       : 'Thank you for calling Lavora Clinic. Do you prefer Arabic or English?';
 
     await this._speak(greeting);
