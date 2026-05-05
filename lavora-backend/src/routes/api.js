@@ -387,6 +387,42 @@ router.post('/test-llm', async (req, res) => {
   }
 });
 
+// ─── GET /api/test-tts ───────────────────────────────────────────────────────
+router.get('/test-tts', async (req, res) => {
+  const https = require('https');
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'MoRbPlz3injOLU6hNLMY';
+  if (!apiKey) return res.status(500).json({ error: 'ELEVENLABS_API_KEY not set' });
+
+  const body = JSON.stringify({
+    text: 'Hello, this is a test.',
+    model_id: 'eleven_turbo_v2_5',
+    voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 }
+  });
+
+  const reqOptions = {
+    hostname: 'api.elevenlabs.io',
+    path: `/v1/text-to-speech/${voiceId}/stream?output_format=ulaw_8000`,
+    method: 'POST',
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+  };
+
+  const r = https.request(reqOptions, (elevenRes) => {
+    let bytes = 0;
+    elevenRes.on('data', c => { bytes += c.length; });
+    elevenRes.on('end', () => {
+      if (elevenRes.statusCode === 200) {
+        res.json({ ok: true, status: 200, bytes, voice_id: voiceId });
+      } else {
+        res.status(502).json({ ok: false, status: elevenRes.statusCode, bytes });
+      }
+    });
+  });
+  r.on('error', (err) => res.status(500).json({ ok: false, error: err.message }));
+  r.write(body);
+  r.end();
+});
+
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
