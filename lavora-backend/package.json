@@ -1,6 +1,6 @@
 {
   "name": "lavora-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI Voice Receptionist Backend for Lavora Clinic",
   "main": "src/index.js",
   "scripts": {
