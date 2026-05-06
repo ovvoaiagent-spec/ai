@@ -438,7 +438,7 @@ router.get('/test-deepgram', async (req, res) => {
       let opened = false;
       const conn = deepgram.listen.live({
         encoding: 'mulaw', sample_rate: 8000,
-        language: 'multi', model: 'nova-2-general',
+        language: 'multi', model: 'nova-2',
         smart_format: true, interim_results: false,
         endpointing: 300, utterance_end_ms: 1000, vad_events: true, punctuate: true,
       });

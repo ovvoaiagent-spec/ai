@@ -21,7 +21,7 @@ function create({ onTranscript, onError, onClose } = {}) {
     encoding:           'mulaw',
     sample_rate:        8000,
     language:           'multi',          // Arabic + English auto-detect
-    model:              'nova-2-general', // best multilingual support
+    model:              'nova-2',          // nova-2 supports language:multi (nova-2-general does not)
     smart_format:       true,
     interim_results:    false,
     endpointing:        300,              // 300 ms silence = utterance end
