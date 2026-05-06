@@ -18,16 +18,14 @@ function create({ onTranscript, onError, onClose } = {}) {
   const deepgram = createClient(apiKey);
 
   const conn = deepgram.listen.live({
-    encoding:           'mulaw',
-    sample_rate:        8000,
-    language:           'multi',          // Arabic + English auto-detect
-    model:              'nova-2',          // nova-2 supports language:multi (nova-2-general does not)
-    smart_format:       true,
-    interim_results:    false,
-    endpointing:        300,              // 300 ms silence = utterance end
-    utterance_end_ms:   1000,
-    vad_events:         true,
-    punctuate:          true,
+    encoding:        'mulaw',
+    sample_rate:     8000,
+    language:        'multi',
+    model:           'nova-2',
+    smart_format:    true,
+    interim_results: false,
+    endpointing:     300,
+    punctuate:       true,
   });
 
   conn.on(LiveTranscriptionEvents.Open, () => {
