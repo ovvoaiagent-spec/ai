@@ -426,7 +426,8 @@ router.get('/test-tts', async (req, res) => {
 // ─── GET /api/test-deepgram ──────────────────────────────────────────────────
 router.get('/test-deepgram', async (req, res) => {
   const apiKey = process.env.DEEPGRAM_API_KEY;
-  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set' });
+  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set', code_version: 'v3' });
+  const keyHint = apiKey.slice(0, 6) + '…' + apiKey.slice(-4);
 
   try {
     const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
@@ -440,14 +441,14 @@ router.get('/test-deepgram', async (req, res) => {
         encoding: 'mulaw', sample_rate: 8000,
         language: 'multi', model: 'nova-2',
         smart_format: true, interim_results: false,
-        endpointing: 300, utterance_end_ms: 1000, vad_events: true, punctuate: true,
+        endpointing: 300, punctuate: true,
       });
 
       conn.on(LiveTranscriptionEvents.Open, () => {
         opened = true;
         clearTimeout(timer);
         try { conn.finish(); } catch {}
-        resolve({ ok: true, opened: true, model: 'nova-2-general', language: 'multi' });
+        resolve({ ok: true, opened: true, model: 'nova-2', language: 'multi' });
       });
 
       conn.on(LiveTranscriptionEvents.Error, (err) => {
@@ -464,9 +465,9 @@ router.get('/test-deepgram', async (req, res) => {
       });
     });
 
-    res.json(result);
+    res.json({ ...result, keyHint, code_version: 'v3' });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v3' });
   }
 });
 
