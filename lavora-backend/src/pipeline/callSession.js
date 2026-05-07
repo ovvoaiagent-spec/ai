@@ -62,6 +62,7 @@ class CallSession {
     this.stt              = null;
     this.abortRef         = { aborted: false };
     this.detectedLanguage = 'en';
+    this._keepAliveTimer  = null;
 
     log.info(`Session created: ${this.callSid} | returning=${this.context.is_returning}`);
   }
@@ -74,6 +75,13 @@ class CallSession {
 
     // Initialise Deepgram — but only start sending audio after greeting
     this.stt = this._createStt();
+
+    // Send a KeepAlive to Deepgram every 8 s so the connection stays open
+    // during long PROCESSING/SPEAKING phases (tool calls + TTS).
+    // Deepgram closes idle connections after ~10 s of no audio or traffic.
+    this._keepAliveTimer = setInterval(() => {
+      this.stt?.keepAlive();
+    }, 8000);
 
     const greeting = this.context.is_returning === 'true'
       ? `Welcome back, ${this.context.patient_name}. Do you prefer Arabic or English today?`
@@ -95,6 +103,10 @@ class CallSession {
     if (this.state === STATES.ENDED) return;
     this._setState(STATES.ENDED);
     this.abortRef.aborted = true;
+    if (this._keepAliveTimer) {
+      clearInterval(this._keepAliveTimer);
+      this._keepAliveTimer = null;
+    }
     this.stt?.close();
     log.info(`Session ended: ${this.callSid}`);
   }

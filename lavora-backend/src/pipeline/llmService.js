@@ -333,8 +333,11 @@ async function chat(history, context) {
 
     const toolUses = response.content.filter(b => b.type === 'tool_use');
 
-    // Pure text response — we're done
-    if (toolUses.length === 0 || response.stop_reason === 'end_turn') {
+    // Pure text response — we're done.
+    // NOTE: do NOT short-circuit on stop_reason === 'end_turn' alone;
+    // Claude can return tool_use blocks with stop_reason 'end_turn' and
+    // skipping them would silently drop bookings/cancellations.
+    if (toolUses.length === 0) {
       const text = response.content
         .filter(b => b.type === 'text')
         .map(b => b.text)

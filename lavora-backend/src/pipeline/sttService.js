@@ -7,9 +7,23 @@
 const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
 const log = require('../services/logger').child('STT');
 
+// How many audio chunks to buffer while the WebSocket is reconnecting.
+// Each Twilio chunk is ~160 bytes (20 ms of MULAW 8kHz).  Keeping the last
+// 50 chunks (~1 second) covers the typical 300 ms reconnect window without
+// wasting memory.
+const RECONNECT_BUFFER_MAX = 50;
+
 /**
  * Create a new live-transcription connection.
- * Returns { send(buf), close() }.
+ * Returns { send(buf), keepAlive(), close() }.
+ *
+ * keepAlive() — sends a Deepgram KeepAlive JSON message to prevent the
+ * server from closing an idle connection (Deepgram closes after ~10 s of
+ * silence; call every 8 s during PROCESSING/SPEAKING).
+ *
+ * Audio buffering — chunks sent while the WebSocket is still in the
+ * CONNECTING state (readyState 0) are held in a small ring-buffer and
+ * flushed automatically once the connection opens.
  */
 function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
   const apiKey = process.env.DEEPGRAM_API_KEY;
@@ -28,8 +42,19 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
     punctuate:       true,
   });
 
+  // Buffer for audio chunks that arrive before the connection is OPEN.
+  const pendingBuffer = [];
+
   conn.on(LiveTranscriptionEvents.Open, () => {
     log.info('Deepgram connection opened');
+    // Flush any audio that arrived during the CONNECTING window.
+    if (pendingBuffer.length > 0) {
+      log.debug(`STT flush: sending ${pendingBuffer.length} buffered chunk(s)`);
+      for (const buf of pendingBuffer) {
+        try { conn.send(buf); } catch (e) { log.warn(`STT flush send error: ${e.message}`); }
+      }
+      pendingBuffer.length = 0;
+    }
   });
 
   conn.on(LiveTranscriptionEvents.Transcript, (data) => {
@@ -55,12 +80,35 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
   return {
     send(buf) {
       try {
-        if (conn.getReadyState() === 1) conn.send(buf);
+        const state = conn.getReadyState();
+        if (state === 1) {
+          // OPEN — send immediately.
+          conn.send(buf);
+        } else if (state === 0) {
+          // CONNECTING — buffer the chunk so it isn't lost.
+          if (pendingBuffer.length >= RECONNECT_BUFFER_MAX) {
+            pendingBuffer.shift(); // drop oldest to stay within ring size
+          }
+          pendingBuffer.push(buf);
+        }
+        // state 2 (CLOSING) or 3 (CLOSED) — drop silently; auto-restart is
+        // handled by callSession._createStt() via the onClose callback.
       } catch (e) {
         log.warn(`STT send skipped: ${e.message}`);
       }
     },
+    keepAlive() {
+      try {
+        if (conn.getReadyState() === 1) {
+          conn.send(JSON.stringify({ type: 'KeepAlive' }));
+          log.debug('STT KeepAlive sent');
+        }
+      } catch (e) {
+        log.warn(`STT keepAlive skipped: ${e.message}`);
+      }
+    },
     close() {
+      pendingBuffer.length = 0;
       try { conn.finish(); } catch {}
     }
   };
