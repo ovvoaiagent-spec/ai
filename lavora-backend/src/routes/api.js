@@ -423,6 +423,45 @@ router.get('/test-tts', async (req, res) => {
   r.end();
 });
 
+// ─── GET /api/test-tts-ar ────────────────────────────────────────────────────
+router.get('/test-tts-ar', async (req, res) => {
+  const https = require('https');
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'MoRbPlz3injOLU6hNLMY';
+  if (!apiKey) return res.status(500).json({ error: 'ELEVENLABS_API_KEY not set' });
+
+  const results = {};
+
+  function testModel(modelId) {
+    return new Promise((resolve) => {
+      const body = JSON.stringify({
+        text: 'مرحباً، شكراً على اتصالك بعيادة لافورا.',
+        model_id: modelId,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 }
+      });
+      const r = https.request({
+        hostname: 'api.elevenlabs.io',
+        path: `/v1/text-to-speech/${voiceId}/stream?output_format=ulaw_8000`,
+        method: 'POST',
+        headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+      }, (elevenRes) => {
+        let bytes = 0; let raw = '';
+        elevenRes.on('data', c => { bytes += c.length; if (elevenRes.statusCode !== 200) raw += c; });
+        elevenRes.on('end', () => resolve({ status: elevenRes.statusCode, bytes, error: raw.slice(0, 200) || undefined }));
+      });
+      r.on('error', (err) => resolve({ status: 0, error: err.message }));
+      r.write(body); r.end();
+    });
+  }
+
+  const [multi, turbo] = await Promise.all([
+    testModel('eleven_multilingual_v2'),
+    testModel('eleven_turbo_v2_5')
+  ]);
+
+  res.json({ voice_id: voiceId, eleven_multilingual_v2: multi, eleven_turbo_v2_5: turbo });
+});
+
 // ─── GET /api/test-deepgram ──────────────────────────────────────────────────
 router.get('/test-deepgram', async (req, res) => {
   const apiKey = process.env.DEEPGRAM_API_KEY;
