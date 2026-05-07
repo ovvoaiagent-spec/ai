@@ -259,9 +259,14 @@ function buildSystemPrompt(context) {
     ? `The caller is a RETURNING PATIENT. Name: ${patient_name}. Last service: ${last_service} on ${last_visit_date}. Greet them by name.`
     : 'This is a NEW PATIENT. Do not mention any prior visits.';
 
+  const langInstruction = context.language === 'ar'
+    ? 'SESSION LANGUAGE: Arabic. ALL your responses MUST be in Arabic script only. Never switch to English.'
+    : 'SESSION LANGUAGE: English.';
+
   return `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
 Your name is Lavora Assistant. You speak in a professional, warm, refined tone.
 Today is ${today}. The caller's phone number is ${caller_id}.
+${langInstruction}
 ${callerCtx}
 
 CONVERSATION FLOW — follow this order exactly:

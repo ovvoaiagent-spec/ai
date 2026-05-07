@@ -110,6 +110,16 @@ class CallSession {
       this.context.language = 'ar';
     }
 
+    // Explicit language-choice detection: caller says "Arabic"/"عربي" or "English"/"إنجليزي"
+    // Needed because "Arabic" is an English word — STT returns lang='en', missing the switch.
+    if (/arabic|عربي|عرب/i.test(text)) {
+      this.detectedLanguage = 'ar';
+      this.context.language = 'ar';
+    } else if (/english|إنجليزي|انجليزي/i.test(text) && this.detectedLanguage === 'ar') {
+      this.detectedLanguage = 'en';
+      this.context.language = 'en';
+    }
+
     log.info(`[${this.callSid}] User [${this.detectedLanguage}]: "${text}"`);
     this._setState(STATES.PROCESSING);
 
