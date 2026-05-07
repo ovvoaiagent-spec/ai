@@ -484,7 +484,7 @@ router.get('/test-tts-ar', async (req, res) => {
 // ─── GET /api/test-deepgram ──────────────────────────────────────────────────
 router.get('/test-deepgram', async (req, res) => {
   const apiKey = process.env.DEEPGRAM_API_KEY;
-  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set', code_version: 'v4' });
+  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set', code_version: 'v5' });
   const keyHint = apiKey.slice(0, 6) + '…' + apiKey.slice(-4);
 
   try {
@@ -523,9 +523,9 @@ router.get('/test-deepgram', async (req, res) => {
       });
     });
 
-    res.json({ ...result, keyHint, code_version: 'v4' });
+    res.json({ ...result, keyHint, code_version: 'v5' });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v4' });
+    res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v5' });
   }
 });
 
