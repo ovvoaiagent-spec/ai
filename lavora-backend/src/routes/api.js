@@ -401,7 +401,7 @@ router.post('/test-llm-ar', async (req, res) => {
     const history = [
       { role: 'user',      content: 'Arabic' },
       { role: 'assistant', content: 'أهلاً وسهلاً! بأي خدمة تودّ الحجز؟' },
-      { role: 'user',      content: 'أريد إزالة الشعر بالليزر' }
+      { role: 'user',      content: 'ما هي خدماتكم؟' }
     ];
     const result = await llm.chat(history, context);
     res.json({ response: result.text, language_detected: /[؀-ۿ]/.test(result.text) ? 'ar' : 'en' });
