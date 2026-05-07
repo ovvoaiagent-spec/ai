@@ -260,7 +260,7 @@ function buildSystemPrompt(context) {
     : 'This is a NEW PATIENT. Do not mention any prior visits.';
 
   const langInstruction = context.language === 'ar'
-    ? 'SESSION LANGUAGE: Arabic. ALL your responses MUST be in Arabic script only. Never switch to English. Service and treatment names (Botox, Fillers, etc.) are international medical terms — keep them as-is within your Arabic sentences. When listing services, mention only 4-5 popular ones and say "وغيرها" (and others) — never list all services.'
+    ? 'SESSION LANGUAGE: Arabic. Respond ONLY in Arabic script. Keep service names as-is (Botox, Fillers, etc.). When listing services, name 4-5 and add "وغيرها".'
     : 'SESSION LANGUAGE: English.';
 
   return `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.

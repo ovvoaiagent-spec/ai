@@ -62,6 +62,7 @@ class CallSession {
     this.stt              = null;
     this.abortRef         = { aborted: false };
     this.detectedLanguage = 'en';
+    this.sttLanguage      = 'multi';
 
     log.info(`Session created: ${this.callSid} | returning=${this.context.is_returning}`);
   }
@@ -118,6 +119,12 @@ class CallSession {
     } else if (/english|إنجليزي|انجليزي/i.test(text) && this.detectedLanguage === 'ar') {
       this.detectedLanguage = 'en';
       this.context.language = 'en';
+    }
+
+    // Switch STT to Arabic-specific model on first Arabic detection (better accuracy)
+    if (this.detectedLanguage === 'ar' && this.sttLanguage !== 'ar') {
+      this.sttLanguage = 'ar';
+      this.stt?.close(); // onClose restarts with language:'ar'
     }
 
     log.info(`[${this.callSid}] User [${this.detectedLanguage}]: "${text}"`);
@@ -198,6 +205,7 @@ class CallSession {
 
   _createStt() {
     return sttService.create({
+      language: this.sttLanguage || 'multi',
       onTranscript: (text, lang) => this._onTranscript(text, lang),
       onError: (err) => log.error(`STT error [${this.callSid}]: ${err?.message || err}`),
       onClose: () => {

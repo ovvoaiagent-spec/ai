@@ -11,7 +11,7 @@ const log = require('../services/logger').child('STT');
  * Create a new live-transcription connection.
  * Returns { send(buf), close() }.
  */
-function create({ onTranscript, onError, onClose } = {}) {
+function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) throw new Error('DEEPGRAM_API_KEY not set');
 
@@ -20,11 +20,11 @@ function create({ onTranscript, onError, onClose } = {}) {
   const conn = deepgram.listen.live({
     encoding:        'mulaw',
     sample_rate:     8000,
-    language:        'multi',
+    language,
     model:           'nova-2',
     smart_format:    true,
     interim_results: false,
-    endpointing:     300,
+    endpointing:     400,
     punctuate:       true,
   });
 
