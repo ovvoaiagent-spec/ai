@@ -32,22 +32,26 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
   const deepgram = createClient(apiKey);
 
   const conn = deepgram.listen.live({
-    encoding:        'mulaw',
-    sample_rate:     8000,
+    encoding:          'mulaw',
+    sample_rate:       8000,
     language,
-    model:           'nova-2',
-    smart_format:    false,   // disabled — corrupts Arabic text formatting
-    interim_results: false,
-    endpointing:     600,     // 600ms pause = more complete Arabic utterances
-    punctuate:       false,   // disabled — Arabic punctuation adds latency/errors
+    model:             'nova-2',
+    smart_format:      false,   // disabled — corrupts Arabic text formatting
+    interim_results:   true,    // required for UtteranceEnd fallback
+    endpointing:       600,     // 600ms pause → more complete Arabic utterances
+    punctuate:         false,   // disabled — Arabic punctuation adds latency/errors
+    utterance_end_ms:  1500,    // fallback: fire UtteranceEnd if no final after 1.5s silence
   });
 
   // Buffer for audio chunks that arrive before the connection is OPEN.
   const pendingBuffer = [];
 
+  // Track last interim transcript as fallback for UtteranceEnd
+  let lastInterim = null;
+  let lastInterimLang = null;
+
   conn.on(LiveTranscriptionEvents.Open, () => {
     log.info('Deepgram connection opened');
-    // Flush any audio that arrived during the CONNECTING window.
     if (pendingBuffer.length > 0) {
       log.debug(`STT flush: sending ${pendingBuffer.length} buffered chunk(s)`);
       for (const buf of pendingBuffer) {
@@ -59,12 +63,32 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
 
   conn.on(LiveTranscriptionEvents.Transcript, (data) => {
     const alt = data?.channel?.alternatives?.[0];
-    if (!alt?.transcript || !data.is_final) return;
+    if (!alt?.transcript) return;
     const text = alt.transcript.trim();
     if (!text) return;
     const lang = data.channel?.detected_language || null;
-    log.info(`Transcript [${lang || '?'}]: "${text}"`);
-    onTranscript?.(text, lang);
+
+    if (data.is_final) {
+      // Primary path: clear interim buffer, emit transcript immediately
+      lastInterim = null;
+      lastInterimLang = null;
+      log.info(`Transcript [${lang || '?'}] final: "${text}"`);
+      onTranscript?.(text, lang);
+    } else {
+      // Accumulate interim — used by UtteranceEnd fallback below
+      lastInterim = text;
+      lastInterimLang = lang;
+    }
+  });
+
+  // Fallback: if Arabic never emits is_final, UtteranceEnd fires after 1.5s silence
+  conn.on(LiveTranscriptionEvents.UtteranceEnd, () => {
+    if (lastInterim) {
+      log.info(`Transcript [${lastInterimLang || '?'}] utterance-end fallback: "${lastInterim}"`);
+      onTranscript?.(lastInterim, lastInterimLang);
+      lastInterim = null;
+      lastInterimLang = null;
+    }
   });
 
   conn.on(LiveTranscriptionEvents.Error, (err) => {
