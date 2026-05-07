@@ -43,7 +43,30 @@ const SERVICE_KEYWORDS = {
   'derma': 'Dermatology',
   'consult': 'Consultation',
   'consultation': 'Consultation',
-  'appointment': 'Consultation'
+  'appointment': 'Consultation',
+  // Arabic keywords
+  'إزالة الشعر': 'Laser Hair Removal',
+  'ليزر': 'Laser Hair Removal',
+  'بوتوكس': 'Botox',
+  'فيلر': 'Fillers',
+  'برو فيلو': 'Profhilo',
+  'خيوط': 'Thread Lifting',
+  'انديليفت': 'Endolift',
+  'بلازما': 'PRP',
+  'ميزو': 'Mesotherapy',
+  'إكسوسومز': 'Exosomes',
+  'خلايا جذعية': 'Stem Cell',
+  'فراكس': 'Frax Pro',
+  'بيكاواي': 'Picoway',
+  'ريد تاتش': 'RedTouch',
+  'تقشير': 'Chemical Peels',
+  'أوندا': 'Onda Plus',
+  'ريدوستيم': 'Redustim',
+  'لفائف': 'Body Wraps',
+  'نسائي': 'Aesthetic Gynecology',
+  'بشرة': 'Medical Skin Care',
+  'جلد': 'Dermatology',
+  'استشارة': 'Consultation'
 };
 
 function matchService(text) {
