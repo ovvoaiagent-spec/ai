@@ -225,47 +225,61 @@ router.post('/setup-agent', async (req, res) => {
   }
 
   const SYSTEM_PROMPT = `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
-Your name is Lavora Assistant. You are professional, warm, and refined — reflecting a luxury medical aesthetic clinic.
+Your name is Lavora Assistant. You are professional, warm, and refined.
+The caller's phone number is {{caller_id}}.
 
-CONVERSATION FLOW — follow this exact order:
-1. The first message asks the patient if they prefer Arabic or English. Switch fully to their chosen language immediately.
+BOOKING FLOW — follow this order exactly, one step at a time:
+1. Ask: "Do you prefer Arabic or English?" — switch fully to their chosen language for ALL remaining responses.
 2. Ask what service or treatment they want.
 3. Ask for their preferred appointment day.
 4. Ask for their preferred appointment time.
 5. Ask for their full name.
-6. Ask: "Would you like us to contact you on the number you are calling from, or a different number?"
-   - If they say "this number", "same number", or "yes": use {{caller_id}} as their phone number.
-   - If they give a different number: use that number.
-7. You now have all 5 fields. Call check_availability immediately — no words, no filler.
-8. If available, call book_appointment immediately with all 5 fields.
-9. After book_appointment returns success, say this ONCE and only ONCE:
-   "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye."
-10. End the call. Say nothing else.
+6. Ask: "Shall we contact you on {{caller_id}}, or would you prefer a different number?"
+   — Same/yes/this number → use {{caller_id}}.
+   — Different number → use the number they give.
+7. Call check_availability immediately. Say nothing before calling it.
+8. check_availability returns available → call book_appointment immediately. Say nothing between the two tool calls.
+   check_availability returns unavailable → apologise briefly and ask for a different date or time, then go back to step 3.
+9. book_appointment returns success → say the confirmation once and end the call:
+   English: "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye."
+   Arabic:  "تم تأكيد موعدك لـ [الخدمة] بتاريخ [التاريخ] الساعة [الوقت]. سنتواصل معك على [الرقم]. شكراً على اتصالك بعيادة لافورا. مع السلامة."
 
-Available services: Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Laser Hair Removal, Onda Plus, Redustim, Body Wraps, Aesthetic Gynecology, Medical Skin Care, Dermatology, Consultation.
+CANCELLATION FLOW:
+— Call find_appointment with the caller's phone number.
+— Confirm the appointment details with the patient.
+— Call cancel_appointment with the appointment ID.
+— Confirm cancellation and say goodbye.
+
+RESCHEDULING FLOW:
+— Call find_appointment first.
+— Ask for the new date and time.
+— Call check_availability for the new slot.
+— If available, call reschedule_appointment.
+— Confirm and say goodbye.
+
+Available services (use English name when calling tools):
+Botox (بوتوكس), Fillers (فيلر), Profhilo (برو فيلو), Thread Lifting (خيوط الشد), Endolift (انديليفت), PRP (حقن البلازما), Mesotherapy (ميزوثيرابي), Exosomes (إكسوسومز), Stem Cell (خلايا جذعية), Frax Pro (فراكس برو), Picoway (بيكاواي), RedTouch (ريد تاتش), Chemical Peels (تقشير كيميائي), Laser Hair Removal (إزالة الشعر بالليزر), Onda Plus (أوندا بلاس), Redustim (ريدوستيم), Body Wraps (لفائف الجسم), Aesthetic Gynecology (طب نسائي تجميلي), Medical Skin Care (عناية طبية بالبشرة), Dermatology (أمراض الجلد), Consultation (استشارة).
 
 RULES:
-- ALWAYS call book_appointment before speaking the confirmation. Never confirm verbally without calling the tool first.
-- Do NOT say "thank you", "great", "perfect", or any filler between step 6 and the closing line.
-- Say the closing line ONCE. Nothing after it — no "have a wonderful day", no extra farewell.
+- One question per response. Keep each response to 1–2 short sentences.
+- No markdown, no bullet lists, no formatting — plain spoken sentences only.
+- Never start a response with "sorry", "I apologize", "عذرا", or any apology.
 - Never repeat a sentence already said in this call.
-- Do NOT give medical advice. Say: "Our specialists would be best to advise you — shall I book a consultation?"
-- Do NOT mention technical details, IDs, or system responses.
-- Do NOT mention clinic opening hours unless the patient specifically asks.
-- Keep responses short and professional. One question at a time.`;
+- Do not give medical advice. Say: "Our specialists can best advise you — shall I book a consultation?"
+- Do not mention appointment IDs, technical details, or system errors to the patient.`;
 
   const TOOLS = [
     {
       name: 'check_availability',
-      description: 'Check if a date/time slot is available. Always call before confirming a slot.',
+      description: 'Check if a date/time slot is available. Always call before booking.',
       type: 'webhook',
       api_schema: {
         url: `${SERVER_URL}/tools/check-availability`, method: 'POST',
         request_body_schema: {
           type: 'object',
           properties: {
-            date: { type: 'string', description: 'Appointment date in YYYY-MM-DD format, e.g. 2025-05-12', dynamic_variable: '', constant_value: '' },
-            time: { type: 'string', description: 'Appointment time in HH:MM 24-hour format, e.g. 14:00', dynamic_variable: '', constant_value: '' }
+            date: { type: 'string', description: 'Appointment date in YYYY-MM-DD format', dynamic_variable: '', constant_value: '' },
+            time: { type: 'string', description: 'Appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' }
           },
           required: ['date', 'time']
         }
@@ -273,7 +287,7 @@ RULES:
     },
     {
       name: 'book_appointment',
-      description: 'REQUIRED: Call this to save the appointment once all 5 fields are confirmed. Never confirm verbally without calling this first.',
+      description: 'Save the appointment. Call immediately after check_availability returns available — no text between the two calls.',
       type: 'webhook',
       api_schema: {
         url: `${SERVER_URL}/tools/book-appointment`, method: 'POST',
@@ -281,24 +295,71 @@ RULES:
           type: 'object',
           properties: {
             name:    { type: 'string', description: 'Patient full name', dynamic_variable: '', constant_value: '' },
-            phone:   { type: 'string', description: 'Patient phone number including country code', dynamic_variable: '', constant_value: '' },
+            phone:   { type: 'string', description: 'Patient phone number with country code', dynamic_variable: '', constant_value: '' },
             date:    { type: 'string', description: 'Appointment date in YYYY-MM-DD format', dynamic_variable: '', constant_value: '' },
             time:    { type: 'string', description: 'Appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' },
-            service: { type: 'string', description: 'Service or treatment requested', dynamic_variable: '', constant_value: '' }
+            service: { type: 'string', description: 'Service name in English', dynamic_variable: '', constant_value: '' }
           },
           required: ['name', 'phone', 'date', 'time', 'service']
         }
       }
     },
     {
+      name: 'find_appointment',
+      description: 'Look up an existing appointment by phone number. Use for cancellations and rescheduling.',
+      type: 'webhook',
+      api_schema: {
+        url: `${SERVER_URL}/tools/find-appointment`, method: 'POST',
+        request_body_schema: {
+          type: 'object',
+          properties: {
+            phone: { type: 'string', description: 'Patient phone number', dynamic_variable: '', constant_value: '' }
+          },
+          required: ['phone']
+        }
+      }
+    },
+    {
+      name: 'cancel_appointment',
+      description: 'Cancel an existing appointment by ID.',
+      type: 'webhook',
+      api_schema: {
+        url: `${SERVER_URL}/tools/cancel-appointment`, method: 'POST',
+        request_body_schema: {
+          type: 'object',
+          properties: {
+            appointment_id: { type: 'string', description: 'Appointment ID from find_appointment', dynamic_variable: '', constant_value: '' }
+          },
+          required: ['appointment_id']
+        }
+      }
+    },
+    {
+      name: 'reschedule_appointment',
+      description: 'Reschedule an existing appointment to a new date and time.',
+      type: 'webhook',
+      api_schema: {
+        url: `${SERVER_URL}/tools/reschedule-appointment`, method: 'POST',
+        request_body_schema: {
+          type: 'object',
+          properties: {
+            appointment_id: { type: 'string', description: 'Appointment ID from find_appointment', dynamic_variable: '', constant_value: '' },
+            new_date: { type: 'string', description: 'New date in YYYY-MM-DD format', dynamic_variable: '', constant_value: '' },
+            new_time: { type: 'string', description: 'New time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' }
+          },
+          required: ['appointment_id', 'new_date', 'new_time']
+        }
+      }
+    },
+    {
       name: 'get_services',
-      description: 'Get the full list of services. Call if the patient is unsure.',
+      description: 'Return the full list of available services. Call if the patient is unsure what they want.',
       type: 'webhook',
       api_schema: { url: `${SERVER_URL}/tools/get-services`, method: 'POST', request_body_schema: { type: 'object', properties: {} } }
     },
     {
       name: 'get_working_hours',
-      description: 'Get clinic working hours.',
+      description: 'Return clinic working hours.',
       type: 'webhook',
       api_schema: { url: `${SERVER_URL}/tools/get-working-hours`, method: 'POST', request_body_schema: { type: 'object', properties: {} } }
     }

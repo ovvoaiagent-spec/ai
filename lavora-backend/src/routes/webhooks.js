@@ -33,11 +33,11 @@ function verifyElevenLabsSignature(req) {
 }
 
 // ─── POST /webhook/voice ─────────────────────────────────────────────────────
-// Twilio calls this when someone dials the clinic number.
-// Looks up caller history, then proxies to ElevenLabs with enriched dynamic vars.
+// Twilio calls this when someone dials the clinic. Registers the call with
+// ElevenLabs Conversational AI and returns the TwiML to connect Twilio to it.
 router.post('/voice', async (req, res) => {
-  const from = req.body.From || req.body.from || '';
-  const to   = req.body.To   || req.body.to   || '';
+  const from    = req.body.From || req.body.from || '';
+  const to      = req.body.To   || req.body.to   || '';
   const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
   const API_KEY  = process.env.ELEVENLABS_API_KEY;
 
@@ -62,48 +62,21 @@ router.post('/voice', async (req, res) => {
 
     if (history.length > 0) {
       const last = history[history.length - 1];
-      dynamicVars.is_returning     = 'true';
-      dynamicVars.patient_name     = last.name;
-      dynamicVars.last_service     = last.service;
-      dynamicVars.last_visit_date  = last.date;
+      dynamicVars.is_returning    = 'true';
+      dynamicVars.patient_name    = last.name;
+      dynamicVars.last_service    = last.service;
+      dynamicVars.last_visit_date = last.date;
       log.info(`Returning patient: ${last.name}, last: ${last.service} on ${last.date}`);
     } else {
-      dynamicVars.is_returning = 'false';
-      dynamicVars.patient_name = '';
-      dynamicVars.last_service = '';
+      dynamicVars.is_returning    = 'false';
+      dynamicVars.patient_name    = '';
+      dynamicVars.last_service    = '';
       dynamicVars.last_visit_date = '';
     }
   } catch (err) {
     log.warn(`Could not look up caller history: ${err.message}`);
   }
 
-  // ── Custom pipeline: Twilio Media Streams → Deepgram → Claude → ElevenLabs TTS
-  const useCustomPipeline = !!(process.env.ANTHROPIC_API_KEY && process.env.DEEPGRAM_API_KEY);
-
-  if (useCustomPipeline) {
-    const SERVER_URL = (process.env.SERVER_URL || 'https://ai-production-5456.up.railway.app')
-      .replace(/\/$/, '');
-    const wsUrl = SERVER_URL.replace(/^https?:\/\//, 'wss://') + '/media-stream';
-
-    const paramTags = Object.entries(dynamicVars)
-      .map(([k, v]) => `      <Parameter name="${k}" value="${escapeXml(String(v))}"/>`)
-      .join('\n');
-
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Connect>
-    <Stream url="${wsUrl}">
-${paramTags}
-    </Stream>
-  </Connect>
-</Response>`;
-
-    log.info(`Custom pipeline TwiML for ${from}, is_returning=${dynamicVars.is_returning}`);
-    res.set('Content-Type', 'text/xml');
-    return res.send(twiml);
-  }
-
-  // ── Fallback: ElevenLabs Conversational AI (register-call) ──────────────
   const body = JSON.stringify({
     agent_id: AGENT_ID,
     from_number: from,
@@ -114,20 +87,18 @@ ${paramTags}
     }
   });
 
-  const options = {
-    hostname: 'api.elevenlabs.io',
-    path: '/v1/convai/twilio/register-call',
-    method: 'POST',
-    headers: {
-      'xi-api-key': API_KEY,
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(body)
-    }
-  };
-
   try {
-    const twiml = await new Promise((resolve, reject) => {
-      const req2 = https.request(options, r => {
+    const result = await new Promise((resolve, reject) => {
+      const req2 = https.request({
+        hostname: 'api.elevenlabs.io',
+        path: '/v1/convai/twilio/register-call',
+        method: 'POST',
+        headers: {
+          'xi-api-key': API_KEY,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      }, r => {
         let raw = '';
         r.on('data', c => raw += c);
         r.on('end', () => resolve({ status: r.statusCode, body: raw }));
@@ -137,18 +108,18 @@ ${paramTags}
       req2.end();
     });
 
-    if (twiml.status === 200) {
-      log.info(`ElevenLabs TwiML returned for ${from}, is_returning=${dynamicVars.is_returning}`);
+    if (result.status === 200) {
+      log.info(`ElevenLabs ConvAI connected for ${from}`);
       res.set('Content-Type', 'text/xml');
-      return res.send(twiml.body);
+      return res.send(result.body);
     }
 
-    log.error(`ElevenLabs returned ${twiml.status}`, { body: twiml.body });
+    log.error(`ElevenLabs returned ${result.status}: ${result.body}`);
     res.set('Content-Type', 'text/xml');
     res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>We are unable to connect your call right now. Please try again shortly.</Say></Response>');
 
   } catch (err) {
-    log.error(`Error connecting to ElevenLabs: ${err.message}`);
+    log.error(`ElevenLabs register-call error: ${err.message}`);
     res.set('Content-Type', 'text/xml');
     res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Say>A technical error occurred. Please try again.</Say></Response>');
   }
@@ -177,7 +148,6 @@ router.post('/elevenlabs', async (req, res) => {
 
     const { fields, missing, isComplete, callDuration, conversationId } = extractionService.extractFromWebhook(payload);
 
-    // Store transcript if available
     const transcript = data.transcript || payload.transcript || null;
     const transcriptText = Array.isArray(transcript)
       ? transcript.map(t => `${t.role}: ${t.message}`).join('\n')
@@ -192,7 +162,6 @@ router.post('/elevenlabs', async (req, res) => {
 
     if (!isComplete) {
       log.info(`Incomplete booking — missing: ${missing.join(', ')}`);
-
       await db.appendMissedCapture({
         id: `MISS-${Date.now()}`,
         twilioPhone: data.metadata?.caller_id || '',
@@ -201,14 +170,12 @@ router.post('/elevenlabs', async (req, res) => {
         timestamp: new Date().toISOString(),
         transcript: transcriptText
       });
-
       await activityService.addActivity({
         actor: 'AI Voice',
         actionType: activityService.ACTION_TYPES.MISSED_CAPTURE,
         patientName: fields.name || 'Unknown',
         details: `Missing: ${missing.join(', ')}`
       });
-
       return;
     }
 

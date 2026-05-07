@@ -52,17 +52,15 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/status', (_req, res) => {
-  const customPipeline = !!(process.env.ANTHROPIC_API_KEY && process.env.DEEPGRAM_API_KEY);
   res.json({
     server: true,
     database: !!process.env.DATABASE_URL,
     sheets: sheetsService.googleConfigured(),
     calendar: !!process.env.GOOGLE_CALENDAR_ID,
-    elevenlabs: !!process.env.ELEVENLABS_API_KEY,
+    elevenlabs_api: !!process.env.ELEVENLABS_API_KEY,
+    elevenlabs_agent: !!process.env.ELEVENLABS_AGENT_ID,
     twilio: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN),
-    anthropic: !!process.env.ANTHROPIC_API_KEY,
-    deepgram: !!process.env.DEEPGRAM_API_KEY,
-    pipeline: customPipeline ? 'custom' : 'elevenlabs'
+    pipeline: 'elevenlabs-convai'
   });
 });
 
@@ -94,15 +92,8 @@ async function start() {
     log.info(`Sheets    : ${sheetsService.googleConfigured() ? 'Connected ✅' : 'Not configured'}`);
     log.info(`Calendar  : ${process.env.GOOGLE_CALENDAR_ID ? 'Configured ✅' : 'Not configured'}`);
     log.info(`Twilio    : ${process.env.TWILIO_ACCOUNT_SID ? 'Configured ✅' : 'Missing SID'}`);
-    log.info(`SMS/Remind: ✅ active`);
-
-    const pipelineReady = !!(process.env.ANTHROPIC_API_KEY && process.env.DEEPGRAM_API_KEY);
-    log.info(`Pipeline  : ${pipelineReady ? 'Custom (Deepgram+Claude+ElevenLabs) ✅' : 'ElevenLabs ConvAI (fallback)'}`);
-
-    if (pipelineReady) {
-      const pipeline = require('./pipeline');
-      pipeline.attach(server);
-    }
+    log.info(`ElevenLabs: ${process.env.ELEVENLABS_AGENT_ID ? 'ConvAI configured ✅' : 'AGENT_ID missing ⚠️'}`);
+    log.info(`Pipeline  : ElevenLabs Conversational AI`);
   });
 }
 
