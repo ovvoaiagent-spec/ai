@@ -202,7 +202,7 @@ class CallSession {
       onError: (err) => log.error(`STT error [${this.callSid}]: ${err?.message || err}`),
       onClose: () => {
         log.warn(`[${this.callSid}] Deepgram connection closed (state=${this.state})`);
-        if (this.state === STATES.LISTENING) {
+        if (this.state !== STATES.ENDED) {
           log.info(`[${this.callSid}] Restarting STT connection`);
           this.stt = this._createStt();
         }
