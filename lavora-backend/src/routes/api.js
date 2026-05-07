@@ -527,7 +527,19 @@ router.get('/test-deepgram', async (req, res) => {
       });
     });
 
-    res.json({ ...result, keyHint, code_version: 'v5' });
+    // Also test language:'ar' specifically
+    const { createClient: createClient2, LiveTranscriptionEvents: LTE2 } = require('@deepgram/sdk');
+    const dg2 = createClient2(apiKey);
+    const arResult = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve({ opened: false, error: 'timeout' }), 5000);
+      let opened = false;
+      const conn2 = dg2.listen.live({ encoding:'mulaw', sample_rate:8000, language:'ar', model:'nova-2', smart_format:true, interim_results:false, endpointing:400, punctuate:true });
+      conn2.on(LTE2.Open, () => { opened = true; clearTimeout(timer); try{conn2.finish();}catch{} resolve({ opened: true }); });
+      conn2.on(LTE2.Error, (e) => { clearTimeout(timer); try{conn2.finish();}catch{} resolve({ opened: false, error: e?.message || String(e) }); });
+      conn2.on(LTE2.Close, () => { if (!opened) { clearTimeout(timer); resolve({ opened: false, error: 'closed before open' }); } });
+    });
+
+    res.json({ ...result, keyHint, code_version: 'v5', nova2_ar: arResult });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v5' });
   }
