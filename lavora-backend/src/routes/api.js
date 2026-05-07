@@ -579,19 +579,29 @@ router.get('/test-deepgram', async (req, res) => {
       });
     });
 
-    // Also test language:'ar' specifically
     const { createClient: createClient2, LiveTranscriptionEvents: LTE2 } = require('@deepgram/sdk');
-    const dg2 = createClient2(apiKey);
-    const arResult = await new Promise((resolve) => {
-      const timer = setTimeout(() => resolve({ opened: false, error: 'timeout' }), 5000);
-      let opened = false;
-      const conn2 = dg2.listen.live({ encoding:'mulaw', sample_rate:8000, language:'ar', model:'nova-2', smart_format:true, interim_results:false, endpointing:400, punctuate:true });
-      conn2.on(LTE2.Open, () => { opened = true; clearTimeout(timer); try{conn2.finish();}catch{} resolve({ opened: true }); });
-      conn2.on(LTE2.Error, (e) => { clearTimeout(timer); try{conn2.finish();}catch{} resolve({ opened: false, error: e?.message || String(e) }); });
-      conn2.on(LTE2.Close, () => { if (!opened) { clearTimeout(timer); resolve({ opened: false, error: 'closed before open' }); } });
-    });
 
-    res.json({ ...result, keyHint, code_version: 'v5', nova2_ar: arResult });
+    function testDgConfig(cfg) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => resolve({ opened: false, error: 'timeout' }), 6000);
+        let opened = false;
+        const dg = createClient2(apiKey);
+        const conn = dg.listen.live(cfg);
+        conn.on(LTE2.Open, () => { opened = true; clearTimeout(timer); try{conn.finish();}catch{} resolve({ opened: true }); });
+        conn.on(LTE2.Error, (e) => { clearTimeout(timer); try{conn.finish();}catch{} resolve({ opened: false, error: e?.message?.slice(0,120) || String(e) }); });
+        conn.on(LTE2.Close, () => { if (!opened) { clearTimeout(timer); resolve({ opened: false, error: 'closed before open' }); } });
+      });
+    }
+
+    const base = { encoding:'mulaw', sample_rate:8000, smart_format:false, interim_results:false, endpointing:500 };
+    const [nova2_ar, phonecall_multi, phonecall_ar, whisper_ar] = await Promise.all([
+      testDgConfig({ ...base, model:'nova-2',          language:'ar'    }),
+      testDgConfig({ ...base, model:'nova-2-phonecall', language:'multi' }),
+      testDgConfig({ ...base, model:'nova-2-phonecall', language:'ar'   }),
+      testDgConfig({ ...base, model:'whisper-large',    language:'ar'   }),
+    ]);
+
+    res.json({ ...result, keyHint, code_version: 'v6', nova2_ar, phonecall_multi, phonecall_ar, whisper_ar });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v5' });
   }
