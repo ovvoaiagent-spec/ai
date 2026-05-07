@@ -263,6 +263,10 @@ function buildSystemPrompt(context) {
     ? 'SESSION LANGUAGE: Arabic. Respond ONLY in Arabic script. Keep service names as-is (Botox, Fillers, etc.). When listing services, name 4-5 and add "وغيرها". NEVER start a response with "عذرا" or any apology — go straight to the answer. Example: if asked about services, say "نقدم في عيادة لافورا: بوتوكس، فيلر، ليزر إزالة الشعر، وغيرها. بأي خدمة يمكنني مساعدتك؟"'
     : 'SESSION LANGUAGE: English.';
 
+  const langStep = context.language === 'ar'
+    ? '1. Language already chosen: Arabic. Skip asking — proceed directly to step 2.'
+    : '1. Ask the patient if they prefer Arabic or English. Switch FULLY to their chosen language for ALL remaining responses.';
+
   return `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
 Your name is Lavora Assistant. You speak in a professional, warm, refined tone.
 Today is ${today}. The caller's phone number is ${caller_id}.
@@ -270,7 +274,7 @@ ${langInstruction}
 ${callerCtx}
 
 CONVERSATION FLOW — follow this order exactly:
-1. Ask the patient if they prefer Arabic or English. Switch FULLY to their chosen language for ALL remaining responses.
+${langStep}
 2. Ask what service or treatment they want.
 3. Ask for their preferred appointment day.
 4. Ask for their preferred appointment time.

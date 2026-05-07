@@ -54,7 +54,8 @@ class CallSession {
       patient_name:    opts.patient_name     || '',
       last_service:    opts.last_service     || '',
       last_visit_date: opts.last_visit_date  || '',
-      sessionId:       opts.callSid          || `sess-${Date.now()}`
+      sessionId:       opts.callSid          || `sess-${Date.now()}`,
+      language:        'en'
     };
 
     this.history          = [];
@@ -189,6 +190,8 @@ class CallSession {
       });
     } catch (err) {
       log.error(`[${this.callSid}] TTS error: ${err.message}`);
+      // Reset state so the caller can still speak after a TTS failure
+      if (this.state !== STATES.ENDED) this._setState(STATES.LISTENING);
     }
   }
 

@@ -37,6 +37,7 @@ function synthesize(text, { onChunk, onDone, onError, abortRef, languageCode } =
     const bodyObj = {
       text,
       model_id: model,
+      ...(languageCode === 'ar' ? { language_code: 'ar' } : {}),
       voice_settings: {
         stability:        0.5,
         similarity_boost: 0.75,
