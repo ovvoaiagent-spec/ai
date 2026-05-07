@@ -36,10 +36,10 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
     sample_rate:     8000,
     language,
     model:           'nova-2',
-    smart_format:    true,
+    smart_format:    false,   // disabled — corrupts Arabic text formatting
     interim_results: false,
-    endpointing:     400,
-    punctuate:       true,
+    endpointing:     600,     // 600ms pause = more complete Arabic utterances
+    punctuate:       false,   // disabled — Arabic punctuation adds latency/errors
   });
 
   // Buffer for audio chunks that arrive before the connection is OPEN.
