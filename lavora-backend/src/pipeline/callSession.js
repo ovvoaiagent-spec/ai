@@ -136,13 +136,6 @@ class CallSession {
     log.info(`[${this.callSid}] User [${this.detectedLanguage}]: "${text}"`);
     this._setState(STATES.PROCESSING);
 
-    // Close the current STT immediately — a fresh connection will be opened
-    // before returning to LISTENING. This prevents Deepgram VAD from getting
-    // confused by the long silence during LLM + TTS processing.
-    const oldStt = this.stt;
-    this.stt = null;
-    oldStt?.close();
-
     this.history.push({ role: 'user', content: text });
 
     try {
@@ -161,20 +154,14 @@ class CallSession {
 
       log.info(`[${this.callSid}] Agent [${this.detectedLanguage}]: "${reply}"`);
 
-      // Open fresh Deepgram connection BEFORE speaking so it's ready when we
-      // return to LISTENING (TTS takes 3-8s — plenty of time to connect).
-      if (this.state !== STATES.ENDED) this.stt = this._createStt();
-
       await this._speak(reply);
 
-      // Detect end-of-call phrase
       if (this._isGoodbye(reply)) {
         await this._endCall();
         return;
       }
     } catch (err) {
       log.error(`[${this.callSid}] LLM error: ${err.message}`);
-      if (this.state !== STATES.ENDED) this.stt = this._createStt();
       await this._speak('I apologise for the technical difficulty. Our team will reach out to you shortly. Goodbye.');
       await this._endCall();
       return;
