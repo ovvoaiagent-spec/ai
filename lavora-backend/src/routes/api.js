@@ -488,6 +488,55 @@ router.get('/test-tts-ar', async (req, res) => {
   res.json({ voice_id: voiceId, eleven_multilingual_v2: multi, eleven_turbo_v2_5: turbo, turbo_with_language_code_ar: turboWithLang });
 });
 
+// ─── POST /api/test-pipeline-ar ──────────────────────────────────────────────
+// Simulates EXACT call flow: user says Arabic → asks about services → checks TTS each step
+router.post('/test-pipeline-ar', async (req, res) => {
+  const steps = [];
+  const mark = (msg, extra = {}) => steps.push({ t: Date.now(), msg, ...extra });
+
+  try {
+    const llm = require('../pipeline/llmService');
+    const tts = require('../pipeline/ttsService');
+
+    const context = {
+      caller_id: '+96899999999', is_returning: 'false',
+      patient_name: '', last_service: '', last_visit_date: '',
+      language: 'en', sessionId: 'test-pipeline-ar'
+    };
+
+    // ── Turn 1: user says "Arabic" ──────────────────────────────────────────
+    context.language = 'ar';   // mimics callSession language detection
+    mark('llm1 start', { input: 'Arabic' });
+    const s1 = Date.now();
+    const r1 = await llm.chat([{ role: 'user', content: 'Arabic' }], { ...context });
+    mark('llm1 done', { ms: Date.now() - s1, text: r1.text });
+
+    mark('tts1 start');
+    const s2 = Date.now(); let bytes1 = 0;
+    await tts.synthesize(r1.text, { languageCode: 'ar', onChunk: b => { bytes1 += b.length; } });
+    mark('tts1 done', { ms: Date.now() - s2, bytes: bytes1 });
+
+    // ── Turn 2: user asks about services ────────────────────────────────────
+    mark('llm2 start', { input: 'ما هي خدماتكم؟' });
+    const s3 = Date.now();
+    const r2 = await llm.chat(
+      r1.history.concat([{ role: 'user', content: 'ما هي خدماتكم؟' }]),
+      { ...context }
+    );
+    mark('llm2 done', { ms: Date.now() - s3, text: r2.text });
+
+    mark('tts2 start');
+    const s4 = Date.now(); let bytes2 = 0;
+    await tts.synthesize(r2.text, { languageCode: 'ar', onChunk: b => { bytes2 += b.length; } });
+    mark('tts2 done', { ms: Date.now() - s4, bytes: bytes2 });
+
+    res.json({ ok: true, steps, turn1: r1.text, turn2: r2.text });
+  } catch (err) {
+    mark('ERROR', { error: err.message });
+    res.status(500).json({ ok: false, steps, error: err.message });
+  }
+});
+
 // ─── GET /api/test-deepgram ──────────────────────────────────────────────────
 router.get('/test-deepgram', async (req, res) => {
   const apiKey = process.env.DEEPGRAM_API_KEY;
