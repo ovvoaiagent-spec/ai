@@ -455,13 +455,15 @@ router.get('/test-tts-ar', async (req, res) => {
 
   const results = {};
 
-  function testModel(modelId) {
+  function testModel(modelId, extraFields = {}) {
     return new Promise((resolve) => {
-      const body = JSON.stringify({
+      const bodyObj = {
         text: 'مرحباً، شكراً على اتصالك بعيادة لافورا.',
         model_id: modelId,
+        ...extraFields,
         voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.0 }
-      });
+      };
+      const body = JSON.stringify(bodyObj);
       const r = https.request({
         hostname: 'api.elevenlabs.io',
         path: `/v1/text-to-speech/${voiceId}/stream?output_format=ulaw_8000`,
@@ -470,19 +472,20 @@ router.get('/test-tts-ar', async (req, res) => {
       }, (elevenRes) => {
         let bytes = 0; let raw = '';
         elevenRes.on('data', c => { bytes += c.length; if (elevenRes.statusCode !== 200) raw += c; });
-        elevenRes.on('end', () => resolve({ status: elevenRes.statusCode, bytes, error: raw.slice(0, 200) || undefined }));
+        elevenRes.on('end', () => resolve({ status: elevenRes.statusCode, bytes, error: raw.slice(0, 300) || undefined }));
       });
       r.on('error', (err) => resolve({ status: 0, error: err.message }));
       r.write(body); r.end();
     });
   }
 
-  const [multi, turbo] = await Promise.all([
+  const [multi, turbo, turboWithLang] = await Promise.all([
     testModel('eleven_multilingual_v2'),
-    testModel('eleven_turbo_v2_5')
+    testModel('eleven_turbo_v2_5'),
+    testModel('eleven_turbo_v2_5', { language_code: 'ar' })
   ]);
 
-  res.json({ voice_id: voiceId, eleven_multilingual_v2: multi, eleven_turbo_v2_5: turbo });
+  res.json({ voice_id: voiceId, eleven_multilingual_v2: multi, eleven_turbo_v2_5: turbo, turbo_with_language_code_ar: turboWithLang });
 });
 
 // ─── GET /api/test-deepgram ──────────────────────────────────────────────────
