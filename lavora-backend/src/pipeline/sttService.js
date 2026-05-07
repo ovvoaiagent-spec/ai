@@ -16,14 +16,6 @@ const RECONNECT_BUFFER_MAX = 50;
 /**
  * Create a new live-transcription connection.
  * Returns { send(buf), keepAlive(), close() }.
- *
- * keepAlive() — sends a Deepgram KeepAlive JSON message to prevent the
- * server from closing an idle connection (Deepgram closes after ~10 s of
- * silence; call every 8 s during PROCESSING/SPEAKING).
- *
- * Audio buffering — chunks sent while the WebSocket is still in the
- * CONNECTING state (readyState 0) are held in a small ring-buffer and
- * flushed automatically once the connection opens.
  */
 function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
   const apiKey = process.env.DEEPGRAM_API_KEY;
@@ -32,24 +24,22 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
   const deepgram = createClient(apiKey);
 
   const conn = deepgram.listen.live({
-    encoding:          'mulaw',
-    sample_rate:       8000,
+    encoding:         'mulaw',
+    sample_rate:      8000,
     language,
-    model:             'nova-2',
-    smart_format:      false,   // disabled — corrupts Arabic text formatting
-    interim_results:   true,    // required for UtteranceEnd fallback
-    endpointing:       600,     // 600ms pause → more complete Arabic utterances
-    punctuate:         false,   // disabled — Arabic punctuation adds latency/errors
-    utterance_end_ms:  1500,    // fallback: fire UtteranceEnd if no final after 1.5s silence
+    model:            'nova-2',
+    smart_format:     false,   // disabled — corrupts Arabic text formatting
+    interim_results:  true,    // required for UtteranceEnd and silence-timer fallbacks
+    endpointing:      300,     // 300ms pause → faster detection; Arabic uses Finalize fallback
+    punctuate:        false,   // disabled — Arabic punctuation adds latency/errors
+    utterance_end_ms: 1500,    // Deepgram UtteranceEnd fallback (secondary)
   });
 
-  // Buffer for audio chunks that arrive before the connection is OPEN.
-  const pendingBuffer = [];
-
-  // Track last interim transcript — used by two independent fallback paths
-  let lastInterim     = null;
-  let lastInterimLang = null;
-  let silenceTimer    = null;   // local timer: fires 1.5 s after last interim
+  const pendingBuffer  = [];
+  let lastInterim      = null;
+  let lastInterimLang  = null;
+  let silenceTimer     = null;  // fires 1.5s after last interim result
+  let audioSilenceTimer = null; // fires 1.8s after last audio chunk → sends Finalize
 
   function flushInterim(reason) {
     if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
@@ -60,6 +50,17 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
       lastInterimLang = null;
       log.info(`Transcript [${lang || '?'}] ${reason}: "${text}"`);
       onTranscript?.(text, lang);
+    }
+  }
+
+  function sendFinalize() {
+    try {
+      if (conn.getReadyState() === 1) {
+        conn.send(JSON.stringify({ type: 'Finalize' }));
+        log.debug('STT Finalize sent (audio silence)');
+      }
+    } catch (e) {
+      log.warn(`STT Finalize skipped: ${e.message}`);
     }
   }
 
@@ -82,14 +83,14 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
     const lang = data.channel?.detected_language || null;
 
     if (data.is_final) {
-      // Primary fast path — clear any pending interim and emit immediately
+      // Primary fast path (English + Finalize-triggered transcripts)
       if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
       lastInterim = null; lastInterimLang = null;
       log.info(`Transcript [${lang || '?'}] final: "${text}"`);
       onTranscript?.(text, lang);
     } else {
       // Interim result — save it and (re)start the local silence timer.
-      // If no is_final arrives within 1.5 s of the last interim, we emit anyway.
+      // If no is_final arrives within 1.5s, we emit the best interim we have.
       lastInterim     = text;
       lastInterimLang = lang;
       if (silenceTimer) clearTimeout(silenceTimer);
@@ -97,7 +98,7 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
     }
   });
 
-  // Belt-and-suspenders: also listen for Deepgram's own UtteranceEnd signal
+  // Secondary fallback: Deepgram's own UtteranceEnd signal
   conn.on(LiveTranscriptionEvents.UtteranceEnd, () => flushInterim('utterance-end'));
 
   conn.on(LiveTranscriptionEvents.Error, (err) => {
@@ -116,6 +117,12 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
         const state = conn.getReadyState();
         if (state === 1) {
           conn.send(buf);
+          // After each audio chunk, reset the audio-silence timer.
+          // When it fires (1.8s of no audio), send Finalize to force Deepgram
+          // to process whatever it has buffered — critical for Arabic which
+          // rarely emits is_final on its own.
+          if (audioSilenceTimer) clearTimeout(audioSilenceTimer);
+          audioSilenceTimer = setTimeout(sendFinalize, 1800);
         } else if (state === 0) {
           if (pendingBuffer.length >= RECONNECT_BUFFER_MAX) pendingBuffer.shift();
           pendingBuffer.push(buf);
@@ -136,6 +143,7 @@ function create({ onTranscript, onError, onClose, language = 'multi' } = {}) {
     },
     close() {
       if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+      if (audioSilenceTimer) { clearTimeout(audioSilenceTimer); audioSilenceTimer = null; }
       lastInterim = null;
       pendingBuffer.length = 0;
       try { conn.finish(); } catch {}
