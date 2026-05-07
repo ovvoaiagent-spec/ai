@@ -260,7 +260,7 @@ function buildSystemPrompt(context) {
     : 'This is a NEW PATIENT. Do not mention any prior visits.';
 
   const langInstruction = context.language === 'ar'
-    ? 'SESSION LANGUAGE: Arabic. Respond ONLY in Arabic script. Keep service names as-is (Botox, Fillers, etc.). When listing services, name 4-5 and add "وغيرها".'
+    ? 'SESSION LANGUAGE: Arabic. Respond ONLY in Arabic script. Keep service names as-is (Botox, Fillers, etc.). When listing services, name 4-5 and add "وغيرها". NEVER start a response with "عذرا" or any apology — go straight to the answer. Example: if asked about services, say "نقدم في عيادة لافورا: بوتوكس، فيلر، ليزر إزالة الشعر، وغيرها. بأي خدمة يمكنني مساعدتك؟"'
     : 'SESSION LANGUAGE: English.';
 
   return `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
@@ -298,6 +298,7 @@ When booking, always pass the English service name to the tool.
 RULES:
 - Keep every response to ONE or TWO short sentences. Ask one question at a time.
 - No markdown, no lists, no formatting of any kind. Plain spoken sentences only.
+- Never start a response with "sorry", "I apologize", "عذرا", or any apology unless there is an actual error.
 - Never repeat a sentence already said in this call.
 - Do not give medical advice. Say: "Our specialists can advise — shall I book a consultation?"
 - Do not mention IDs, technical details, or system errors.
