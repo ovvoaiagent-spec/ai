@@ -387,6 +387,25 @@ router.post('/test-llm', async (req, res) => {
   }
 });
 
+// ─── POST /api/test-llm-ar ───────────────────────────────────────────────────
+router.post('/test-llm-ar', async (req, res) => {
+  try {
+    const llm = require('../pipeline/llmService');
+    const context = {
+      caller_id: '+96899999999',
+      is_returning: 'false',
+      patient_name: '', last_service: '', last_visit_date: '',
+      language: 'ar',
+      sessionId: 'test-ar'
+    };
+    const history = [{ role: 'user', content: 'Arabic' }];
+    const result = await llm.chat(history, context);
+    res.json({ response: result.text, language_detected: /[؀-ۿ]/.test(result.text) ? 'ar' : 'en' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/test-tts ───────────────────────────────────────────────────────
 router.get('/test-tts', async (req, res) => {
   const https = require('https');
@@ -465,7 +484,7 @@ router.get('/test-tts-ar', async (req, res) => {
 // ─── GET /api/test-deepgram ──────────────────────────────────────────────────
 router.get('/test-deepgram', async (req, res) => {
   const apiKey = process.env.DEEPGRAM_API_KEY;
-  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set', code_version: 'v3' });
+  if (!apiKey) return res.status(500).json({ ok: false, error: 'DEEPGRAM_API_KEY not set', code_version: 'v4' });
   const keyHint = apiKey.slice(0, 6) + '…' + apiKey.slice(-4);
 
   try {
@@ -504,9 +523,9 @@ router.get('/test-deepgram', async (req, res) => {
       });
     });
 
-    res.json({ ...result, keyHint, code_version: 'v3' });
+    res.json({ ...result, keyHint, code_version: 'v4' });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v3' });
+    res.status(500).json({ ok: false, error: err.message, keyHint, code_version: 'v4' });
   }
 });
 
