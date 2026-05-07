@@ -345,6 +345,40 @@ router.post('/poll-now', async (req, res) => {
   }
 });
 
+// ─── GET /api/test-stt ────────────────────────────────────────────────────────
+// Tests which Deepgram configs open successfully on this account.
+// nova-2+ar returning 400 = Arabic not in plan; nova-3+multi opening = upgrade path.
+router.get('/test-stt', async (req, res) => {
+  const apiKey = process.env.DEEPGRAM_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'DEEPGRAM_API_KEY not set' });
+
+  function testDg(cfg) {
+    return new Promise((resolve) => {
+      const { createClient, LiveTranscriptionEvents } = require('@deepgram/sdk');
+      const timer = setTimeout(() => resolve({ opened: false, error: 'timeout' }), 6000);
+      let opened = false;
+      const dg = createClient(apiKey);
+      const conn = dg.listen.live(cfg);
+      conn.on(LiveTranscriptionEvents.Open,  () => { opened = true; clearTimeout(timer); try{conn.finish();}catch{} resolve({ opened: true }); });
+      conn.on(LiveTranscriptionEvents.Error, (e) => { clearTimeout(timer); try{conn.finish();}catch{} resolve({ opened: false, error: e?.message?.slice(0,120)||String(e) }); });
+      conn.on(LiveTranscriptionEvents.Close, () => { if (!opened) { clearTimeout(timer); resolve({ opened: false, error: 'closed before open' }); } });
+    });
+  }
+
+  const base = { encoding: 'mulaw', sample_rate: 8000, smart_format: false, interim_results: true };
+  const [nova2_multi, nova2_ar, nova3_multi, nova3_ar] = await Promise.all([
+    testDg({ ...base, model: 'nova-2', language: 'multi' }),
+    testDg({ ...base, model: 'nova-2', language: 'ar'    }),
+    testDg({ ...base, model: 'nova-3', language: 'multi' }),
+    testDg({ ...base, model: 'nova-3', language: 'ar'    }),
+  ]);
+
+  res.json({
+    note: 'opened:true means the config works on your account. nova-2+ar=400 means Arabic not in plan.',
+    nova2_multi, nova2_ar, nova3_multi, nova3_ar
+  });
+});
+
 // ─── GET /api/debug ───────────────────────────────────────────────────────────
 router.get('/debug', async (req, res) => {
   try {
