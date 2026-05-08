@@ -532,4 +532,62 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// ─── GET /api/test-register-call ─────────────────────────────────────────────
+// Diagnostic: tests ElevenLabs register-call FROM this server (Railway env)
+router.get('/test-register-call', async (req, res) => {
+  const https = require('https');
+  const AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
+  const API_KEY  = process.env.ELEVENLABS_API_KEY;
+
+  if (!AGENT_ID || !API_KEY) {
+    return res.status(500).json({
+      ok: false,
+      error: 'Missing env vars',
+      has_agent_id: !!AGENT_ID,
+      has_api_key: !!API_KEY,
+      agent_id_preview: AGENT_ID ? AGENT_ID.slice(0, 12) + '...' : null
+    });
+  }
+
+  const body = JSON.stringify({
+    agent_id: AGENT_ID,
+    from_number: '+15550001234',
+    to_number: '+15550005678',
+    direction: 'inbound',
+    conversation_initiation_client_data: { dynamic_variables: { caller_id: '+15550001234' } }
+  });
+
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const r = https.request({
+        hostname: 'api.elevenlabs.io',
+        path: '/v1/convai/twilio/register-call',
+        method: 'POST',
+        headers: {
+          'xi-api-key': API_KEY,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      }, resp => {
+        let raw = '';
+        resp.on('data', c => raw += c);
+        resp.on('end', () => resolve({ status: resp.statusCode, body: raw }));
+      });
+      r.on('error', reject);
+      r.write(body);
+      r.end();
+    });
+
+    res.json({
+      ok: result.status === 200,
+      elevenlabs_status: result.status,
+      elevenlabs_response: result.body.slice(0, 500),
+      agent_id_preview: AGENT_ID.slice(0, 12) + '...',
+      api_key_preview: API_KEY.slice(0, 8) + '...'
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;
