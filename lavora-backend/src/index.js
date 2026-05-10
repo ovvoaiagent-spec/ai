@@ -43,7 +43,7 @@ app.use('/tools',   toolsLimiter,   toolRoutes);
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    clinic: 'Lavora Clinic',
+    clinic: 'Test Clinic',
     storage: process.env.DATABASE_URL ? 'postgresql' : 'local-json',
     sheets: sheetsService.googleConfigured() ? 'configured' : 'not configured',
     calendar: process.env.GOOGLE_CALENDAR_ID ? 'configured' : 'not configured',
@@ -85,7 +85,7 @@ async function start() {
 
   const server = app.listen(PORT, () => {
     log.info('═══════════════════════════════════════════════════');
-    log.info('  Lavora Clinic — AI Voice Receptionist Backend');
+    log.info('  Test Clinic — AI Voice Receptionist Backend');
     log.info('═══════════════════════════════════════════════════');
     log.info(`Port      : ${PORT}`);
     log.info(`Database  : ${process.env.DATABASE_URL ? 'PostgreSQL ✅' : 'Local JSON'}`);

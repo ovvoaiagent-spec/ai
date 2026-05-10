@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lavora AI — Admin Panel</title>
+<title>Test AI — Admin Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -310,7 +310,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
           </div>
           <div class="field">
             <label>Product Name</label>
-            <input id="product-name" type="text" value="Lavora AI">
+            <input id="product-name" type="text" value="Test AI">
           </div>
           <div class="field">
             <label>Contact WhatsApp</label>
@@ -424,7 +424,7 @@ function saveClinics(c) { localStorage.setItem('lavora_clinics', JSON.stringify(
 function seedIfEmpty() {
   if (getClinics().length > 0) return;
   const demo = [
-    { id:'c1', name:'Lavora Clinic', city:'Muscat', country:'Oman', plan:'Professional', status:'Active', fee:179, phone:'+968 9XXX XXXX', contact:'Dr. Soraya', totalBookings:87, aiBookings:62, since:'2025-01-15', notes:'Flagship client' },
+    { id:'c1', name:'Test Clinic', city:'Muscat', country:'Oman', plan:'Professional', status:'Active', fee:179, phone:'+968 9XXX XXXX', contact:'Dr. Soraya', totalBookings:87, aiBookings:62, since:'2025-01-15', notes:'Flagship client' },
     { id:'c2', name:'Pearl Aesthetics', city:'Dubai', country:'UAE', plan:'Starter', status:'Active', fee:99, phone:'+971 5X XXX XXXX', contact:'Dr. Nada', totalBookings:34, aiBookings:28, since:'2025-02-20', notes:'' },
     { id:'c3', name:'Al Noor Medical', city:'Riyadh', country:'Saudi Arabia', plan:'Enterprise', status:'Active', fee:299, phone:'+966 5X XXX XXXX', contact:'Clinic Manager', totalBookings:156, aiBookings:134, since:'2024-11-01', notes:'Multi-branch' },
     { id:'c4', name:'Glow Beauty Center', city:'Abu Dhabi', country:'UAE', plan:'Professional', status:'Trial', fee:179, phone:'+971 2X XXX XXXX', contact:'Dr. Leila', totalBookings:12, aiBookings:10, since:'2025-04-10', notes:'Trial ends May 10' },

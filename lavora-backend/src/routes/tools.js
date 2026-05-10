@@ -212,14 +212,14 @@ router.post('/reschedule-appointment', async (req, res) => {
 // ─── get_services ─────────────────────────────────────────────────────────────
 router.post('/get-services', (_req, res) => {
   res.json({
-    result: 'Here are the available services at Lavora Clinic.',
+    result: 'Here are the available services at Test Clinic.',
     services: ['Botox','Fillers','Profhilo','Thread Lifting','Endolift','PRP','Mesotherapy','Exosomes','Stem Cell','Frax Pro','Picoway','RedTouch','Chemical Peels','Laser Hair Removal','Onda Plus','Redustim','Body Wraps','Aesthetic Gynecology','Medical Skin Care','Dermatology','Consultation']
   });
 });
 
 // ─── get_working_hours ────────────────────────────────────────────────────────
 router.post('/get-working-hours', (_req, res) => {
-  res.json({ result: 'Lavora Clinic is open Saturday through Thursday, 9:00 AM to 6:00 PM. Closed on Fridays.', hours: 'Saturday–Thursday: 9:00 AM – 6:00 PM', closed: 'Friday' });
+  res.json({ result: 'Test Clinic is open Saturday through Thursday, 9:00 AM to 6:00 PM. Closed on Fridays.', hours: 'Saturday–Thursday: 9:00 AM – 6:00 PM', closed: 'Friday' });
 });
 
 module.exports = router;
