@@ -378,11 +378,12 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 
   <!-- Tabs -->
   <div class="tabs-bar">
-    <button class="tab-btn active" onclick="switchTab('appointments',this)">Appointments</button>
+    <button class="tab-btn active" onclick="switchTab('appointments',this)">📅 Upcoming</button>
+    <button class="tab-btn" onclick="switchTab('past',this)">🗂 Past Appointments</button>
     <button class="tab-btn" onclick="switchTab('analytics',this)">Analytics</button>
   </div>
 
-  <!-- Tab: Appointments -->
+  <!-- Tab: Upcoming Appointments -->
   <div class="tab-content active" id="tab-appointments">
   <div class="main">
 
@@ -398,7 +399,6 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
           <option value="">All Sources</option>
           <option>AI Voice</option><option>Human</option>
         </select>
-        <input type="date" class="filter-select" id="f-date" onchange="renderTable()">
         <button class="btn-outline" id="refresh-btn" onclick="manualRefresh()">↻ Refresh</button>
         <button class="btn-outline" id="poll-btn" onclick="pollNow()">📞 Poll Calls</button>
         <button class="btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
@@ -416,7 +416,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         </table>
         <div id="empty-state" class="empty-state" style="display:none">
           <div class="icon">📋</div>
-          <div>No appointments found</div>
+          <div>No upcoming appointments</div>
         </div>
       </div>
     </div>
@@ -432,6 +432,42 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 
   </div>
   </div> <!-- end tab-appointments -->
+
+  <!-- Tab: Past Appointments -->
+  <div class="tab-content" id="tab-past">
+  <div class="main" style="grid-template-columns:1fr">
+    <div class="panel">
+      <div class="toolbar">
+        <input class="search-input" id="past-search" placeholder="🔍  Search name, phone, service…" oninput="renderPastTable()">
+        <select class="filter-select" id="past-f-status" onchange="renderPastTable()">
+          <option value="">All Statuses</option>
+          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+        </select>
+        <select class="filter-select" id="past-f-source" onchange="renderPastTable()">
+          <option value="">All Sources</option>
+          <option>AI Voice</option><option>Human</option>
+        </select>
+        <input type="date" class="filter-select" id="past-f-date" onchange="renderPastTable()">
+        <button class="btn-outline" onclick="exportPastCSV()">⬇ Export CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th><th>Service</th><th>Doctor</th>
+              <th>Date</th><th>Time</th><th>Status</th><th>Source</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="past-apt-body"></tbody>
+        </table>
+        <div id="past-empty-state" class="empty-state" style="display:none">
+          <div class="icon">🗂</div>
+          <div>No past appointments found</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div> <!-- end tab-past -->
 
   <!-- Tab: Analytics -->
   <div class="tab-content" id="tab-analytics">
@@ -633,38 +669,12 @@ let countdownSecs = 15;
 let countdownTimer = null;
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
-function renderTable() {
-  const search = document.getElementById('search').value.toLowerCase();
-  const fStatus = document.getElementById('f-status').value;
-  const fSource = document.getElementById('f-source').value;
-  const fDate = document.getElementById('f-date').value;
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
 
-  let rows = allAppointments.filter(a => {
-    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
-    const matchStatus = !fStatus || a.status === fStatus;
-    const matchSource = !fSource || a.source === fSource;
-    const matchDate = !fDate || a.date === fDate;
-    return matchSearch && matchStatus && matchSource && matchDate;
-  });
-
-  // Sort: soonest appointment first; within same slot newest booking (by ID) first
-  rows.sort((a, b) => {
-    const da = (a.date || '9999') + (a.time || '99:99');
-    const db = (b.date || '9999') + (b.time || '99:99');
-    return da.localeCompare(db) || (b.id || '').localeCompare(a.id || '');
-  });
-
-  const tbody = document.getElementById('apt-body');
-  const empty = document.getElementById('empty-state');
-
-  if (rows.length === 0) {
-    tbody.innerHTML = '';
-    empty.style.display = '';
-    return;
-  }
-  empty.style.display = 'none';
-
-  tbody.innerHTML = rows.map(a => `
+function aptRow(a, showActions) {
+  return `
     <tr>
       <td>
         <div class="cell-name" style="cursor:pointer;color:var(--navy)" onclick="openPatientHistory('${esc(a.phone)}')">${esc(a.name)}</div>
@@ -678,15 +688,81 @@ function renderTable() {
       <td><span class="badge badge-${a.source === 'AI Voice' ? 'ai' : 'human'}">${esc(a.source)}</span></td>
       <td>
         <div class="actions">
-          ${a.status !== 'Cancelled' ? `
+          ${showActions && a.status !== 'Cancelled' ? `
             ${a.status === 'Pending' ? `<button class="btn-sm btn-confirm" onclick="confirmAppointment('${esc(a.id)}')">Confirm</button>` : ''}
             <button class="btn-sm btn-edit" onclick="openEditModal('${esc(a.id)}')">Edit</button>
             <button class="btn-sm btn-cancel" onclick="openCancelModal('${esc(a.id)}','${esc(a.name)}')">Cancel</button>
-          ` : '<span style="color:var(--text-light);font-size:11px">Cancelled</span>'}
+          ` : '<span style="color:var(--text-light);font-size:11px">${a.status === "Cancelled" ? "Cancelled" : "—"}</span>'}
         </div>
       </td>
     </tr>
-  `).join('');
+  `;
+}
+
+function renderTable() {
+  const today = todayStr();
+  const search = document.getElementById('search').value.toLowerCase();
+  const fStatus = document.getElementById('f-status').value;
+  const fSource = document.getElementById('f-source').value;
+
+  let rows = allAppointments.filter(a => {
+    if ((a.date || '0000') < today) return false; // hide past dates
+    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
+    const matchStatus = !fStatus || a.status === fStatus;
+    const matchSource = !fSource || a.source === fSource;
+    return matchSearch && matchStatus && matchSource;
+  });
+
+  rows.sort((a, b) => {
+    const da = (a.date || '9999') + (a.time || '99:99');
+    const db = (b.date || '9999') + (b.time || '99:99');
+    return da.localeCompare(db) || (b.id || '').localeCompare(a.id || '');
+  });
+
+  const tbody = document.getElementById('apt-body');
+  const empty = document.getElementById('empty-state');
+  if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(a => aptRow(a, true)).join('');
+}
+
+function renderPastTable() {
+  const today = todayStr();
+  const search = document.getElementById('past-search').value.toLowerCase();
+  const fStatus = document.getElementById('past-f-status').value;
+  const fSource = document.getElementById('past-f-source').value;
+  const fDate   = document.getElementById('past-f-date').value;
+
+  let rows = allAppointments.filter(a => {
+    if ((a.date || '9999') >= today) return false; // only past
+    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
+    const matchStatus = !fStatus || a.status === fStatus;
+    const matchSource = !fSource || a.source === fSource;
+    const matchDate   = !fDate || a.date === fDate;
+    return matchSearch && matchStatus && matchSource && matchDate;
+  });
+
+  rows.sort((a, b) => {
+    const da = (a.date || '0000') + (a.time || '00:00');
+    const db = (b.date || '0000') + (b.time || '00:00');
+    return db.localeCompare(da); // most recent past first
+  });
+
+  const tbody = document.getElementById('past-apt-body');
+  const empty = document.getElementById('past-empty-state');
+  if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(a => aptRow(a, false)).join('');
+}
+
+function exportPastCSV() {
+  const today = todayStr();
+  const rows = allAppointments.filter(a => (a.date || '9999') < today);
+  const headers = ['ID','Name','Phone','Service','Doctor','Date','Time','Status','Source'];
+  const lines = rows.map(a => [a.id,a.name,a.phone,a.service,a.doctor,a.date,a.time,a.status,a.source].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const csv = [headers.join(','), ...lines].join('\n');
+  const url = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  const a = document.createElement('a'); a.href = url; a.download = `test-past-appointments-${today}.csv`; a.click();
 }
 
 function renderActivity(activities) {
@@ -996,6 +1072,7 @@ function switchTab(name, btn) {
   btn.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'analytics') renderAnalytics();
+  if (name === 'past') renderPastTable();
 }
 
 // ─── Confirm Appointment (Pending → Confirmed) ────────────────────────────────
