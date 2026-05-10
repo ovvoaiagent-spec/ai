@@ -52,8 +52,7 @@ function sendBookingConfirmation(apt) {
     `✅ Test Clinic — Booking Confirmed\n` +
     `Name: ${apt.name}\n` +
     `Service: ${apt.service}\n` +
-    `Date: ${apt.date} at ${apt.time}\n\n` +
-    `To cancel or reschedule, reply to this message.`
+    `Date: ${apt.date} at ${apt.time}`
   ));
 }
 
@@ -61,8 +60,7 @@ function sendBookingConfirmation(apt) {
 function sendCancellationConfirmation(apt) {
   safe('cancellation-confirmation', () => sendWA(apt.phone,
     `❌ Test Clinic — Appointment Cancelled\n` +
-    `Your ${apt.service} appointment on ${apt.date} at ${apt.time} has been cancelled.\n\n` +
-    `To book a new appointment, reply to this message.`
+    `Your ${apt.service} appointment on ${apt.date} at ${apt.time} has been cancelled.`
   ));
 }
 
@@ -70,8 +68,7 @@ function sendCancellationConfirmation(apt) {
 function sendRescheduleConfirmation(apt) {
   safe('reschedule-confirmation', () => sendWA(apt.phone,
     `🔄 Test Clinic — Appointment Rescheduled\n` +
-    `Your ${apt.service} appointment has been moved to ${apt.date} at ${apt.time}.\n\n` +
-    `To cancel or reschedule again, reply to this message.`
+    `Your ${apt.service} appointment has been moved to ${apt.date} at ${apt.time}.`
   ));
 }
 
@@ -79,8 +76,7 @@ function sendRescheduleConfirmation(apt) {
 function sendReminder(apt) {
   safe('reminder', () => sendWA(apt.phone,
     `⏰ Test Clinic — Appointment Reminder\n` +
-    `Hi ${apt.name}, this is a reminder that you have a ${apt.service} appointment tomorrow at ${apt.time}.\n\n` +
-    `To cancel or reschedule, reply to this message.`
+    `Hi ${apt.name}, this is a reminder that you have a ${apt.service} appointment tomorrow at ${apt.time}.`
   ));
 }
 
