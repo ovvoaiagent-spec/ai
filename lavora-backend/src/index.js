@@ -9,9 +9,10 @@ const pollingService = require('./services/pollingService');
 const log = require('./services/logger').child('SERVER');
 
 const { toolsLimiter, apiLimiter, webhookLimiter } = require('./middleware/rateLimiter');
-const webhookRoutes = require('./routes/webhooks');
-const apiRoutes = require('./routes/api');
-const toolRoutes = require('./routes/tools');
+const webhookRoutes  = require('./routes/webhooks');
+const whatsappRoutes = require('./routes/whatsapp');
+const apiRoutes      = require('./routes/api');
+const toolRoutes     = require('./routes/tools');
 
 const app = express();
 
@@ -37,6 +38,7 @@ const DASHBOARD_DIR = DASHBOARD_CANDIDATES.find(p => fs.existsSync(p)) || DASHBO
 app.use(express.static(DASHBOARD_DIR));
 
 app.use('/webhook', webhookLimiter, webhookRoutes);
+app.use('/webhook', webhookLimiter, whatsappRoutes);
 app.use('/api',     apiLimiter,     apiRoutes);
 app.use('/tools',   toolsLimiter,   toolRoutes);
 
@@ -93,7 +95,8 @@ async function start() {
     log.info(`Calendar  : ${process.env.GOOGLE_CALENDAR_ID ? 'Configured ✅' : 'Not configured'}`);
     log.info(`Twilio    : ${process.env.TWILIO_ACCOUNT_SID ? 'Configured ✅' : 'Missing SID'}`);
     log.info(`ElevenLabs: ${process.env.ELEVENLABS_AGENT_ID ? 'ConvAI configured ✅' : 'AGENT_ID missing ⚠️'}`);
-    log.info(`Pipeline  : ElevenLabs Conversational AI`);
+    log.info(`WhatsApp  : ${process.env.WHATSAPP_PHONE_NUMBER_ID ? 'Configured ✅' : 'Not configured'}`);
+    log.info(`Pipeline  : ElevenLabs ConvAI (voice) + WhatsApp AI (chat)`);
   });
 }
 
