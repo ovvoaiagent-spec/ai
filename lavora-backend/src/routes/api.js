@@ -590,4 +590,43 @@ router.get('/test-register-call', async (req, res) => {
   }
 });
 
+// ─── GET /api/test-whatsapp ───────────────────────────────────────────────────
+// Diagnostic: checks env vars and sends a test message via WhatsApp API
+router.get('/test-whatsapp', async (req, res) => {
+  const axios = require('axios');
+  const phoneId     = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token       = process.env.WHATSAPP_ACCESS_TOKEN;
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const to          = req.query.to; // e.g. ?to=96512345678
+
+  const config = {
+    has_phone_number_id: !!phoneId,
+    has_access_token:    !!token,
+    has_verify_token:    !!verifyToken,
+    has_anthropic_key:   !!anthropicKey,
+    phone_id_preview:    phoneId ? phoneId.slice(0, 6) + '...' : null,
+    token_preview:       token   ? token.slice(0, 8)   + '...' : null,
+  };
+
+  if (!phoneId || !token) {
+    return res.status(500).json({ ok: false, error: 'Missing WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN', config });
+  }
+
+  if (!to) {
+    return res.json({ ok: true, config, note: 'Add ?to=PHONENUMBER to send a test message' });
+  }
+
+  try {
+    const result = await axios.post(
+      `https://graph.facebook.com/v20.0/${phoneId}/messages`,
+      { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body: 'Test Clinic bot is online and working!' } },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    );
+    res.json({ ok: true, config, whatsapp_response: result.data });
+  } catch (err) {
+    res.status(500).json({ ok: false, config, error: err.response?.data || err.message });
+  }
+});
+
 module.exports = router;
