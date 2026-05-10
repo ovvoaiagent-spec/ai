@@ -4,7 +4,7 @@ const path = require('path');
 const dayjs = require('dayjs');
 const db = require('./localDbService');
 const activityService = require('./activityService');
-const sms = require('./smsService');
+const sms = require('./notificationService');
 const log = require('./logger').child('POLL');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('./extractionService');
@@ -145,9 +145,8 @@ async function poll() {
 }
 
 // ── Appointment reminders ─────────────────────────────────────────────────────
-// Runs every hour. Sends an SMS reminder for appointments happening tomorrow
-// that haven't been reminded yet.
-const remindedSet = new Set(); // in-memory — resets on restart, harmless (just re-sends once)
+// Runs every hour. Sends a WhatsApp reminder once, 24 hours before the appointment.
+// Uses a persistent DB flag (reminderSent: true) so server restarts never cause duplicates.
 
 async function sendReminders() {
   try {
@@ -158,13 +157,13 @@ async function sendReminders() {
       a.status !== 'Cancelled' &&
       a.phone &&
       !a.phone.includes('caller_id') &&
-      !remindedSet.has(a.id)
+      !a.reminderSent
     );
 
     for (const apt of due) {
       sms.sendReminder(apt);
-      remindedSet.add(apt.id);
-      log.info(`Reminder queued for ${apt.name} — ${apt.service} on ${apt.date} ${apt.time}`);
+      await db.updateAppointment(apt.id, { reminderSent: true });
+      log.info(`Reminder sent for ${apt.name} — ${apt.service} on ${apt.date} ${apt.time}`);
     }
 
     if (due.length > 0) {

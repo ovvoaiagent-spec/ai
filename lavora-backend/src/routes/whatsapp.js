@@ -12,6 +12,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const db              = require('../services/localDbService');
 const googleSync      = require('../services/googleSync');
 const activityService = require('../services/activityService');
+const notify          = require('../services/notificationService');
 const log             = require('../services/logger').child('WHATSAPP');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService }         = require('../services/extractionService');
@@ -312,6 +313,7 @@ async function executeTool(name, input, callerPhone) {
 
         await db.appendAppointment(apt);
         googleSync.book(apt);
+        notify.sendBookingConfirmation(apt);
 
         await activityService.addActivity({
           actor: 'WhatsApp AI', actionType: activityService.ACTION_TYPES.BOOKED,
@@ -339,6 +341,7 @@ async function executeTool(name, input, callerPhone) {
 
         await db.cancelAppointment(apt.id);
         googleSync.cancel(apt);
+        notify.sendCancellationConfirmation(apt);
 
         await activityService.addActivity({
           actor: 'WhatsApp AI', actionType: activityService.ACTION_TYPES.CANCELLED,
@@ -365,6 +368,7 @@ async function executeTool(name, input, callerPhone) {
         await db.updateAppointment(apt.id, { date: newDate, time: newTime, status: 'Confirmed' });
         const updated = { ...apt, date: newDate, time: newTime };
         googleSync.reschedule(updated);
+        notify.sendRescheduleConfirmation(updated);
 
         await activityService.addActivity({
           actor: 'WhatsApp AI', actionType: activityService.ACTION_TYPES.RESCHEDULED,
