@@ -3,6 +3,7 @@ const dayjs = require('dayjs');
 const router = express.Router();
 
 const { requireApiKey } = require('../middleware/auth');
+const nurseSessionStore  = require('../services/nurseSessionStore');
 const db = require('../services/localDbService');
 const googleSync = require('../services/googleSync');
 const activityService = require('../services/activityService');
@@ -11,6 +12,26 @@ const log = require('../services/logger').child('API');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const settingsService = require('../services/settingsService');
+
+// ─── POST /api/nurse-login (no auth required) ─────────────────────────────────
+router.post('/nurse-login', (req, res) => {
+  const { name, phone } = req.body || {};
+  if (!name || !phone) return res.status(400).json({ error: 'name and phone required' });
+
+  const s = settingsService.getSettings();
+  const normalizePhone = p => String(p).replace(/\D/g, '').slice(-8);
+  const nurse = (s.staff || []).find(m =>
+    m.phone && m.name &&
+    m.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+    normalizePhone(m.phone) === normalizePhone(phone)
+  );
+
+  if (!nurse) return res.status(401).json({ error: 'Name or phone number not recognised. Please check with your manager.' });
+
+  const token = nurseSessionStore.create(nurse);
+  log.info(`Nurse login: ${nurse.name}`);
+  res.json({ token, name: nurse.name, role: nurse.role || '', department: nurse.department || '' });
+});
 
 router.use(requireApiKey);
 
@@ -47,7 +68,7 @@ router.get('/appointments/today', async (req, res) => {
 // ─── POST /api/appointments ───────────────────────────────────────────────────
 router.post('/appointments', async (req, res) => {
   try {
-    const { name, phone, service, doctor, date, time, notes } = req.body;
+    const { name, phone, service, doctor, staff, date, time, notes } = req.body;
 
     const missing = [];
     if (!name) missing.push('name');
@@ -79,6 +100,7 @@ router.post('/appointments', async (req, res) => {
       phone,
       service: normalizedService,
       doctor: doctor || '',
+      staff:  staff  || '',
       date: normalizedDate,
       time: normalizedTime,
       status: 'Pending',
@@ -112,20 +134,37 @@ router.post('/appointments', async (req, res) => {
 router.put('/appointments/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, service, doctor, date, time, status, notes } = req.body;
+    const { name, phone, service, doctor, staff, date, time, status, notes } = req.body;
 
     const existing = await db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
+    // Nurses may only update staff + status (Confirmed/Pending)
+    if (req.nurseSession) {
+      const updates = {};
+      if (staff  !== undefined) updates.staff  = staff;
+      if (status !== undefined && ['Confirmed','Pending'].includes(status)) updates.status = status;
+      if (!Object.keys(updates).length) return res.status(403).json({ error: 'Nurses may only update staff and status fields' });
+      const updated = await db.updateAppointment(id, updates);
+      await activityService.addActivity({
+        actor: req.nurseSession.name,
+        actionType: activityService.ACTION_TYPES.UPDATED,
+        patientName: updated.name,
+        details: `Session completed by ${req.nurseSession.name} | ID: ${id}`
+      });
+      return res.json({ success: true, appointment: updated });
+    }
+
     const updates = {};
-    if (name !== undefined) updates.name = name;
-    if (phone !== undefined) updates.phone = phone;
+    if (name    !== undefined) updates.name    = name;
+    if (phone   !== undefined) updates.phone   = phone;
     if (service !== undefined) updates.service = matchService(service) || service;
-    if (doctor !== undefined) updates.doctor = doctor;
-    if (date !== undefined) updates.date = parseDate(date) || date;
-    if (time !== undefined) updates.time = parseTime(time) || time;
-    if (status !== undefined) updates.status = status;
-    if (notes !== undefined) updates.notes = notes;
+    if (doctor  !== undefined) updates.doctor  = doctor;
+    if (staff   !== undefined) updates.staff   = staff;
+    if (date    !== undefined) updates.date    = parseDate(date) || date;
+    if (time    !== undefined) updates.time    = parseTime(time) || time;
+    if (status  !== undefined) updates.status  = status;
+    if (notes   !== undefined) updates.notes   = notes;
 
     const newDate = updates.date || existing.date;
     const newTime = updates.time || existing.time;
@@ -166,6 +205,7 @@ router.put('/appointments/:id', async (req, res) => {
 
 // ─── DELETE /api/appointments/:id ─────────────────────────────────────────────
 router.delete('/appointments/:id', async (req, res) => {
+  if (req.nurseSession) return res.status(403).json({ error: 'Nurses cannot cancel appointments' });
   try {
     const { id } = req.params;
 
@@ -602,6 +642,7 @@ router.get('/settings', (req, res) => {
 
 // ─── PUT /api/settings ───────────────────────────────────────────────────────
 router.put('/settings', (req, res) => {
+  if (req.nurseSession) return res.status(403).json({ error: 'Forbidden for nurse accounts' });
   try {
     const saved = settingsService.saveSettings(req.body);
     log.info('Settings updated via API');

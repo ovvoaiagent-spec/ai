@@ -318,20 +318,43 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
   <div class="screen-card">
     <div class="screen-logo">TEST</div>
     <div class="screen-tagline">Clinic Dashboard</div>
-    <h2>Connect to Backend</h2>
-    <div class="field">
-      <label>Server URL</label>
-      <input id="cfg-url" type="url" placeholder="http://localhost:3000">
+    <div style="display:flex;gap:0;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">
+      <button id="tab-admin-btn" onclick="showLoginTab('admin')" style="flex:1;padding:10px;border:none;background:var(--navy);color:white;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s">Admin</button>
+      <button id="tab-nurse-btn" onclick="showLoginTab('nurse')" style="flex:1;padding:10px;border:none;background:white;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;transition:all .2s">Nurse Login</button>
     </div>
-    <div class="field">
-      <label>CRM API Key</label>
-      <input id="cfg-key" type="password" placeholder="Your CRM_SECRET_KEY">
+
+    <!-- Admin tab -->
+    <div id="login-admin">
+      <h2 style="margin-bottom:20px">Admin Login</h2>
+      <div class="field">
+        <label>Server URL</label>
+        <input id="cfg-url" type="url" placeholder="http://localhost:3000">
+      </div>
+      <div class="field">
+        <label>CRM API Key</label>
+        <input id="cfg-key" type="password" placeholder="Your CRM_SECRET_KEY">
+      </div>
+      <div class="field">
+        <label>CEO Section Password</label>
+        <input id="cfg-ceo-pw" type="password" placeholder="Set or change CEO password">
+      </div>
+      <button class="btn-primary" onclick="saveConfig()">Connect Dashboard</button>
     </div>
-    <div class="field">
-      <label>CEO Section Password</label>
-      <input id="cfg-ceo-pw" type="password" placeholder="Set or change CEO password">
+
+    <!-- Nurse tab -->
+    <div id="login-nurse" style="display:none">
+      <h2 style="margin-bottom:20px">Nurse Login</h2>
+      <div class="field">
+        <label>Your Name</label>
+        <input id="nurse-login-name" type="text" placeholder="e.g. Sara">
+      </div>
+      <div class="field">
+        <label>Your Phone Number</label>
+        <input id="nurse-login-phone" type="tel" placeholder="+968 9X XXX XXX" onkeydown="if(event.key==='Enter')doNurseLogin()">
+      </div>
+      <div id="nurse-login-err" style="color:var(--red);font-size:12px;margin-top:4px;display:none"></div>
+      <button class="btn-primary" onclick="doNurseLogin()" style="margin-top:16px">Login</button>
     </div>
-    <button class="btn-primary" onclick="saveConfig()">Connect Dashboard</button>
   </div>
 </div>
 
@@ -401,8 +424,13 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
       </div>
     </nav>
     <div class="sidebar-bottom">
+      <div id="nurse-sidebar-info" style="display:none;margin-bottom:8px;padding:8px 12px;background:rgba(16,185,129,.12);border-radius:8px">
+        <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:2px">Logged in as</div>
+        <div style="font-size:13px;font-weight:600;color:var(--green)" id="nurse-sidebar-name"></div>
+        <button onclick="nurseLogout()" style="margin-top:6px;background:none;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;font-family:inherit;width:100%;transition:all .2s" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='rgba(255,255,255,.15)';this.style.color='rgba(255,255,255,.5)'">Logout</button>
+      </div>
       <div class="int-row" id="int-row"></div>
-      <div class="sidebar-actions">
+      <div class="sidebar-actions" id="admin-sidebar-actions">
         <button class="icon-btn" title="Refresh data" onclick="manualRefresh()">&#8635;</button>
         <button class="icon-btn" title="Poll voice calls" onclick="pollNow()">&#8595;</button>
         <button class="icon-btn" title="Settings" onclick="openSettings()">&#9881;</button>
@@ -587,6 +615,10 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
             <div id="chart-doctors"></div>
           </div>
           <div class="chart-card">
+            <div class="chart-title">Nurse Performance</div>
+            <div id="chart-nurses"></div>
+          </div>
+          <div class="chart-card">
             <div class="chart-title">Revenue Estimate (OMR)</div>
             <div style="font-size:28px;font-weight:700;color:var(--navy);margin-bottom:4px" id="rev-total">—</div>
             <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Confirmed appointments this month</div>
@@ -718,8 +750,8 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
             <span>Staff &amp; Nurses</span>
             <button class="btn-gold" onclick="addStaffRow()" style="padding:6px 14px;font-size:12px">+ Add Staff</button>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 2fr 1fr 40px;gap:4px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;padding:8px 4px;border-bottom:1px solid var(--border)">
-            <span>Name</span><span>Role</span><span>Department</span><span></span>
+          <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr 40px;gap:4px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;padding:8px 4px;border-bottom:1px solid var(--border)">
+            <span>Name</span><span>Role</span><span>Department</span><span>Phone (for login)</span><span></span>
           </div>
           <div id="st-staff-list" style="display:flex;flex-direction:column;gap:4px;margin-top:4px"></div>
         </div>
@@ -905,6 +937,56 @@ const CFG = {
   }
 };
 
+// ─── Nurse Session ────────────────────────────────────────────────────────────
+let userRole          = sessionStorage.getItem('userRole')    || 'admin';
+let nurseToken        = sessionStorage.getItem('nurseToken')  || '';
+let loggedInNurseName = sessionStorage.getItem('nurseName')   || '';
+
+function showLoginTab(tab) {
+  const isNurse = tab === 'nurse';
+  document.getElementById('login-admin').style.display  = isNurse ? 'none' : 'block';
+  document.getElementById('login-nurse').style.display  = isNurse ? 'block' : 'none';
+  document.getElementById('tab-admin-btn').style.background = isNurse ? 'white' : 'var(--navy)';
+  document.getElementById('tab-admin-btn').style.color      = isNurse ? 'var(--text2)' : 'white';
+  document.getElementById('tab-nurse-btn').style.background = isNurse ? 'var(--navy)' : 'white';
+  document.getElementById('tab-nurse-btn').style.color      = isNurse ? 'white' : 'var(--text2)';
+}
+
+async function doNurseLogin() {
+  const url    = (localStorage.getItem('lavora_url') || window.location.origin).replace(/\/$/, '');
+  const name   = document.getElementById('nurse-login-name').value.trim();
+  const phone  = document.getElementById('nurse-login-phone').value.trim();
+  const errEl  = document.getElementById('nurse-login-err');
+  errEl.style.display = 'none';
+  if (!name || !phone) { errEl.textContent = 'Please enter your name and phone number.'; errEl.style.display = 'block'; return; }
+  try {
+    const res  = await fetch(`${url}/api/nurse-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errEl.textContent = data.error || 'Login failed.'; errEl.style.display = 'block'; return; }
+    sessionStorage.setItem('userRole',   'nurse');
+    sessionStorage.setItem('nurseToken', data.token);
+    sessionStorage.setItem('nurseName',  data.name);
+    if (!localStorage.getItem('lavora_url')) localStorage.setItem('lavora_url', url);
+    userRole = 'nurse'; nurseToken = data.token; loggedInNurseName = data.name;
+    bootstrapNurse();
+  } catch (err) {
+    errEl.textContent = 'Connection failed: ' + err.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function nurseLogout() {
+  sessionStorage.removeItem('userRole');
+  sessionStorage.removeItem('nurseToken');
+  sessionStorage.removeItem('nurseName');
+  userRole = 'admin'; nurseToken = ''; loggedInNurseName = '';
+  location.reload();
+}
+
 function saveConfig() {
   const url = document.getElementById('cfg-url').value.trim();
   const key = document.getElementById('cfg-key').value.trim();
@@ -925,9 +1007,14 @@ function openSettings() {
 // ─── API ──────────────────────────────────────────────────────────────────────
 const API = {
   async call(method, path, body) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (userRole === 'nurse' && nurseToken) {
+      headers['X-Nurse-Token'] = nurseToken;
+    } else {
+      headers['X-Api-Key'] = CFG.key;
+    }
     const res = await fetch(`${CFG.url}${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'X-Api-Key': CFG.key },
+      method, headers,
       body: body ? JSON.stringify(body) : undefined
     });
     const data = await res.json().catch(() => ({}));
@@ -1613,6 +1700,20 @@ function renderCeoMetrics() {
       </div>`).join('')
     : '<div style="color:var(--text3);font-size:13px">No doctor data yet</div>';
 
+  // Nurse performance
+  const nurseMap = {};
+  allAppointments.forEach(a => { if (a.staff) nurseMap[a.staff] = (nurseMap[a.staff]||0)+1; });
+  const topNurses = Object.entries(nurseMap).sort((a,b)=>b[1]-a[1]);
+  const maxN = topNurses[0]?.[1] || 1;
+  document.getElementById('chart-nurses').innerHTML = topNurses.length
+    ? topNurses.map(([n,c]) => `
+      <div class="bar-row">
+        <span class="bar-label">${esc(n)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c/maxN*100)}%;background:var(--green)"></div></div>
+        <span class="bar-val">${c}</span>
+      </div>`).join('')
+    : '<div style="color:var(--text3);font-size:13px">No nurse session data yet</div>';
+
   // Revenue price grid
   document.getElementById('rev-price-grid').innerHTML = Object.entries(prices).map(([s,v]) => `
     <span style="color:var(--text2)">${esc(s)}</span>
@@ -1862,7 +1963,8 @@ function collectSettingsFromUI() {
     const name       = row.querySelector('[data-field="name"]').value.trim();
     const role       = row.querySelector('[data-field="role"]').value.trim();
     const department = row.querySelector('[data-field="department"]').value;
-    if (name) staff.push({ name, role, department });
+    const phone      = row.querySelector('[data-field="phone"]').value.trim();
+    if (name) staff.push({ name, role, department, phone });
   });
 
   return { clinic, hours, workDays, holidays: currentSettings.holidays || [], departmentCapacity, departmentCloseHour, doctors, services, staff };
@@ -2147,18 +2249,19 @@ async function nurseCompleteSession(aptId, phone) {
 function renderStaffList(staff) {
   const el = document.getElementById('st-staff-list');
   el.innerHTML = staff.map((s, i) => `
-    <div style="display:grid;grid-template-columns:1fr 2fr 1fr 40px;gap:4px;align-items:center" data-staff-idx="${i}">
+    <div style="display:grid;grid-template-columns:1fr 1.5fr 1fr 1fr 40px;gap:4px;align-items:center" data-staff-idx="${i}">
       <input class="search-box" value="${esc(s.name)}" placeholder="Name" data-field="name" style="font-size:13px;padding:6px 10px">
-      <input class="search-box" value="${esc(s.role||'')}" placeholder="Role e.g. Laser Technician" data-field="role" style="font-size:13px;padding:6px 10px">
+      <input class="search-box" value="${esc(s.role||'')}" placeholder="Role e.g. Laser Tech" data-field="role" style="font-size:13px;padding:6px 10px">
       <select class="filter-sel" data-field="department" style="font-size:12px">
         ${['beauty','slimming','laser','gynecology'].map(d=>`<option value="${d}"${s.department===d?' selected':''}>${DEPT_NAMES[d]}</option>`).join('')}
       </select>
+      <input class="search-box" value="${esc(s.phone||'')}" placeholder="+968 9X XXX XXX" data-field="phone" type="tel" style="font-size:13px;padding:6px 10px">
       <button class="btn-sm btn-cancel" onclick="removeStaffRow(${i})" style="height:32px">&#10005;</button>
     </div>`).join('');
 }
 
 function addStaffRow() {
-  currentSettings.staff = [...(currentSettings.staff||[]), { name:'', role:'', department:'beauty' }];
+  currentSettings.staff = [...(currentSettings.staff||[]), { name:'', role:'', department:'beauty', phone:'' }];
   renderStaffList(currentSettings.staff);
 }
 
@@ -2168,7 +2271,44 @@ function removeStaffRow(i) {
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
+function applyRole() {
+  const isNurse = userRole === 'nurse';
+  // Sidebar sections
+  document.querySelectorAll('.nav-section').forEach(sec => sec.style.display = '');
+  if (isNurse) {
+    // Hide: Schedule top section, Departments section, System section
+    const secs = document.querySelectorAll('.nav-section');
+    secs.forEach(sec => {
+      const label = sec.querySelector('.nav-label')?.textContent?.trim() || '';
+      if (['Schedule','Departments','System'].includes(label)) sec.style.display = 'none';
+    });
+  }
+  // Nurse sidebar info
+  document.getElementById('nurse-sidebar-info').style.display = isNurse ? 'block' : 'none';
+  document.getElementById('admin-sidebar-actions').style.display = isNurse ? 'none' : 'flex';
+  if (isNurse) document.getElementById('nurse-sidebar-name').textContent = loggedInNurseName;
+}
+
+function bootstrapNurse() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  applyRole();
+  gotoPage('nurse', null);
+  // Pre-select logged-in nurse in the station
+  const sel = document.getElementById('nurse-self');
+  if (sel) { sel.value = loggedInNurseName; sel.disabled = true; }
+  loadAll();
+  startCountdown();
+  updateClock();
+  setInterval(updateClock, 15000);
+}
+
 function bootstrap() {
+  // If nurse session active, go straight to nurse view
+  if (userRole === 'nurse' && nurseToken) {
+    bootstrapNurse();
+    return;
+  }
   const urlInput = document.getElementById('cfg-url');
   if (!urlInput.value) urlInput.value = localStorage.getItem('lavora_url') || window.location.origin;
   if (!CFG.url || !CFG.key) {
@@ -2178,6 +2318,7 @@ function bootstrap() {
   }
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  applyRole();
   gotoPage('today', null);
   loadAll();
   startCountdown();

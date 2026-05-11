@@ -51,6 +51,14 @@ const DEFAULTS = {
     { name: 'Vaginoplasty',           department: 'gynecology', priceOMR: 500 },
     { name: 'Labiaplasty',            department: 'gynecology', priceOMR: 500 }
   ],
+  staff: [
+    { name: 'Sara',   role: 'Laser Technician',    department: 'laser'      },
+    { name: 'Huda',   role: 'Laser Technician',    department: 'laser'      },
+    { name: 'Maryam', role: 'Beauty Nurse',         department: 'beauty'     },
+    { name: 'Fatima', role: 'Beauty Nurse',         department: 'beauty'     },
+    { name: 'Noura',  role: 'Slimming Specialist',  department: 'slimming'   },
+    { name: 'Layla',  role: 'Gynecology Nurse',     department: 'gynecology' }
+  ],
   departmentCapacity: { beauty: 1, slimming: 4, laser: 3, gynecology: 1 },
   departmentCloseHour: { beauty: 20, slimming: 20, laser: 23, gynecology: 20 }
 };
