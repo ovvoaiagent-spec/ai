@@ -301,6 +301,33 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+/* ── Calendar ── */
+.cal-outer { overflow-x: auto; border-radius: var(--r); box-shadow: var(--shadow); background: white; }
+.cal-grid { display: grid; grid-template-columns: 54px repeat(7, 1fr); min-width: 740px; }
+.cal-head-corner { background: var(--navy); border-radius: var(--r) 0 0 0; }
+.cal-day-head { background: var(--navy); color: white; padding: 8px 4px; text-align: center; border-left: 1px solid rgba(255,255,255,.1); }
+.cal-day-head.is-today { background: var(--gold); }
+.cal-day-name { font-size: 11px; font-weight: 500; opacity: .75; }
+.cal-day-num  { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.cal-day-mon  { font-size: 10px; opacity: .65; }
+.cal-day-head.is-today .cal-day-name,
+.cal-day-head.is-today .cal-day-num,
+.cal-day-head.is-today .cal-day-mon { opacity: 1; }
+.cal-time { padding: 4px 6px 0; text-align: right; font-size: 10px; color: var(--text3); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); height: 60px; background: white; }
+.cal-cell { border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); height: 60px; padding: 2px 3px; overflow: hidden; position: relative; }
+.cal-cell.is-today { background: rgba(201,168,76,.04); }
+.cal-cell.is-rest { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,.02) 4px, rgba(0,0,0,.02) 8px); }
+.cal-cell.is-closed { background: #fafafa; }
+.cal-chip { border-radius: 4px; padding: 2px 5px; font-size: 11px; font-weight: 600; cursor: pointer; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.5; }
+.cal-chip.beauty    { background: rgba(201,168,76,.2);  color: #7a5c00; border-left: 3px solid var(--dept-beauty); }
+.cal-chip.slimming  { background: rgba(124,58,237,.12); color: #5b21b6; border-left: 3px solid var(--dept-slimming); }
+.cal-chip.laser     { background: rgba(8,145,178,.12);  color: #0369a1; border-left: 3px solid var(--dept-laser); }
+.cal-chip.gynecology{ background: rgba(219,39,119,.12); color: #9d174d; border-left: 3px solid var(--dept-gyno); }
+.cal-chip:hover { filter: brightness(.93); }
+.cal-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.cal-leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
+.cal-leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
 /* ── Nurse Station ── */
 .nurse-today-card { background: linear-gradient(135deg, var(--navy), var(--navy2)); color: white; border-radius: var(--r); padding: 20px 24px; margin-bottom: 8px; }
 .nurse-today-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; opacity: .6; text-transform: uppercase; margin-bottom: 8px; }
@@ -372,6 +399,9 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <div class="nav-label">Schedule</div>
         <div class="nav-item active" onclick="gotoPage('today',this)" data-page="today">
           <span class="nav-icon">&#9675;</span> Today
+        </div>
+        <div class="nav-item" onclick="gotoPage('calendar',this)" data-page="calendar">
+          <span class="nav-icon">&#9635;</span> Calendar
         </div>
         <div class="nav-item" onclick="gotoPage('upcoming',this)" data-page="upcoming">
           <span class="nav-icon">&#9744;</span> Upcoming
@@ -757,6 +787,30 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         </div>
 
         <button class="btn-gold" onclick="saveSettings()" style="width:100%;padding:14px;font-size:15px">Save All Changes</button>
+      </div>
+    </div>
+
+    <!-- Page: Calendar -->
+    <div class="page" id="page-calendar">
+      <div class="page-header">
+        <span class="page-title">Weekly Calendar</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn-outline" onclick="calPrevWeek()">&#8592; Prev</button>
+          <button class="btn-outline" onclick="calToday()">Today</button>
+          <button class="btn-outline" onclick="calNextWeek()">Next &#8594;</button>
+          <span id="cal-week-label" style="font-size:13px;font-weight:600;color:var(--text2);margin-left:4px"></span>
+        </div>
+        <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
+      </div>
+      <div class="cal-legend">
+        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(201,168,76,.5);border-left:2px solid var(--dept-beauty)"></span>Beauty</div>
+        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(124,58,237,.3);border-left:2px solid var(--dept-slimming)"></span>Slimming</div>
+        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(8,145,178,.3);border-left:2px solid var(--dept-laser)"></span>Laser</div>
+        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(219,39,119,.3);border-left:2px solid var(--dept-gyno)"></span>Gynecology</div>
+        <div class="cal-leg-item" style="margin-left:8px;color:var(--text3)">&#9632; Striped = rest break &nbsp; &#9632; Grey = closed hours</div>
+      </div>
+      <div class="cal-outer">
+        <div class="cal-grid" id="cal-grid"></div>
       </div>
     </div>
 
@@ -1148,7 +1202,8 @@ function exportDeptCSV() {
 const PAGE_TITLES = {
   today: "Today's Schedule", upcoming: 'Upcoming Appointments',
   past: 'Past Appointments', activity: 'Activity Feed', ceo: 'CEO Overview',
-  dept: 'Department View', settings: 'Clinic Settings', patients: 'Patient Portfolio', nurse: 'Nurse Station'
+  dept: 'Department View', settings: 'Clinic Settings', patients: 'Patient Portfolio', nurse: 'Nurse Station',
+  calendar: 'Weekly Calendar'
 };
 
 function gotoPage(name, el) {
@@ -1166,6 +1221,7 @@ function gotoPage(name, el) {
   if (name === 'settings') renderSettingsGoto();
   if (name === 'patients') renderPatients();
   if (name === 'nurse')    { populateNurseSelect(); }
+  if (name === 'calendar') renderCalendar();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1385,6 +1441,7 @@ async function loadAll() {
       if (id === 'dept')     renderDeptPage();
       if (id === 'ceo' && ceoUnlocked) renderCeoMetrics();
       if (id === 'patients') renderPatients();
+      if (id === 'calendar') renderCalendar();
     }
     setConn(true);
   } catch (err) {
@@ -2130,6 +2187,106 @@ function backToPatients() {
   document.getElementById('patient-detail').style.display = 'none';
   document.getElementById('patients-list-view').style.display = 'block';
 }
+
+// ─── Calendar ────────────────────────────────────────────────────────────────
+let calWeekOffset = 0;
+
+function calWeekDates(offset) {
+  const today = new Date();
+  const day   = today.getDay(); // 0=Sun … 6=Sat
+  // Week starts Saturday: days since last Sat = (day + 1) % 7
+  const sincesat = (day + 1) % 7;
+  const sat = new Date(today);
+  sat.setDate(today.getDate() - sincesat + offset * 7);
+  sat.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sat);
+    d.setDate(sat.getDate() + i);
+    return d;
+  });
+}
+
+function renderCalendar() {
+  const days    = calWeekDates(calWeekOffset);
+  const today   = todayStr();
+  const s       = currentSettings || {};
+  const openH   = parseInt((s.hours?.open      || '08:00').split(':')[0]);
+  const closeH  = parseInt((s.hours?.close     || '23:00').split(':')[0]);
+  const restS   = parseInt((s.hours?.restStart || '14:00').split(':')[0]);
+  const restE   = parseInt((s.hours?.restEnd   || '15:00').split(':')[0]);
+  const workDays = s.workDays || ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
+  const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  // Week label
+  const fmt = d => d.toLocaleDateString('en-OM', { month: 'short', day: 'numeric' });
+  document.getElementById('cal-week-label').textContent =
+    `${fmt(days[0])} – ${fmt(days[6])}`;
+
+  // Index appointments by date+hour
+  const dayStrs = days.map(d => d.toISOString().split('T')[0]);
+  const aptMap  = {};
+  allAppointments
+    .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time)
+    .forEach(a => {
+      const h   = parseInt(a.time.split(':')[0]);
+      const key = `${a.date}_${h}`;
+      (aptMap[key] = aptMap[key] || []).push(a);
+    });
+
+  // Build grid HTML
+  let html = '';
+
+  // Header
+  html += `<div class="cal-head-corner"></div>`;
+  days.forEach(d => {
+    const dStr    = d.toISOString().split('T')[0];
+    const isToday = dStr === today;
+    html += `<div class="cal-day-head${isToday ? ' is-today' : ''}">
+      <div class="cal-day-name">${d.toLocaleDateString('en-OM',{weekday:'short'})}</div>
+      <div class="cal-day-num">${d.getDate()}</div>
+      <div class="cal-day-mon">${d.toLocaleDateString('en-OM',{month:'short'})}</div>
+    </div>`;
+  });
+
+  // Rows
+  for (let h = openH; h <= closeH; h++) {
+    const timeLabel = `${String(h).padStart(2,'0')}:00`;
+    const isRest    = h >= restS && h < restE;
+    const isLast    = h === closeH;
+    html += `<div class="cal-time" style="${isLast?'border-bottom:none':''}">${timeLabel}</div>`;
+
+    days.forEach(d => {
+      const dStr    = d.toISOString().split('T')[0];
+      const isToday = dStr === today;
+      const dayName = DAY_NAMES[d.getDay()];
+      const isWork  = workDays.includes(dayName);
+      const key     = `${dStr}_${h}`;
+      const chips   = aptMap[key] || [];
+
+      let cellClass = 'cal-cell';
+      if (isToday) cellClass += ' is-today';
+      if (isRest && isWork)   cellClass += ' is-rest';
+      if (!isWork) cellClass += ' is-closed';
+
+      html += `<div class="${cellClass}" style="${isLast?'border-bottom:none':''}">`;
+      chips.forEach(a => {
+        const dept = getDepartment(a.service);
+        const mins = a.time.split(':')[1] || '00';
+        html += `<div class="cal-chip ${dept}" onclick="openEditModal('${esc(a.id)}')"
+          title="${esc(a.name)} — ${esc(a.service)} (${esc(a.time)})">
+          ${esc(a.time)} ${esc(a.name.split(' ')[0])}
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function calPrevWeek() { calWeekOffset--; renderCalendar(); }
+function calNextWeek() { calWeekOffset++; renderCalendar(); }
+function calToday()    { calWeekOffset = 0; renderCalendar(); }
 
 // ─── Nurse Station ───────────────────────────────────────────────────────────
 function populateNurseSelect() {
