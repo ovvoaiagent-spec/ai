@@ -3,326 +3,256 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test Clinic — Receptionist Dashboard</title>
+<title>Test Clinic — Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --navy: #1a2744;
-  --navy-light: #243356;
-  --gold: #c9a84c;
-  --gold-light: #e8c97a;
-  --bg: #f0f4f8;
-  --white: #ffffff;
-  --text: #1a2744;
-  --text-mid: #4a5568;
-  --text-light: #718096;
+  --navy: #1a2744; --navy2: #243356;
+  --gold: #c9a84c; --gold2: #d9b96a;
+  --bg: #f5f7fa; --white: #ffffff;
+  --text: #1a2744; --text2: #4a5568; --text3: #718096;
   --border: #e2e8f0;
-  --pending: #f59e0b;
-  --confirmed: #10b981;
-  --cancelled: #ef4444;
-  --ai-color: #7c3aed;
-  --human-color: #0891b2;
+  --green: #10b981; --red: #ef4444; --amber: #f59e0b;
+  --purple: #7c3aed; --blue: #0891b2;
   --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
-  --radius: 10px;
+  --r: 10px; --sidebar: 220px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 
-/* ── Setup Screen ── */
-#setup-screen {
-  position: fixed; inset: 0; background: var(--navy);
-  display: flex; align-items: center; justify-content: center; z-index: 1000;
-}
-.setup-card {
-  background: white; border-radius: 16px; padding: 48px 40px; width: 400px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.3);
-}
-.setup-card .logo { font-size: 22px; font-weight: 700; color: var(--navy); letter-spacing: 2px; margin-bottom: 4px; }
-.setup-card .tagline { color: var(--text-light); font-size: 12px; margin-bottom: 32px; }
-.setup-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 24px; }
+/* ── Overlay / Setup ── */
+.screen-overlay { position: fixed; inset: 0; background: var(--navy); display: flex; align-items: center; justify-content: center; z-index: 300; }
+.screen-card { background: white; border-radius: 16px; padding: 48px 40px; width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.screen-logo { font-size: 22px; font-weight: 700; color: var(--navy); letter-spacing: 2px; margin-bottom: 4px; }
+.screen-tagline { color: var(--text3); font-size: 12px; margin-bottom: 32px; }
+.screen-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 24px; }
 .field { margin-bottom: 16px; }
-.field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
-.field input {
-  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
-  border-radius: 8px; font-size: 14px; font-family: inherit;
-  transition: border .2s;
-}
-.field input:focus { outline: none; border-color: var(--gold); }
-.btn-primary {
-  width: 100%; padding: 12px; background: var(--navy); color: white;
-  border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: background .2s;
-}
-.btn-primary:hover { background: var(--navy-light); }
-.btn-gold {
-  padding: 9px 18px; background: var(--gold); color: white;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: background .2s; white-space: nowrap;
-}
-.btn-gold:hover { background: var(--gold-light); }
-.btn-outline {
-  padding: 9px 18px; background: transparent; color: var(--text-mid);
-  border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px;
-  font-weight: 500; cursor: pointer; transition: all .2s;
-}
+.field label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+.field input, .field select, .field textarea { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; transition: border .2s; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--gold); }
+.field textarea { resize: vertical; min-height: 70px; }
+.btn-primary { width: 100%; padding: 12px; background: var(--navy); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .2s; }
+.btn-primary:hover { background: var(--navy2); }
+
+/* ── Buttons ── */
+.btn-gold { padding: 9px 18px; background: var(--gold); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; white-space: nowrap; }
+.btn-gold:hover { background: var(--gold2); }
+.btn-outline { padding: 8px 14px; background: transparent; color: var(--text2); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; }
 .btn-outline:hover { border-color: var(--navy); color: var(--navy); }
-
-/* ── Header ── */
-header {
-  background: var(--navy); color: white;
-  display: flex; align-items: center; padding: 0 24px; height: 60px; gap: 20px;
-  position: sticky; top: 0; z-index: 100;
-}
-.logo-text { font-size: 18px; font-weight: 700; letter-spacing: 3px; color: var(--gold); }
-.logo-sub { font-size: 10px; color: rgba(255,255,255,.5); letter-spacing: 1px; }
-header .spacer { flex: 1; }
-.clock { font-size: 13px; color: rgba(255,255,255,.7); }
-.refresh-badge {
-  display: flex; align-items: center; gap: 6px;
-  background: rgba(255,255,255,.08); border-radius: 20px;
-  padding: 4px 12px; font-size: 12px; color: rgba(255,255,255,.6);
-}
-.refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--confirmed); animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-.conn-status { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
-.conn-ok { background: rgba(16,185,129,.15); color: #6ee7b7; }
-.conn-err { background: rgba(239,68,68,.15); color: #fca5a5; }
-#header-settings { background: none; border: none; color: rgba(255,255,255,.5); cursor: pointer; font-size: 18px; padding: 4px 8px; border-radius: 6px; }
-#header-settings:hover { color: white; }
-
-/* ── Stats Bar ── */
-.stats-bar {
-  display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px;
-  padding: 16px 24px;
-}
-.stat-card {
-  background: var(--white); border-radius: var(--radius); padding: 16px;
-  box-shadow: var(--shadow); text-align: center; border-top: 3px solid transparent;
-}
-.stat-card.today { border-top-color: var(--gold); }
-.stat-card.ai { border-top-color: var(--ai-color); }
-.stat-card.human { border-top-color: var(--human-color); }
-.stat-card.pending { border-top-color: var(--pending); }
-.stat-card.confirmed { border-top-color: var(--confirmed); }
-.stat-card.cancelled { border-top-color: var(--cancelled); }
-.stat-card.total { border-top-color: var(--navy); }
-.stat-num { font-size: 28px; font-weight: 700; line-height: 1; }
-.stat-lbl { font-size: 10px; font-weight: 500; color: var(--text-light); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
-
-/* ── Tabs ── */
-.tabs-bar {
-  display: flex; align-items: center; gap: 4px;
-  padding: 0 24px; background: white; border-bottom: 1px solid var(--border);
-}
-.tab-btn {
-  padding: 13px 20px; font-size: 13px; font-weight: 600; color: var(--text-light);
-  border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent;
-  transition: all .2s; white-space: nowrap;
-}
-.tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); }
-.tab-btn:hover:not(.active) { color: var(--text); }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* ── Main Layout ── */
-.main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; padding: 0 24px 24px; }
-
-/* ── Appointments Panel ── */
-.panel { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-.panel-header {
-  display: flex; align-items: center; gap: 12px; padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-.panel-title { font-size: 15px; font-weight: 600; flex: 1; }
-.toolbar {
-  display: flex; align-items: center; gap: 8px; padding: 12px 20px;
-  border-bottom: 1px solid var(--border); flex-wrap: wrap;
-}
-.search-input {
-  flex: 1; min-width: 180px; padding: 8px 12px;
-  border: 1.5px solid var(--border); border-radius: 8px;
-  font-size: 13px; font-family: inherit;
-}
-.search-input:focus { outline: none; border-color: var(--gold); }
-.filter-select {
-  padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px;
-  font-size: 12px; font-family: inherit; background: white; cursor: pointer;
-}
-.filter-select:focus { outline: none; border-color: var(--gold); }
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-thead th {
-  text-align: left; font-size: 11px; font-weight: 600; color: var(--text-light);
-  text-transform: uppercase; letter-spacing: .5px; padding: 10px 16px;
-  background: #fafbfc; border-bottom: 1px solid var(--border);
-}
-tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
-tbody tr:last-child { border-bottom: none; }
-tbody tr:hover { background: #fafbfc; }
-tbody td { padding: 12px 16px; vertical-align: middle; }
-.cell-name { font-weight: 600; color: var(--text); }
-.cell-sub { font-size: 12px; color: var(--text-light); margin-top: 2px; }
-.badge {
-  display: inline-block; padding: 3px 9px; border-radius: 20px;
-  font-size: 11px; font-weight: 600; letter-spacing: .3px;
-}
-.badge-pending { background: #fffbeb; color: #b45309; }
-.badge-confirmed { background: #ecfdf5; color: #065f46; }
-.badge-cancelled { background: #fef2f2; color: #991b1b; }
-.badge-ai { background: #ede9fe; color: #5b21b6; }
-.badge-human { background: #e0f2fe; color: #0369a1; }
-.actions { display: flex; gap: 6px; }
-.btn-sm {
-  padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px;
-  cursor: pointer; border: none; transition: all .15s;
-}
+.btn-sm { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; border: none; transition: all .15s; }
 .btn-edit { background: #f0f4ff; color: #3730a3; }
 .btn-edit:hover { background: #ddd6fe; }
 .btn-cancel { background: #fef2f2; color: #991b1b; }
 .btn-cancel:hover { background: #fee2e2; }
-.empty-state { padding: 48px; text-align: center; color: var(--text-light); }
-.empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+.btn-confirm-apt { background: #ecfdf5; color: #065f46; }
+.btn-confirm-apt:hover { background: #d1fae5; }
+.btn-danger { padding: 10px 24px; background: var(--red); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn-danger:hover { background: #dc2626; }
 
-/* ── Activity Feed ── */
-.activity-panel { display: flex; flex-direction: column; max-height: calc(100vh - 200px); }
-#activity-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-.activity-item {
-  background: #fafbfc; border-radius: 8px; padding: 12px;
-  border-left: 3px solid var(--border); transition: border-color .2s;
-}
-.activity-item.BOOKED { border-left-color: var(--confirmed); }
-.activity-item.CANCELLED { border-left-color: var(--cancelled); }
-.activity-item.RESCHEDULED { border-left-color: var(--pending); }
-.activity-item.MISSED_CAPTURE { border-left-color: #f97316; }
-.activity-item.UPDATED { border-left-color: var(--human-color); }
-.activity-item.CALL_RECEIVED { border-left-color: var(--ai-color); }
-.activity-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-.activity-actor { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; }
+/* ── App Layout ── */
+#app { display: flex; min-height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar { width: var(--sidebar); min-width: var(--sidebar); background: var(--navy); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+.sidebar-logo { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sidebar-logo .name { font-size: 18px; font-weight: 700; color: var(--gold); letter-spacing: 3px; }
+.sidebar-logo .sub { font-size: 10px; color: rgba(255,255,255,.3); letter-spacing: 1px; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+.nav-section { padding: 0 10px; margin-bottom: 8px; }
+.nav-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.22); letter-spacing: 1px; text-transform: uppercase; padding: 8px 10px 4px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.55); cursor: pointer; transition: all .2s; user-select: none; margin-bottom: 2px; }
+.nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
+.nav-item.active { background: rgba(201,168,76,.15); color: var(--gold); }
+.nav-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.nav-badge { margin-left: auto; background: var(--gold); color: white; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; min-width: 20px; text-align: center; }
+.sidebar-bottom { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.08); }
+.int-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.int-dot-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: rgba(255,255,255,.35); font-weight: 500; }
+.int-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.int-dot.ok { background: var(--green); }
+.int-dot.err { background: #666; }
+.sidebar-actions { display: flex; gap: 4px; }
+.icon-btn { background: none; border: none; color: rgba(255,255,255,.3); cursor: pointer; font-size: 15px; padding: 6px 8px; border-radius: 6px; transition: all .2s; }
+.icon-btn:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.75); }
+
+/* ── Main Area ── */
+.main-area { margin-left: var(--sidebar); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ── Top Bar ── */
+.topbar { height: 56px; background: white; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; gap: 14px; position: sticky; top: 0; z-index: 50; }
+.topbar-title { font-size: 16px; font-weight: 700; flex: 1; color: var(--navy); }
+.topbar-clock { font-size: 12px; color: var(--text3); }
+.refresh-pill { display: flex; align-items: center; gap: 5px; background: var(--bg); border-radius: 20px; padding: 4px 10px; font-size: 11px; color: var(--text3); }
+.pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.conn-badge { font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
+.conn-ok { background: rgba(16,185,129,.1); color: #059669; }
+.conn-err { background: rgba(239,68,68,.1); color: #dc2626; }
+
+/* ── Pages ── */
+.page { display: none; padding: 24px; flex: 1; }
+.page.active { display: block; }
+.page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.page-title { font-size: 20px; font-weight: 700; color: var(--navy); flex: 1; }
+
+/* ── Stats Row ── */
+.stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.stat-tile { background: white; border-radius: var(--r); padding: 16px 20px; box-shadow: var(--shadow); min-width: 110px; flex: 1; border-top: 3px solid var(--border); }
+.stat-tile.s-today { border-top-color: var(--gold); }
+.stat-tile.s-confirmed { border-top-color: var(--green); }
+.stat-tile.s-pending { border-top-color: var(--amber); }
+.stat-tile.s-ai { border-top-color: var(--purple); }
+.stat-tile.s-total { border-top-color: var(--navy); }
+.stat-n { font-size: 28px; font-weight: 700; line-height: 1; }
+.stat-l { font-size: 10px; font-weight: 500; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+
+/* ── Toolbar ── */
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.search-box { flex: 1; min-width: 200px; padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit; }
+.search-box:focus { outline: none; border-color: var(--gold); }
+.filter-sel { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 12px; font-family: inherit; background: white; cursor: pointer; }
+.filter-sel:focus { outline: none; border-color: var(--gold); }
+
+/* ── Day Groups ── */
+.day-group { margin-bottom: 28px; }
+.day-label { font-size: 11px; font-weight: 700; color: var(--text3); letter-spacing: .8px; text-transform: uppercase; padding: 6px 0 10px; border-bottom: 1px solid var(--border); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.day-chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; letter-spacing: .5px; color: white; }
+.chip-today { background: var(--gold); }
+.chip-tomorrow { background: var(--navy); }
+
+/* ── Appointment Card ── */
+.apt-card { background: white; border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 18px; margin-bottom: 8px; display: flex; align-items: center; gap: 14px; border-left: 3px solid var(--border); transition: box-shadow .15s; }
+.apt-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.apt-card.s-confirmed { border-left-color: var(--green); }
+.apt-card.s-pending { border-left-color: var(--amber); }
+.apt-card.s-cancelled { border-left-color: var(--red); opacity: .7; }
+.apt-time { font-size: 15px; font-weight: 700; color: var(--navy); min-width: 50px; text-align: center; flex-shrink: 0; }
+.apt-divider { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; }
+.apt-info { flex: 1; min-width: 0; }
+.apt-name { font-weight: 600; cursor: pointer; color: var(--text); transition: color .15s; }
+.apt-name:hover { color: var(--gold); }
+.apt-service { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.apt-meta { display: flex; align-items: center; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.apt-phone { font-size: 11px; color: var(--text3); }
+.apt-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-confirmed { background: #ecfdf5; color: #065f46; }
+.badge-pending { background: #fffbeb; color: #b45309; }
+.badge-cancelled { background: #fef2f2; color: #991b1b; }
+.badge-ai { background: #ede9fe; color: #5b21b6; }
+.badge-human { background: #e0f2fe; color: #0369a1; }
+.badge-whatsapp { background: #f0fdf4; color: #15803d; }
+.badge-doctor { background: #f1f5f9; color: var(--text2); font-weight: 500; }
+
+/* ── Table (Past) ── */
+.table-card { background: white; border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; padding: 10px 16px; background: #fafbfc; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #fafbfc; }
+tbody td { padding: 12px 16px; vertical-align: middle; }
+.cell-name { font-weight: 600; }
+.cell-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+/* ── Activity ── */
+.activity-feed { display: flex; flex-direction: column; gap: 8px; }
+.act-item { background: white; border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); border-left: 3px solid var(--border); }
+.act-item.BOOKED { border-left-color: var(--green); }
+.act-item.CANCELLED { border-left-color: var(--red); }
+.act-item.RESCHEDULED { border-left-color: var(--amber); }
+.act-item.UPDATED { border-left-color: var(--blue); }
+.act-item.CALL_RECEIVED { border-left-color: var(--purple); }
+.act-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.actor-tag { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; }
 .actor-ai { background: #ede9fe; color: #5b21b6; }
 .actor-human { background: #e0f2fe; color: #0369a1; }
-.actor-twilio { background: #fef3c7; color: #92400e; }
-.activity-type { font-size: 10px; font-weight: 700; color: var(--text-light); }
-.activity-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.activity-detail { font-size: 11px; color: var(--text-light); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.activity-time { font-size: 10px; color: var(--text-light); margin-top: 4px; }
+.actor-whatsapp { background: #f0fdf4; color: #15803d; }
+.act-type { font-size: 10px; font-weight: 700; color: var(--text3); }
+.act-name { font-size: 13px; font-weight: 600; }
+.act-detail { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.act-time { font-size: 10px; color: var(--text3); margin-top: 4px; }
 
-/* ── Modal ── */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.5);
-  display: none; align-items: center; justify-content: center; z-index: 500;
-}
+/* ── CEO Unlock ── */
+#ceo-unlock { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
+.ceo-lock-card { background: white; border-radius: 16px; padding: 40px; width: 360px; box-shadow: var(--shadow); text-align: center; }
+.lock-icon { font-size: 36px; margin-bottom: 16px; }
+.ceo-lock-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--navy); }
+.ceo-lock-card p { font-size: 13px; color: var(--text3); margin-bottom: 24px; line-height: 1.5; }
+.ceo-lock-card .field { text-align: left; }
+#ceo-err { color: var(--red); font-size: 12px; margin-top: 8px; display: none; }
+
+/* ── CEO Content ── */
+#ceo-content { display: none; }
+.ceo-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.ceo-lock-btn { background: none; border: 1.5px solid var(--border); color: var(--text3); padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; transition: all .2s; }
+.ceo-lock-btn:hover { border-color: var(--red); color: var(--red); }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.metric-card { background: white; border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); }
+.metric-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.metric-value { font-size: 32px; font-weight: 700; color: var(--navy); line-height: 1; }
+.metric-sub { font-size: 12px; color: var(--text3); margin-top: 6px; }
+.trend-up { color: var(--green); font-weight: 600; }
+.trend-down { color: var(--red); font-weight: 600; }
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.chart-card { background: white; border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); }
+.chart-title { font-size: 13px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+.bar-label { width: 130px; color: var(--text2); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-shrink: 0; }
+.bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width .5s; }
+.bar-val { font-weight: 600; width: 28px; text-align: right; flex-shrink: 0; }
+.weekly-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+.w-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.w-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--gold); min-height: 4px; transition: height .5s; }
+.w-day { font-size: 10px; color: var(--text3); }
+.rev-config { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.rev-config-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+.rev-grid { display: grid; grid-template-columns: 1fr 80px; gap: 5px 8px; align-items: center; font-size: 12px; max-height: 200px; overflow-y: auto; }
+.rev-price-input { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; width: 100%; }
+
+/* ── Modals ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 500; }
 .modal-overlay.open { display: flex; }
-.modal-box {
-  background: white; border-radius: 14px; width: 540px; max-width: 95vw;
-  max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25);
-}
-.modal-head {
-  display: flex; align-items: center; padding: 20px 24px;
-  border-bottom: 1px solid var(--border);
-}
+.modal-box { background: white; border-radius: 14px; width: 540px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.modal-head { display: flex; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
 .modal-title { font-size: 16px; font-weight: 700; flex: 1; }
-.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-light); padding: 2px 6px; border-radius: 6px; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text3); padding: 2px 6px; border-radius: 6px; }
 .modal-close:hover { background: var(--border); }
 .modal-body { padding: 24px; }
-.modal-body .field { margin-bottom: 16px; }
-.modal-body .field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-mid); margin-bottom: 6px; }
-.modal-body .field input,
-.modal-body .field select,
-.modal-body .field textarea {
-  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
-  border-radius: 8px; font-size: 14px; font-family: inherit;
-}
-.modal-body .field input:focus,
-.modal-body .field select:focus,
-.modal-body .field textarea:focus { outline: none; border-color: var(--gold); }
-.modal-body .field textarea { resize: vertical; min-height: 70px; }
 .modal-body .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--border); }
-.confirm-box { padding: 24px; text-align: center; }
-.confirm-box p { margin-bottom: 20px; color: var(--text-mid); line-height: 1.6; }
-.confirm-box strong { color: var(--text); }
+.confirm-box { padding: 28px 24px; text-align: center; }
+.confirm-box p { margin-bottom: 20px; color: var(--text2); line-height: 1.6; }
 .confirm-foot { display: flex; gap: 10px; justify-content: center; }
-.btn-danger { padding: 10px 24px; background: var(--cancelled); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
-.btn-danger:hover { background: #dc2626; }
 
 /* ── Toast ── */
 #toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
-.toast {
-  padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500;
-  box-shadow: 0 4px 20px rgba(0,0,0,.15); animation: slideIn .25s ease;
-  max-width: 320px;
-}
+.toast { padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,.15); animation: slideIn .25s ease; max-width: 320px; }
 .toast-success { background: #065f46; color: white; }
 .toast-error { background: #991b1b; color: white; }
 .toast-info { background: var(--navy); color: white; }
 @keyframes slideIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
-
-/* ── Spinner ── */
-.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .6s linear infinite; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Integration Status Bar ── */
-.integrations-bar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 24px; background: var(--navy-light);
-  font-size: 11px; flex-wrap: wrap;
-}
-.integrations-bar span { color: rgba(255,255,255,.4); font-weight: 500; margin-right: 4px; }
-.int-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
-}
-.int-ok { background: rgba(16,185,129,.15); color: #6ee7b7; }
-.int-err { background: rgba(239,68,68,.12); color: #fca5a5; }
-.int-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-
-/* ── Scrollbar ── */
+.empty-state { padding: 48px; text-align: center; color: var(--text3); }
+.empty-icon { font-size: 36px; margin-bottom: 12px; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* ── Analytics ── */
-.analytics-main { padding: 0 24px 24px; }
-.analytics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 16px; }
-.chart-card { background: var(--white); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
-.chart-title { font-size: 13px; font-weight: 700; margin-bottom: 16px; color: var(--text); display: flex; align-items: center; justify-content: space-between; }
-.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
-.bar-label { width: 120px; color: var(--text-mid); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; flex-shrink: 0; }
-.bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 4px; transition: width .6s; }
-.bar-val { font-weight: 600; width: 32px; text-align: right; flex-shrink: 0; }
-.donut-wrap { display: flex; align-items: center; gap: 20px; }
-.donut { width: 90px; height: 90px; border-radius: 50%; flex-shrink: 0; }
-.donut-legend { display: flex; flex-direction: column; gap: 8px; }
-.donut-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.donut-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.weekly-bars { display: flex; align-items: flex-end; gap: 8px; height: 80px; }
-.w-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.w-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--gold); transition: height .5s; min-height: 4px; }
-.w-day { font-size: 10px; color: var(--text-light); }
-
-/* ── Confirm btn ── */
-.btn-confirm { background: #ecfdf5; color: #065f46; }
-.btn-confirm:hover { background: #d1fae5; }
-
-@media (max-width: 1100px) {
-  .main { grid-template-columns: 1fr; }
-  .stats-bar { grid-template-columns: repeat(4, 1fr); }
-  .analytics-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .stats-bar { grid-template-columns: repeat(2, 1fr); }
-}
 </style>
 </head>
 <body>
 
-<!-- ── Setup Screen ─────────────────────────────────── -->
-<div id="setup-screen">
-  <div class="setup-card">
-    <div class="logo">TEST</div>
-    <div class="tagline">Where Science, Beauty, and Longevity Meet</div>
+<!-- ── Setup Screen ── -->
+<div class="screen-overlay" id="setup-screen">
+  <div class="screen-card">
+    <div class="screen-logo">TEST</div>
+    <div class="screen-tagline">Clinic Dashboard</div>
     <h2>Connect to Backend</h2>
     <div class="field">
       <label>Server URL</label>
@@ -332,223 +262,261 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
       <label>CRM API Key</label>
       <input id="cfg-key" type="password" placeholder="Your CRM_SECRET_KEY">
     </div>
+    <div class="field">
+      <label>CEO Section Password</label>
+      <input id="cfg-ceo-pw" type="password" placeholder="Set or change CEO password">
+    </div>
     <button class="btn-primary" onclick="saveConfig()">Connect Dashboard</button>
   </div>
 </div>
 
-<!-- ── App ─────────────────────────────────────────── -->
+<!-- ── App ── -->
 <div id="app" style="display:none">
 
-  <!-- Header -->
-  <header>
-    <div>
-      <div class="logo-text">TEST</div>
-      <div class="logo-sub">CLINIC DASHBOARD</div>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="name">TEST</div>
+      <div class="sub">CLINIC DASHBOARD</div>
     </div>
-    <div class="spacer"></div>
-    <span class="clock" id="clock"></span>
-    <div class="refresh-badge">
-      <span class="refresh-dot"></span>
-      <span id="countdown">15s</span>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-label">Schedule</div>
+        <div class="nav-item active" onclick="gotoPage('today',this)" data-page="today">
+          <span class="nav-icon">&#9675;</span> Today
+        </div>
+        <div class="nav-item" onclick="gotoPage('upcoming',this)" data-page="upcoming">
+          <span class="nav-icon">&#9744;</span> Upcoming
+          <span class="nav-badge" id="badge-upcoming">—</span>
+        </div>
+        <div class="nav-item" onclick="gotoPage('past',this)" data-page="past">
+          <span class="nav-icon">&#8801;</span> Past
+        </div>
+      </div>
+      <div class="nav-section" style="margin-top:8px">
+        <div class="nav-label">System</div>
+        <div class="nav-item" onclick="gotoPage('activity',this)" data-page="activity">
+          <span class="nav-icon">&#9651;</span> Activity
+        </div>
+        <div class="nav-item" onclick="gotoPage('ceo',this)" data-page="ceo">
+          <span class="nav-icon">&#9670;</span> CEO Overview
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="int-row" id="int-row"></div>
+      <div class="sidebar-actions">
+        <button class="icon-btn" title="Refresh data" onclick="manualRefresh()">&#8635;</button>
+        <button class="icon-btn" title="Poll voice calls" onclick="pollNow()">&#8595;</button>
+        <button class="icon-btn" title="Settings" onclick="openSettings()">&#9881;</button>
+      </div>
     </div>
-    <span class="conn-status conn-ok" id="conn-status">● Live</span>
-    <button id="header-settings" title="Settings" onclick="openSettings()">⚙</button>
-  </header>
+  </aside>
 
-  <!-- Integration Status -->
-  <div class="integrations-bar">
-    <span>Integrations:</span>
-    <div class="int-pill int-ok" id="int-server"><span class="int-dot"></span>Server</div>
-    <div class="int-pill int-err" id="int-sheets"><span class="int-dot"></span>Google Sheets</div>
-    <div class="int-pill int-err" id="int-calendar"><span class="int-dot"></span>Google Calendar</div>
-    <div class="int-pill int-err" id="int-elevenlabs"><span class="int-dot"></span>ElevenLabs</div>
-    <div class="int-pill int-err" id="int-twilio"><span class="int-dot"></span>Twilio</div>
-  </div>
+  <!-- Main Area -->
+  <div class="main-area">
 
-  <!-- Stats -->
-  <div class="stats-bar">
-    <div class="stat-card today"><div class="stat-num" id="s-today">—</div><div class="stat-lbl">Today</div></div>
-    <div class="stat-card total"><div class="stat-num" id="s-total">—</div><div class="stat-lbl">Total</div></div>
-    <div class="stat-card ai"><div class="stat-num" id="s-ai">—</div><div class="stat-lbl">AI Booked</div></div>
-    <div class="stat-card human"><div class="stat-num" id="s-human">—</div><div class="stat-lbl">Human</div></div>
-    <div class="stat-card pending"><div class="stat-num" id="s-pending">—</div><div class="stat-lbl">Pending</div></div>
-    <div class="stat-card confirmed"><div class="stat-num" id="s-confirmed">—</div><div class="stat-lbl">Confirmed</div></div>
-    <div class="stat-card cancelled"><div class="stat-num" id="s-cancelled">—</div><div class="stat-lbl">Cancelled</div></div>
-  </div>
+    <!-- Top Bar -->
+    <div class="topbar">
+      <span class="topbar-title" id="topbar-title">Today's Schedule</span>
+      <span class="topbar-clock" id="clock"></span>
+      <div class="refresh-pill">
+        <span class="pulse-dot" id="pulse-dot"></span>
+        <span id="countdown">30s</span>
+      </div>
+      <span class="conn-badge conn-ok" id="conn-status">Live</span>
+    </div>
 
-  <!-- Tabs -->
-  <div class="tabs-bar">
-    <button class="tab-btn active" onclick="switchTab('appointments',this)">📅 Upcoming</button>
-    <button class="tab-btn" onclick="switchTab('past',this)">🗂 Past Appointments</button>
-    <button class="tab-btn" onclick="switchTab('analytics',this)">Analytics</button>
-  </div>
-
-  <!-- Tab: Upcoming Appointments -->
-  <div class="tab-content active" id="tab-appointments">
-  <div class="main">
-
-    <!-- Appointments Panel -->
-    <div class="panel">
-      <div class="toolbar">
-        <input class="search-input" id="search" placeholder="🔍  Search name, phone, service…" oninput="renderTable()">
-        <select class="filter-select" id="f-status" onchange="renderTable()">
-          <option value="">All Statuses</option>
-          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
-        </select>
-        <select class="filter-select" id="f-source" onchange="renderTable()">
-          <option value="">All Sources</option>
-          <option>AI Voice</option><option>Human</option>
-        </select>
-        <button class="btn-outline" id="refresh-btn" onclick="manualRefresh()">↻ Refresh</button>
-        <button class="btn-outline" id="poll-btn" onclick="pollNow()">📞 Poll Calls</button>
-        <button class="btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
+    <!-- Page: Today -->
+    <div class="page active" id="page-today">
+      <div class="stats-row">
+        <div class="stat-tile s-today"><div class="stat-n" id="s-today">—</div><div class="stat-l">Today</div></div>
+        <div class="stat-tile s-confirmed"><div class="stat-n" id="s-confirmed">—</div><div class="stat-l">Confirmed</div></div>
+        <div class="stat-tile s-pending"><div class="stat-n" id="s-pending">—</div><div class="stat-l">Pending</div></div>
+        <div class="stat-tile s-ai"><div class="stat-n" id="s-ai">—</div><div class="stat-l">AI Booked</div></div>
+        <div class="stat-tile s-total"><div class="stat-n" id="s-total">—</div><div class="stat-l">All Time</div></div>
+      </div>
+      <div class="page-header">
+        <span class="page-title" id="today-date-title">—</span>
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Patient</th><th>Service</th><th>Doctor</th>
-              <th>Date</th><th>Time</th><th>Status</th><th>Source</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="apt-body"></tbody>
-        </table>
-        <div id="empty-state" class="empty-state" style="display:none">
-          <div class="icon">📋</div>
-          <div>No upcoming appointments</div>
-        </div>
-      </div>
+      <div id="today-content"></div>
     </div>
 
-    <!-- Activity Feed -->
-    <div class="panel activity-panel">
-      <div class="panel-header">
-        <span class="panel-title">Live Activity</span>
-        <button class="btn-outline" style="padding:5px 10px;font-size:11px" onclick="loadActivity()">↻ Refresh</button>
+    <!-- Page: Upcoming -->
+    <div class="page" id="page-upcoming">
+      <div class="page-header">
+        <span class="page-title">Upcoming Appointments</span>
+        <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
-      <div id="activity-list"></div>
-    </div>
-
-  </div>
-  </div> <!-- end tab-appointments -->
-
-  <!-- Tab: Past Appointments -->
-  <div class="tab-content" id="tab-past">
-  <div class="main" style="grid-template-columns:1fr">
-    <div class="panel">
       <div class="toolbar">
-        <input class="search-input" id="past-search" placeholder="🔍  Search name, phone, service…" oninput="renderPastTable()">
-        <select class="filter-select" id="past-f-status" onchange="renderPastTable()">
+        <input class="search-box" id="search" placeholder="Search name, phone, service..." oninput="renderUpcoming()">
+        <select class="filter-sel" id="f-status" onchange="renderUpcoming()">
           <option value="">All Statuses</option>
           <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
         </select>
-        <select class="filter-select" id="past-f-source" onchange="renderPastTable()">
+        <select class="filter-sel" id="f-source" onchange="renderUpcoming()">
           <option value="">All Sources</option>
           <option>AI Voice</option><option>Human</option>
         </select>
-        <input type="date" class="filter-select" id="past-f-date" onchange="renderPastTable()">
-        <button class="btn-outline" onclick="exportPastCSV()">⬇ Export CSV</button>
+        <button class="btn-outline" onclick="exportCSV()">Export CSV</button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Patient</th><th>Service</th><th>Doctor</th>
-              <th>Date</th><th>Time</th><th>Status</th><th>Source</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="past-apt-body"></tbody>
-        </table>
-        <div id="past-empty-state" class="empty-state" style="display:none">
-          <div class="icon">🗂</div>
-          <div>No past appointments found</div>
+      <div id="upcoming-content"></div>
+    </div>
+
+    <!-- Page: Past -->
+    <div class="page" id="page-past">
+      <div class="page-header">
+        <span class="page-title">Past Appointments</span>
+      </div>
+      <div class="toolbar">
+        <input class="search-box" id="past-search" placeholder="Search name, phone, service..." oninput="renderPastTable()">
+        <select class="filter-sel" id="past-f-status" onchange="renderPastTable()">
+          <option value="">All Statuses</option>
+          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+        </select>
+        <select class="filter-sel" id="past-f-source" onchange="renderPastTable()">
+          <option value="">All Sources</option>
+          <option>AI Voice</option><option>Human</option>
+        </select>
+        <input type="date" class="filter-sel" id="past-f-date" onchange="renderPastTable()">
+        <button class="btn-outline" onclick="exportPastCSV()">Export CSV</button>
+      </div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th><th>Service</th><th>Doctor</th>
+                <th>Date</th><th>Time</th><th>Status</th><th>Source</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="past-apt-body"></tbody>
+          </table>
+          <div id="past-empty-state" class="empty-state" style="display:none">
+            <div class="empty-icon">&#128203;</div>
+            <div>No past appointments found</div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  </div> <!-- end tab-past -->
 
-  <!-- Tab: Analytics -->
-  <div class="tab-content" id="tab-analytics">
-  <div class="analytics-main">
-    <div class="analytics-grid">
-
-      <!-- Weekly trend -->
-      <div class="chart-card">
-        <div class="chart-title">Bookings This Week</div>
-        <div class="weekly-bars" id="chart-weekly"></div>
+    <!-- Page: Activity -->
+    <div class="page" id="page-activity">
+      <div class="page-header">
+        <span class="page-title">Activity Feed</span>
+        <button class="btn-outline" onclick="loadActivity()">Refresh</button>
       </div>
-
-      <!-- AI vs Human donut -->
-      <div class="chart-card">
-        <div class="chart-title">AI vs Human Bookings</div>
-        <div class="donut-wrap" id="chart-ai-human"></div>
-      </div>
-
-      <!-- Top services -->
-      <div class="chart-card">
-        <div class="chart-title">Top Services</div>
-        <div id="chart-services"></div>
-      </div>
-
-      <!-- Status breakdown -->
-      <div class="chart-card">
-        <div class="chart-title">Appointment Status</div>
-        <div id="chart-status"></div>
-      </div>
-
+      <div class="activity-feed" id="activity-list"></div>
     </div>
-  </div>
-  </div> <!-- end tab-analytics -->
 
+    <!-- Page: CEO -->
+    <div class="page" id="page-ceo">
+      <div id="ceo-unlock">
+        <div class="ceo-lock-card">
+          <div class="lock-icon">&#128274;</div>
+          <h3>CEO Overview</h3>
+          <p>Enter your CEO password to access performance metrics and revenue insights.</p>
+          <div class="field">
+            <label>Password</label>
+            <input type="password" id="ceo-pw-input" placeholder="CEO password" onkeydown="if(event.key==='Enter')unlockCeo()">
+          </div>
+          <div id="ceo-err">Incorrect password. Please try again.</div>
+          <button class="btn-primary" onclick="unlockCeo()" style="margin-top:16px">Unlock</button>
+        </div>
+      </div>
+      <div id="ceo-content">
+        <div class="ceo-header">
+          <span class="page-title">CEO Overview</span>
+          <button class="ceo-lock-btn" onclick="lockCeo()">Lock Section</button>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">This Month</div>
+            <div class="metric-value" id="ceo-this-month">—</div>
+            <div class="metric-sub" id="ceo-month-trend">vs last month</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Cancellation Rate</div>
+            <div class="metric-value" id="ceo-cancel-rate">—</div>
+            <div class="metric-sub">of all appointments</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Est. Revenue (Month)</div>
+            <div class="metric-value" id="ceo-revenue">—</div>
+            <div class="metric-sub">confirmed this month</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">AI Booking Rate</div>
+            <div class="metric-value" id="ceo-ai-rate">—</div>
+            <div class="metric-sub">booked via AI channels</div>
+          </div>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Bookings This Week</div>
+            <div class="weekly-bars" id="chart-weekly"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Top Services (All Time)</div>
+            <div id="chart-services"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Doctor Utilization</div>
+            <div id="chart-doctors"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Revenue Estimate (OMR)</div>
+            <div style="font-size:28px;font-weight:700;color:var(--navy);margin-bottom:4px" id="rev-total">—</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Confirmed appointments this month</div>
+            <div class="rev-config">
+              <div class="rev-config-title">Service Prices (OMR)</div>
+              <div class="rev-grid" id="rev-price-grid"></div>
+              <button class="btn-outline" style="margin-top:12px;font-size:12px" onclick="saveRevenuePrices()">Save Prices</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
-<!-- ── Patient History Modal ── -->
+<!-- Patient History Modal -->
 <div class="modal-overlay" id="history-modal">
   <div class="modal-box">
     <div class="modal-head">
       <span class="modal-title">Patient History</span>
-      <button class="modal-close" onclick="closeModal('history-modal')">✕</button>
+      <button class="modal-close" onclick="closeModal('history-modal')">&#10005;</button>
     </div>
-    <div class="modal-body" id="history-body" style="padding:0">
-    </div>
+    <div class="modal-body" id="history-body" style="padding:0"></div>
   </div>
 </div>
 
-<!-- ── Appointment Modal ── -->
+<!-- Appointment Modal -->
 <div class="modal-overlay" id="apt-modal">
   <div class="modal-box">
     <div class="modal-head">
       <span class="modal-title" id="modal-title">New Appointment</span>
-      <button class="modal-close" onclick="closeModal('apt-modal')">✕</button>
+      <button class="modal-close" onclick="closeModal('apt-modal')">&#10005;</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="modal-id">
-      <div class="field">
-        <label>Patient Full Name *</label>
-        <input id="m-name" type="text" placeholder="e.g. Fatima Al-Rashidi">
-      </div>
-      <div class="field">
-        <label>Phone Number *</label>
-        <input id="m-phone" type="tel" placeholder="+968 9X XXX XXX">
-      </div>
+      <div class="field"><label>Patient Full Name *</label><input id="m-name" type="text" placeholder="e.g. Fatima Al-Rashidi"></div>
+      <div class="field"><label>Phone Number *</label><input id="m-phone" type="tel" placeholder="+968 9X XXX XXX"></div>
       <div class="row2">
         <div class="field">
           <label>Service *</label>
           <select id="m-service">
-            <option value="">Select service…</option>
+            <option value="">Select service...</option>
             <option>Botox</option><option>Fillers</option><option>Profhilo</option>
-            <option>Thread Lifting</option><option>Endolift</option>
-            <option>PRP</option><option>Mesotherapy</option>
-            <option>Exosomes</option><option>Stem Cell</option>
-            <option>Frax Pro</option><option>Picoway</option>
-            <option>RedTouch</option><option>Chemical Peels</option>
-            <option>Laser Hair Removal</option>
+            <option>Thread Lifting</option><option>Endolift</option><option>PRP</option>
+            <option>Mesotherapy</option><option>Exosomes</option><option>Stem Cell</option>
+            <option>Frax Pro</option><option>Picoway</option><option>RedTouch</option>
+            <option>Chemical Peels</option><option>Laser Hair Removal</option>
             <option>Onda Plus</option><option>Redustim</option><option>Body Wraps</option>
             <option>Aesthetic Gynecology</option><option>Vaginoplasty</option><option>Labiaplasty</option>
-            <option>Medical Skin Care</option><option>Dermatology</option>
-            <option>Consultation</option>
+            <option>Medical Skin Care</option><option>Dermatology</option><option>Consultation</option>
           </select>
         </div>
         <div class="field">
@@ -561,25 +529,14 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         </div>
       </div>
       <div class="row2">
-        <div class="field">
-          <label>Date *</label>
-          <input id="m-date" type="date">
-        </div>
-        <div class="field">
-          <label>Time *</label>
-          <input id="m-time" type="time" min="09:00" max="18:00">
-        </div>
+        <div class="field"><label>Date *</label><input id="m-date" type="date"></div>
+        <div class="field"><label>Time *</label><input id="m-time" type="time"></div>
       </div>
       <div class="field" id="status-field" style="display:none">
         <label>Status</label>
-        <select id="m-status">
-          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
-        </select>
+        <select id="m-status"><option>Pending</option><option>Confirmed</option><option>Cancelled</option></select>
       </div>
-      <div class="field">
-        <label>Notes</label>
-        <textarea id="m-notes" placeholder="Any special notes…"></textarea>
-      </div>
+      <div class="field"><label>Notes</label><textarea id="m-notes" placeholder="Any special notes..."></textarea></div>
     </div>
     <div class="modal-foot">
       <button class="btn-outline" onclick="closeModal('apt-modal')">Cancel</button>
@@ -588,12 +545,12 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
   </div>
 </div>
 
-<!-- ── Cancel Confirm Modal ── -->
+<!-- Cancel Confirm Modal -->
 <div class="modal-overlay" id="cancel-modal">
   <div class="modal-box" style="width:400px">
     <div class="modal-head">
       <span class="modal-title">Cancel Appointment</span>
-      <button class="modal-close" onclick="closeModal('cancel-modal')">✕</button>
+      <button class="modal-close" onclick="closeModal('cancel-modal')">&#10005;</button>
     </div>
     <div class="confirm-box">
       <p>Are you sure you want to cancel the appointment for<br><strong id="cancel-name"></strong>?<br><br>This will also remove the Google Calendar event.</p>
@@ -605,58 +562,53 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
   </div>
 </div>
 
-<!-- ── Toast Container ── -->
 <div id="toast-container"></div>
 
 <script>
 // ─── Config ──────────────────────────────────────────────────────────────────
 const CFG = {
-  // Default server URL to the current origin so Railway-hosted dashboard auto-connects
   get url() { return localStorage.getItem('lavora_url') || window.location.origin; },
   get key() { return localStorage.getItem('lavora_key') || ''; },
-  set(url, key) {
+  get ceoPw() { return localStorage.getItem('ceo_pw') || 'ceo2024'; },
+  set(url, key, ceoPw) {
     localStorage.setItem('lavora_url', url.replace(/\/$/, ''));
     localStorage.setItem('lavora_key', key);
-  },
-  clear() { localStorage.removeItem('lavora_url'); localStorage.removeItem('lavora_key'); }
+    if (ceoPw) localStorage.setItem('ceo_pw', ceoPw);
+  }
 };
 
 function saveConfig() {
   const url = document.getElementById('cfg-url').value.trim();
   const key = document.getElementById('cfg-key').value.trim();
-  if (!url || !key) { alert('Please fill in both fields.'); return; }
-  CFG.set(url, key);
+  const pw  = document.getElementById('cfg-ceo-pw').value.trim();
+  if (!url || !key) { alert('Please fill in Server URL and API Key.'); return; }
+  CFG.set(url, key, pw);
   bootstrap();
 }
 
 function openSettings() {
   document.getElementById('cfg-url').value = localStorage.getItem('lavora_url') || window.location.origin;
   document.getElementById('cfg-key').value = CFG.key;
+  document.getElementById('cfg-ceo-pw').value = '';
   document.getElementById('setup-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
 }
 
-// ─── API Client ───────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────────────────────
 const API = {
   async call(method, path, body) {
     const res = await fetch(`${CFG.url}${path}`, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': CFG.key
-      },
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': CFG.key },
       body: body ? JSON.stringify(body) : undefined
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return data;
   },
-  getAppointments(params = {}) {
-    const q = new URLSearchParams(params).toString();
-    return this.call('GET', `/api/appointments${q ? '?' + q : ''}`);
-  },
-  createAppointment(body) { return this.call('POST', '/api/appointments', body); },
-  updateAppointment(id, body) { return this.call('PUT', `/api/appointments/${id}`, body); },
+  getAppointments() { return this.call('GET', '/api/appointments'); },
+  createAppointment(b) { return this.call('POST', '/api/appointments', b); },
+  updateAppointment(id, b) { return this.call('PUT', `/api/appointments/${id}`, b); },
   deleteAppointment(id) { return this.call('DELETE', `/api/appointments/${id}`); },
   getActivity() { return this.call('GET', '/api/activity'); },
   getStats() { return this.call('GET', '/api/stats'); }
@@ -665,214 +617,287 @@ const API = {
 // ─── State ────────────────────────────────────────────────────────────────────
 let allAppointments = [];
 let cancelTargetId = null;
-let countdownSecs = 15;
+let countdownSecs = 30;
 let countdownTimer = null;
+let ceoUnlocked = false;
 
-// ─── Rendering ───────────────────────────────────────────────────────────────
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
+// ─── Navigation ──────────────────────────────────────────────────────────────
+const PAGE_TITLES = {
+  today: "Today's Schedule", upcoming: 'Upcoming Appointments',
+  past: 'Past Appointments', activity: 'Activity Feed', ceo: 'CEO Overview'
+};
+
+function gotoPage(name, el) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const navEl = el || document.querySelector(`.nav-item[data-page="${name}"]`);
+  if (navEl) navEl.classList.add('active');
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[name] || name;
+  if (name === 'today')    renderToday();
+  if (name === 'upcoming') renderUpcoming();
+  if (name === 'past')     renderPastTable();
+  if (name === 'activity') loadActivity();
+  if (name === 'ceo')      renderCeo();
 }
 
-function aptRow(a, showActions) {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+
+function formatDate(d) {
+  if (!d) return '—';
+  try { return new Date(d + 'T12:00:00').toLocaleDateString('en-OM', { weekday: 'short', month: 'short', day: 'numeric' }); }
+  catch { return d; }
+}
+
+function dayLabel(dateStr) {
+  const today    = todayStr();
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const d = new Date(dateStr + 'T12:00:00');
+  const full = d.toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+  let chip = '';
+  if (dateStr === today)    chip = '<span class="day-chip chip-today">TODAY</span>';
+  else if (dateStr === tomorrow) chip = '<span class="day-chip chip-tomorrow">TOMORROW</span>';
+  return `${chip}${full}`;
+}
+
+function relativeTime(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return new Date(ts).toLocaleDateString('en-OM', { month: 'short', day: 'numeric' });
+}
+
+function actorClass(actor) {
+  if (!actor) return 'human';
+  const a = actor.toLowerCase();
+  if (a.includes('whatsapp') || a.includes('lara')) return 'whatsapp';
+  if (a.includes('ai') || a.includes('voice'))       return 'ai';
+  return 'human';
+}
+
+function sourceBadge(source) {
+  if (!source) return '<span class="badge badge-human">Human</span>';
+  const s = source.toLowerCase();
+  if (s.includes('whatsapp')) return `<span class="badge badge-whatsapp">${esc(source)}</span>`;
+  if (s.includes('ai') || s.includes('voice')) return `<span class="badge badge-ai">${esc(source)}</span>`;
+  return `<span class="badge badge-human">${esc(source)}</span>`;
+}
+
+// ─── Appointment Card ─────────────────────────────────────────────────────────
+function aptCard(a, showActions = true) {
+  const sc = (a.status || '').toLowerCase();
+  const doctorBadge = a.doctor ? `<span class="badge badge-doctor">${esc(a.doctor)}</span>` : '';
+  const actions = showActions && a.status !== 'Cancelled' ? `
+    <div class="apt-actions">
+      ${a.status === 'Pending' ? `<button class="btn-sm btn-confirm-apt" onclick="confirmAppointment('${esc(a.id)}')">Confirm</button>` : ''}
+      <button class="btn-sm btn-edit" onclick="openEditModal('${esc(a.id)}')">Edit</button>
+      <button class="btn-sm btn-cancel" onclick="openCancelModal('${esc(a.id)}','${esc(a.name)}')">Cancel</button>
+    </div>` : '';
   return `
+    <div class="apt-card s-${sc}">
+      <div class="apt-time">${esc(a.time) || '—'}</div>
+      <div class="apt-divider"></div>
+      <div class="apt-info">
+        <div class="apt-name" onclick="openPatientHistory('${esc(a.phone)}')">${esc(a.name)}</div>
+        <div class="apt-service">${esc(a.service)}</div>
+        <div class="apt-meta">
+          <span class="apt-phone">${esc(a.phone)}</span>
+          ${doctorBadge}
+          <span class="badge badge-${sc}">${esc(a.status)}</span>
+          ${sourceBadge(a.source)}
+        </div>
+      </div>
+      ${actions}
+    </div>`;
+}
+
+// ─── Today Page ──────────────────────────────────────────────────────────────
+function renderToday() {
+  const today = todayStr();
+  const d = new Date(today + 'T12:00:00');
+  document.getElementById('today-date-title').textContent =
+    d.toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const apts = allAppointments
+    .filter(a => a.date === today)
+    .sort((a,b) => (a.time||'').localeCompare(b.time||''));
+
+  const el = document.getElementById('today-content');
+  if (!apts.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128197;</div><div>No appointments scheduled for today</div></div>';
+    return;
+  }
+  el.innerHTML = apts.map(a => aptCard(a)).join('');
+}
+
+// ─── Upcoming Page (Grouped by Day) ──────────────────────────────────────────
+function renderUpcoming() {
+  const today  = todayStr();
+  const search = (document.getElementById('search').value || '').toLowerCase();
+  const fStat  = document.getElementById('f-status').value;
+  const fSrc   = document.getElementById('f-source').value;
+
+  let rows = allAppointments.filter(a => {
+    if ((a.date || '0000') < today) return false;
+    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
+    return matchSearch && (!fStat || a.status === fStat) && (!fSrc || a.source === fSrc);
+  });
+  rows.sort((a,b) => ((a.date||'9999')+(a.time||'99:99')).localeCompare((b.date||'9999')+(b.time||'99:99')));
+
+  document.getElementById('badge-upcoming').textContent = rows.length;
+
+  const el = document.getElementById('upcoming-content');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128197;</div><div>No upcoming appointments</div></div>';
+    return;
+  }
+
+  const groups = {};
+  rows.forEach(a => { (groups[a.date] = groups[a.date] || []).push(a); });
+
+  el.innerHTML = Object.entries(groups).map(([date, apts]) => `
+    <div class="day-group">
+      <div class="day-label">${dayLabel(date)}</div>
+      ${apts.map(a => aptCard(a)).join('')}
+    </div>`).join('');
+}
+
+// ─── Past Table ───────────────────────────────────────────────────────────────
+function renderPastTable() {
+  const today  = todayStr();
+  const search = (document.getElementById('past-search').value || '').toLowerCase();
+  const fStat  = document.getElementById('past-f-status').value;
+  const fSrc   = document.getElementById('past-f-source').value;
+  const fDate  = document.getElementById('past-f-date').value;
+
+  let rows = allAppointments.filter(a => {
+    if ((a.date || '9999') >= today) return false;
+    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
+    return matchSearch && (!fStat || a.status === fStat) && (!fSrc || a.source === fSrc) && (!fDate || a.date === fDate);
+  });
+  rows.sort((a,b) => ((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
+
+  const tbody = document.getElementById('past-apt-body');
+  const empty = document.getElementById('past-empty-state');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = rows.map(a => `
     <tr>
       <td>
         <div class="cell-name" style="cursor:pointer;color:var(--navy)" onclick="openPatientHistory('${esc(a.phone)}')">${esc(a.name)}</div>
         <div class="cell-sub">${esc(a.phone)}</div>
       </td>
       <td>${esc(a.service)}</td>
-      <td>${esc(a.doctor) || '<span style="color:var(--text-light)">—</span>'}</td>
+      <td>${esc(a.doctor) || '<span style="color:var(--text3)">—</span>'}</td>
       <td>${formatDate(a.date)}</td>
       <td>${esc(a.time)}</td>
-      <td><span class="badge badge-${a.status?.toLowerCase()}">${esc(a.status)}</span></td>
-      <td><span class="badge badge-${a.source === 'AI Voice' ? 'ai' : 'human'}">${esc(a.source)}</span></td>
-      <td>
-        <div class="actions">
-          ${showActions && a.status !== 'Cancelled' ? `
-            ${a.status === 'Pending' ? `<button class="btn-sm btn-confirm" onclick="confirmAppointment('${esc(a.id)}')">Confirm</button>` : ''}
-            <button class="btn-sm btn-edit" onclick="openEditModal('${esc(a.id)}')">Edit</button>
-            <button class="btn-sm btn-cancel" onclick="openCancelModal('${esc(a.id)}','${esc(a.name)}')">Cancel</button>
-          ` : '<span style="color:var(--text-light);font-size:11px">${a.status === "Cancelled" ? "Cancelled" : "—"}</span>'}
-        </div>
-      </td>
-    </tr>
-  `;
+      <td><span class="badge badge-${(a.status||'').toLowerCase()}">${esc(a.status)}</span></td>
+      <td>${sourceBadge(a.source)}</td>
+      <td><button class="btn-sm btn-edit" onclick="openEditModal('${esc(a.id)}')">Edit</button></td>
+    </tr>`).join('');
 }
 
-function renderTable() {
-  const today = todayStr();
-  const search = document.getElementById('search').value.toLowerCase();
-  const fStatus = document.getElementById('f-status').value;
-  const fSource = document.getElementById('f-source').value;
-
-  let rows = allAppointments.filter(a => {
-    if ((a.date || '0000') < today) return false; // hide past dates
-    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
-    const matchStatus = !fStatus || a.status === fStatus;
-    const matchSource = !fSource || a.source === fSource;
-    return matchSearch && matchStatus && matchSource;
-  });
-
-  rows.sort((a, b) => {
-    const da = (a.date || '9999') + (a.time || '99:99');
-    const db = (b.date || '9999') + (b.time || '99:99');
-    return da.localeCompare(db) || (b.id || '').localeCompare(a.id || '');
-  });
-
-  const tbody = document.getElementById('apt-body');
-  const empty = document.getElementById('empty-state');
-  if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; return; }
-  empty.style.display = 'none';
-  tbody.innerHTML = rows.map(a => aptRow(a, true)).join('');
-}
-
-function renderPastTable() {
-  const today = todayStr();
-  const search = document.getElementById('past-search').value.toLowerCase();
-  const fStatus = document.getElementById('past-f-status').value;
-  const fSource = document.getElementById('past-f-source').value;
-  const fDate   = document.getElementById('past-f-date').value;
-
-  let rows = allAppointments.filter(a => {
-    if ((a.date || '9999') >= today) return false; // only past
-    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
-    const matchStatus = !fStatus || a.status === fStatus;
-    const matchSource = !fSource || a.source === fSource;
-    const matchDate   = !fDate || a.date === fDate;
-    return matchSearch && matchStatus && matchSource && matchDate;
-  });
-
-  rows.sort((a, b) => {
-    const da = (a.date || '0000') + (a.time || '00:00');
-    const db = (b.date || '0000') + (b.time || '00:00');
-    return db.localeCompare(da); // most recent past first
-  });
-
-  const tbody = document.getElementById('past-apt-body');
-  const empty = document.getElementById('past-empty-state');
-  if (rows.length === 0) { tbody.innerHTML = ''; empty.style.display = ''; return; }
-  empty.style.display = 'none';
-  tbody.innerHTML = rows.map(a => aptRow(a, false)).join('');
-}
-
-function exportPastCSV() {
-  const today = todayStr();
-  const rows = allAppointments.filter(a => (a.date || '9999') < today);
-  const headers = ['ID','Name','Phone','Service','Doctor','Date','Time','Status','Source'];
-  const lines = rows.map(a => [a.id,a.name,a.phone,a.service,a.doctor,a.date,a.time,a.status,a.source].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
-  const csv = [headers.join(','), ...lines].join('\n');
-  const url = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-  const a = document.createElement('a'); a.href = url; a.download = `test-past-appointments-${today}.csv`; a.click();
-}
-
+// ─── Activity ─────────────────────────────────────────────────────────────────
 function renderActivity(activities) {
-  const container = document.getElementById('activity-list');
+  const el = document.getElementById('activity-list');
   if (!activities.length) {
-    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-light);font-size:13px">No activity yet</div>';
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">No activity yet</div>';
     return;
   }
-  container.innerHTML = activities.slice(0, 40).map(a => `
-    <div class="activity-item ${a.actionType}">
-      <div class="activity-top">
-        <span class="activity-actor actor-${actorClass(a.actor)}">${esc(a.actor)}</span>
-        <span class="activity-type">${esc(a.actionType)}</span>
+  el.innerHTML = activities.slice(0, 60).map(a => `
+    <div class="act-item ${a.actionType}">
+      <div class="act-top">
+        <span class="actor-tag actor-${actorClass(a.actor)}">${esc(a.actor)}</span>
+        <span class="act-type">${esc(a.actionType)}</span>
       </div>
-      <div class="activity-name">${esc(a.patientName || '—')}</div>
-      <div class="activity-detail">${esc(a.details || '')}</div>
-      <div class="activity-time">${relativeTime(a.timestamp)}</div>
-    </div>
-  `).join('');
+      <div class="act-name">${esc(a.patientName || '—')}</div>
+      <div class="act-detail">${esc(a.details || '')}</div>
+      <div class="act-time">${relativeTime(a.timestamp)}</div>
+    </div>`).join('');
 }
 
+// ─── Stats ────────────────────────────────────────────────────────────────────
 function renderStats(stats) {
-  document.getElementById('s-today').textContent = stats.today_total ?? '—';
-  document.getElementById('s-total').textContent = stats.total ?? '—';
-  document.getElementById('s-ai').textContent = stats.ai_booked ?? '—';
-  document.getElementById('s-human').textContent = stats.human_booked ?? '—';
-  document.getElementById('s-pending').textContent = stats.pending ?? '—';
+  document.getElementById('s-today').textContent     = stats.today_total ?? '—';
+  document.getElementById('s-total').textContent     = stats.total ?? '—';
+  document.getElementById('s-ai').textContent        = stats.ai_booked ?? '—';
+  document.getElementById('s-pending').textContent   = stats.pending ?? '—';
   document.getElementById('s-confirmed').textContent = stats.confirmed ?? '—';
-  document.getElementById('s-cancelled').textContent = stats.cancelled ?? '—';
 }
 
-// ─── Data Loading ─────────────────────────────────────────────────────────────
+// ─── Load All ─────────────────────────────────────────────────────────────────
 async function loadAll() {
   try {
     const [apts, activity, stats] = await Promise.all([
-      API.getAppointments(),
-      API.getActivity(),
-      API.getStats()
+      API.getAppointments(), API.getActivity(), API.getStats()
     ]);
     allAppointments = apts.appointments || [];
-    renderTable();
-    renderActivity(activity.activities || []);
     renderStats(stats);
+    renderActivity(activity.activities || []);
+    document.getElementById('badge-upcoming').textContent =
+      allAppointments.filter(a => (a.date || '0000') >= todayStr()).length;
+    const active = document.querySelector('.page.active');
+    if (active) {
+      const id = active.id.replace('page-', '');
+      if (id === 'today')    renderToday();
+      if (id === 'upcoming') renderUpcoming();
+      if (id === 'past')     renderPastTable();
+      if (id === 'ceo' && ceoUnlocked) renderCeoMetrics();
+    }
     setConn(true);
   } catch (err) {
     setConn(false);
     toast('Connection error: ' + err.message, 'error');
-    console.error('Load error:', err.message);
   }
   loadIntegrationStatus();
 }
 
 async function loadIntegrationStatus() {
   try {
-    const res = await fetch(`${CFG.url}/status`);
-    const s = await res.json();
-    const map = {
-      'int-server': s.server,
-      'int-sheets': s.sheets,
-      'int-calendar': s.calendar,
-      'int-elevenlabs': s.elevenlabs,
-      'int-twilio': s.twilio
-    };
-    for (const [id, ok] of Object.entries(map)) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.className = `int-pill ${ok ? 'int-ok' : 'int-err'}`;
-      }
-    }
+    const s = await (await fetch(`${CFG.url}/status`)).json();
+    document.getElementById('int-row').innerHTML = [
+      { label: 'Server',    ok: s.server },
+      { label: 'Calendar',  ok: s.calendar },
+      { label: 'ElevenLabs',ok: s.elevenlabs },
+      { label: 'WhatsApp',  ok: s.whatsapp || s.twilio }
+    ].map(i => `<div class="int-dot-item"><span class="int-dot ${i.ok ? 'ok' : 'err'}"></span><span>${i.label}</span></div>`).join('');
   } catch {}
 }
 
 async function loadActivity() {
-  try {
-    const data = await API.getActivity();
-    renderActivity(data.activities || []);
-  } catch (err) { console.error(err); }
+  try { renderActivity((await API.getActivity()).activities || []); } catch {}
 }
 
 function setConn(ok) {
   const el = document.getElementById('conn-status');
-  el.className = 'conn-status ' + (ok ? 'conn-ok' : 'conn-err');
-  el.textContent = ok ? '● Live' : '● Offline';
+  el.className = 'conn-badge ' + (ok ? 'conn-ok' : 'conn-err');
+  el.textContent = ok ? 'Live' : 'Offline';
+  document.getElementById('pulse-dot').style.background = ok ? 'var(--green)' : 'var(--red)';
 }
 
-// ─── Auto Refresh ─────────────────────────────────────────────────────────────
+// ─── Auto-Refresh ─────────────────────────────────────────────────────────────
 function startCountdown() {
   if (countdownTimer) clearInterval(countdownTimer);
   countdownSecs = 30;
-  updateCountdown();
+  document.getElementById('countdown').textContent = '30s';
   countdownTimer = setInterval(() => {
     countdownSecs--;
-    updateCountdown();
-    if (countdownSecs <= 0) {
-      countdownSecs = 15;
-      loadAll();
-    }
+    document.getElementById('countdown').textContent = `${countdownSecs}s`;
+    if (countdownSecs <= 0) { countdownSecs = 30; loadAll(); }
   }, 1000);
 }
 
-function updateCountdown() {
-  document.getElementById('countdown').textContent = `${countdownSecs}s`;
-}
-
-// ─── Clock ────────────────────────────────────────────────────────────────────
 function updateClock() {
-  const now = new Date();
-  document.getElementById('clock').textContent = now.toLocaleString('en-OM', {
-    weekday: 'short', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
+  document.getElementById('clock').textContent = new Date().toLocaleString('en-OM', {
+    weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 }
 
@@ -880,32 +905,28 @@ function updateClock() {
 function openNewModal() {
   document.getElementById('modal-title').textContent = 'New Appointment';
   document.getElementById('modal-id').value = '';
-  document.getElementById('m-name').value = '';
-  document.getElementById('m-phone').value = '';
-  document.getElementById('m-service').value = '';
-  document.getElementById('m-doctor').value = '';
+  ['m-name','m-phone','m-notes'].forEach(id => document.getElementById(id).value = '');
+  ['m-service','m-doctor'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('m-date').value = '';
   document.getElementById('m-time').value = '';
-  document.getElementById('m-notes').value = '';
-  document.getElementById('m-status').value = 'Pending';
   document.getElementById('status-field').style.display = 'none';
   document.getElementById('modal-save').textContent = 'Book Appointment';
   openModal('apt-modal');
 }
 
 function openEditModal(id) {
-  const apt = allAppointments.find(a => a.id === id);
-  if (!apt) return;
+  const a = allAppointments.find(x => x.id === id);
+  if (!a) return;
   document.getElementById('modal-title').textContent = 'Edit Appointment';
-  document.getElementById('modal-id').value = apt.id;
-  document.getElementById('m-name').value = apt.name || '';
-  document.getElementById('m-phone').value = apt.phone || '';
-  document.getElementById('m-service').value = apt.service || '';
-  document.getElementById('m-doctor').value = apt.doctor || '';
-  document.getElementById('m-date').value = apt.date || '';
-  document.getElementById('m-time').value = apt.time || '';
-  document.getElementById('m-notes').value = apt.notes || '';
-  document.getElementById('m-status').value = apt.status || 'Pending';
+  document.getElementById('modal-id').value    = a.id;
+  document.getElementById('m-name').value      = a.name || '';
+  document.getElementById('m-phone').value     = a.phone || '';
+  document.getElementById('m-service').value   = a.service || '';
+  document.getElementById('m-doctor').value    = a.doctor || '';
+  document.getElementById('m-date').value      = a.date || '';
+  document.getElementById('m-time').value      = a.time || '';
+  document.getElementById('m-notes').value     = a.notes || '';
+  document.getElementById('m-status').value    = a.status || 'Pending';
   document.getElementById('status-field').style.display = '';
   document.getElementById('modal-save').textContent = 'Save Changes';
   openModal('apt-modal');
@@ -920,45 +941,36 @@ function openCancelModal(id, name) {
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// ─── Save Appointment ─────────────────────────────────────────────────────────
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ─── Save/Update Appointment ──────────────────────────────────────────────────
 async function saveAppointment() {
   const id = document.getElementById('modal-id').value;
   const body = {
-    name: document.getElementById('m-name').value.trim(),
-    phone: document.getElementById('m-phone').value.trim(),
+    name:    document.getElementById('m-name').value.trim(),
+    phone:   document.getElementById('m-phone').value.trim(),
     service: document.getElementById('m-service').value,
-    doctor: document.getElementById('m-doctor').value,
-    date: document.getElementById('m-date').value,
-    time: document.getElementById('m-time').value,
-    notes: document.getElementById('m-notes').value.trim()
+    doctor:  document.getElementById('m-doctor').value,
+    date:    document.getElementById('m-date').value,
+    time:    document.getElementById('m-time').value,
+    notes:   document.getElementById('m-notes').value.trim()
   };
   if (id) body.status = document.getElementById('m-status').value;
-
-  const required = ['name','phone','service','date','time'];
-  const missing = required.filter(k => !body[k]);
+  const missing = ['name','phone','service','date','time'].filter(k => !body[k]);
   if (missing.length) { toast(`Please fill in: ${missing.join(', ')}`, 'error'); return; }
 
   const btn = document.getElementById('modal-save');
   btn.innerHTML = '<span class="spinner"></span>';
   btn.disabled = true;
-
   try {
-    if (id) {
-      await API.updateAppointment(id, body);
-      toast('Appointment updated successfully', 'success');
-    } else {
-      await API.createAppointment(body);
-      toast('Appointment booked successfully', 'success');
-    }
+    if (id) { await API.updateAppointment(id, body); toast('Appointment updated', 'success'); }
+    else    { await API.createAppointment(body);     toast('Appointment booked', 'success'); }
     closeModal('apt-modal');
-    await loadAll();
-    startCountdown();
-  } catch (err) {
-    toast(err.message, 'error');
-  } finally {
-    btn.innerHTML = id ? 'Save Changes' : 'Book Appointment';
-    btn.disabled = false;
-  }
+    await loadAll(); startCountdown();
+  } catch (err) { toast(err.message, 'error'); }
+  finally { btn.innerHTML = id ? 'Save Changes' : 'Book Appointment'; btn.disabled = false; }
 }
 
 async function confirmCancel() {
@@ -967,11 +979,193 @@ async function confirmCancel() {
     await API.deleteAppointment(cancelTargetId);
     toast('Appointment cancelled', 'success');
     closeModal('cancel-modal');
-    await loadAll();
-    startCountdown();
-  } catch (err) {
-    toast(err.message, 'error');
+    await loadAll(); startCountdown();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function confirmAppointment(id) {
+  try {
+    await API.updateAppointment(id, { status: 'Confirmed' });
+    toast('Appointment confirmed', 'success');
+    await loadAll(); startCountdown();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function exportCSV() {
+  const today = todayStr();
+  downloadCSV(allAppointments.filter(a => (a.date||'0000') >= today), `upcoming-${today}.csv`);
+}
+function exportPastCSV() {
+  const today = todayStr();
+  downloadCSV(allAppointments.filter(a => (a.date||'9999') < today), `past-${today}.csv`);
+}
+function downloadCSV(rows, filename) {
+  const h = ['ID','Name','Phone','Service','Doctor','Date','Time','Status','Source'];
+  const lines = rows.map(a => [a.id,a.name,a.phone,a.service,a.doctor||'',a.date,a.time,a.status,a.source].map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const url = URL.createObjectURL(new Blob([[h.join(','),...lines].join('\n')], {type:'text/csv'}));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+
+// ─── Patient History ──────────────────────────────────────────────────────────
+function openPatientHistory(phone) {
+  const apts = allAppointments.filter(a => a.phone === phone).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  if (!apts.length) return;
+  document.getElementById('history-body').innerHTML = `
+    <div style="padding:16px 24px;background:var(--bg);border-bottom:1px solid var(--border)">
+      <div style="font-weight:700;font-size:15px">${esc(apts[0].name)}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">${esc(phone)} &middot; ${apts.length} appointment${apts.length!==1?'s':''}</div>
+    </div>
+    <div style="max-height:400px;overflow-y:auto">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#fafbfc">
+        ${['Date','Service','Status','Source'].map(h=>`<th style="text-align:left;font-size:11px;font-weight:600;color:var(--text3);padding:10px 16px;border-bottom:1px solid var(--border)">${h}</th>`).join('')}
+      </tr></thead>
+      <tbody>${apts.map(a=>`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:11px 16px;font-size:13px">${formatDate(a.date)} <span style="color:var(--text3)">${esc(a.time)}</span></td>
+        <td style="padding:11px 16px;font-size:13px;font-weight:500">${esc(a.service)}</td>
+        <td style="padding:11px 16px"><span class="badge badge-${(a.status||'').toLowerCase()}">${esc(a.status)}</span></td>
+        <td style="padding:11px 16px">${sourceBadge(a.source)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  openModal('history-modal');
+}
+
+// ─── Manual Actions ───────────────────────────────────────────────────────────
+async function pollNow() {
+  try { await API.call('POST', '/api/poll-now'); await loadAll(); startCountdown(); toast('Calls polled', 'success'); }
+  catch (err) { toast('Poll error: ' + err.message, 'error'); }
+}
+async function manualRefresh() { await loadAll(); startCountdown(); }
+
+// ─── CEO Section ──────────────────────────────────────────────────────────────
+function unlockCeo() {
+  const input = document.getElementById('ceo-pw-input').value;
+  if (input === CFG.ceoPw) {
+    ceoUnlocked = true;
+    document.getElementById('ceo-unlock').style.display = 'none';
+    document.getElementById('ceo-content').style.display = 'block';
+    renderCeoMetrics();
+  } else {
+    document.getElementById('ceo-err').style.display = 'block';
+    document.getElementById('ceo-pw-input').value = '';
   }
+}
+
+function lockCeo() {
+  ceoUnlocked = false;
+  document.getElementById('ceo-unlock').style.display = 'flex';
+  document.getElementById('ceo-content').style.display = 'none';
+  document.getElementById('ceo-pw-input').value = '';
+  document.getElementById('ceo-err').style.display = 'none';
+}
+
+function renderCeo() {
+  if (!ceoUnlocked) {
+    document.getElementById('ceo-unlock').style.display = 'flex';
+    document.getElementById('ceo-content').style.display = 'none';
+  } else {
+    renderCeoMetrics();
+  }
+}
+
+const DEFAULT_PRICES = {
+  'Botox':80,'Fillers':120,'Profhilo':150,'Thread Lifting':200,'Endolift':300,
+  'PRP':100,'Mesotherapy':80,'Exosomes':150,'Stem Cell':400,'Frax Pro':200,
+  'Picoway':180,'RedTouch':200,'Chemical Peels':60,'Laser Hair Removal':80,
+  'Onda Plus':180,'Redustim':100,'Body Wraps':60,'Aesthetic Gynecology':200,
+  'Vaginoplasty':500,'Labiaplasty':500,'Medical Skin Care':50,'Dermatology':50,'Consultation':20
+};
+
+function getPrices() {
+  try { return {...DEFAULT_PRICES, ...JSON.parse(localStorage.getItem('rev_prices') || '{}')}; }
+  catch { return DEFAULT_PRICES; }
+}
+
+function saveRevenuePrices() {
+  const prices = {};
+  document.querySelectorAll('.rev-price-input').forEach(inp => {
+    prices[inp.dataset.service] = parseFloat(inp.value) || 0;
+  });
+  localStorage.setItem('rev_prices', JSON.stringify(prices));
+  renderCeoMetrics();
+  toast('Prices saved', 'success');
+}
+
+function renderCeoMetrics() {
+  const now  = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonth  = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,'0')}`;
+
+  const thisApts = allAppointments.filter(a => a.date && a.date.startsWith(thisMonth));
+  const lastApts = allAppointments.filter(a => a.date && a.date.startsWith(lastMonth));
+  const cancelRate = allAppointments.length
+    ? Math.round(allAppointments.filter(a => a.status === 'Cancelled').length / allAppointments.length * 100) : 0;
+  const aiCount = allAppointments.filter(a => {
+    const s = (a.source || '').toLowerCase();
+    return s.includes('ai') || s.includes('whatsapp') || s.includes('voice');
+  }).length;
+  const aiRate = allAppointments.length ? Math.round(aiCount / allAppointments.length * 100) : 0;
+
+  document.getElementById('ceo-this-month').textContent = thisApts.length;
+  const diff = thisApts.length - lastApts.length;
+  document.getElementById('ceo-month-trend').innerHTML = diff === 0 ? 'Same as last month'
+    : diff > 0 ? `<span class="trend-up">+${diff} vs last month</span>`
+    : `<span class="trend-down">${diff} vs last month</span>`;
+  document.getElementById('ceo-cancel-rate').textContent = `${cancelRate}%`;
+  document.getElementById('ceo-ai-rate').textContent = `${aiRate}%`;
+
+  const prices = getPrices();
+  const revenue = thisApts.filter(a => a.status === 'Confirmed').reduce((s,a) => s + (prices[a.service]||0), 0);
+  document.getElementById('ceo-revenue').textContent = `${revenue} OMR`;
+  document.getElementById('rev-total').textContent   = `${revenue} OMR`;
+
+  // Weekly bars
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const counts = Array(7).fill(0);
+  allAppointments.forEach(a => {
+    if (!a.date) return;
+    const diff = Math.floor((now - new Date(a.date + 'T12:00:00')) / 86400000);
+    if (diff >= 0 && diff < 7) counts[6-diff]++;
+  });
+  const maxC = Math.max(...counts, 1);
+  document.getElementById('chart-weekly').innerHTML = counts.map((n,i) => {
+    const label = days[(now.getDay() - (6-i) + 7) % 7];
+    const h = Math.max(Math.round(n/maxC*72), 4);
+    return `<div class="w-bar-wrap"><div class="w-bar" style="height:${h}px"></div><div class="w-day">${label}</div></div>`;
+  }).join('');
+
+  // Top services
+  const svcMap = {};
+  allAppointments.forEach(a => { if (a.service) svcMap[a.service] = (svcMap[a.service]||0)+1; });
+  const topSvc = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxS = topSvc[0]?.[1] || 1;
+  document.getElementById('chart-services').innerHTML = topSvc.map(([s,n]) => `
+    <div class="bar-row">
+      <span class="bar-label">${esc(s)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxS*100)}%;background:var(--navy)"></div></div>
+      <span class="bar-val">${n}</span>
+    </div>`).join('') || '<div style="color:var(--text3);font-size:13px">No data yet</div>';
+
+  // Doctor utilization
+  const drMap = {};
+  allAppointments.forEach(a => { if (a.doctor) drMap[a.doctor] = (drMap[a.doctor]||0)+1; });
+  const topDr = Object.entries(drMap).sort((a,b)=>b[1]-a[1]);
+  const maxD = topDr[0]?.[1] || 1;
+  document.getElementById('chart-doctors').innerHTML = topDr.length
+    ? topDr.map(([d,n]) => `
+      <div class="bar-row">
+        <span class="bar-label">${esc(d)}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxD*100)}%;background:var(--gold)"></div></div>
+        <span class="bar-val">${n}</span>
+      </div>`).join('')
+    : '<div style="color:var(--text3);font-size:13px">No doctor data yet</div>';
+
+  // Revenue price grid
+  document.getElementById('rev-price-grid').innerHTML = Object.entries(prices).map(([s,v]) => `
+    <span style="color:var(--text2)">${esc(s)}</span>
+    <input class="rev-price-input" type="number" data-service="${esc(s)}" value="${v}" min="0">`).join('');
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -983,210 +1177,22 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 4000);
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function formatDate(d) {
-  if (!d) return '—';
-  try {
-    return new Date(d + 'T12:00:00').toLocaleDateString('en-OM', { weekday: 'short', month: 'short', day: 'numeric' });
-  } catch { return d; }
-}
-
-function relativeTime(ts) {
-  if (!ts) return '';
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return new Date(ts).toLocaleDateString('en-OM', { month: 'short', day: 'numeric' });
-}
-
-function actorClass(actor) {
-  if (!actor) return 'human';
-  const a = actor.toLowerCase();
-  if (a.includes('ai') || a.includes('voice')) return 'ai';
-  if (a.includes('twilio')) return 'twilio';
-  return 'human';
-}
-
-// ─── Close modal on overlay click ────────────────────────────────────────────
-document.querySelectorAll('.modal-overlay').forEach(el => {
-  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
-});
-
-// ─── Manual Refresh ──────────────────────────────────────────────────────────
-async function pollNow() {
-  const btn = document.getElementById('poll-btn');
-  btn.textContent = '📞 Polling…';
-  btn.disabled = true;
-  try {
-    await API.call('POST', '/api/poll-now');
-    await loadAll();
-    startCountdown();
-    toast('Calls polled successfully', 'success');
-  } catch (err) {
-    toast('Poll error: ' + err.message, 'error');
-  }
-  btn.textContent = '📞 Poll Calls';
-  btn.disabled = false;
-}
-
-async function manualRefresh() {
-  const btn = document.getElementById('refresh-btn');
-  btn.textContent = '↻ Refreshing…';
-  btn.disabled = true;
-  await loadAll();
-  startCountdown();
-  btn.textContent = '↻ Refresh';
-  btn.disabled = false;
-}
-
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 function bootstrap() {
-  // Pre-fill Server URL with current origin so user doesn't have to type it
   const urlInput = document.getElementById('cfg-url');
   if (!urlInput.value) urlInput.value = localStorage.getItem('lavora_url') || window.location.origin;
-
   if (!CFG.url || !CFG.key) {
     document.getElementById('setup-screen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
     return;
   }
   document.getElementById('setup-screen').style.display = 'none';
-  document.getElementById('app').style.display = '';
+  document.getElementById('app').style.display = 'flex';
+  gotoPage('today', null);
   loadAll();
   startCountdown();
   updateClock();
-  setInterval(updateClock, 10000);
-}
-
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-function switchTab(name, btn) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'analytics') renderAnalytics();
-  if (name === 'past') renderPastTable();
-}
-
-// ─── Confirm Appointment (Pending → Confirmed) ────────────────────────────────
-async function confirmAppointment(id) {
-  try {
-    await API.updateAppointment(id, { status: 'Confirmed' });
-    toast('Appointment confirmed', 'success');
-    await loadAll();
-    startCountdown();
-  } catch (err) {
-    toast(err.message, 'error');
-  }
-}
-
-// ─── Export CSV ───────────────────────────────────────────────────────────────
-function exportCSV() {
-  const headers = ['ID','Name','Phone','Service','Doctor','Date','Time','Status','Source'];
-  const rows = allAppointments.map(a => [
-    a.id, a.name, a.phone, a.service, a.doctor||'', a.date, a.time, a.status, a.source
-  ].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','));
-  const csv = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `test-appointments-${new Date().toISOString().split('T')[0]}.csv`;
-  a.click(); URL.revokeObjectURL(url);
-}
-
-// ─── Patient History ──────────────────────────────────────────────────────────
-function openPatientHistory(phone) {
-  const apts = allAppointments.filter(a => a.phone === phone).sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
-  if (!apts.length) return;
-  const name = apts[0].name;
-  const body = document.getElementById('history-body');
-  body.innerHTML = `
-    <div style="padding:16px 24px;background:var(--bg);border-bottom:1px solid var(--border)">
-      <div style="font-weight:700;font-size:15px">${esc(name)}</div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:2px">${esc(phone)} · ${apts.length} appointment${apts.length!==1?'s':''}</div>
-    </div>
-    <div style="max-height:400px;overflow-y:auto">
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:#fafbfc">
-        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Date</th>
-        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Service</th>
-        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Status</th>
-        <th style="text-align:left;font-size:11px;font-weight:600;color:var(--text-light);padding:10px 16px;border-bottom:1px solid var(--border)">Source</th>
-      </tr></thead>
-      <tbody>
-        ${apts.map(a=>`<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:11px 16px;font-size:13px">${formatDate(a.date)} <span style="color:var(--text-light)">${esc(a.time)}</span></td>
-          <td style="padding:11px 16px;font-size:13px;font-weight:500">${esc(a.service)}</td>
-          <td style="padding:11px 16px"><span class="badge badge-${(a.status||'').toLowerCase()}">${esc(a.status)}</span></td>
-          <td style="padding:11px 16px"><span class="badge badge-${a.source==='AI Voice'?'ai':'human'}">${esc(a.source)}</span></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-    </div>`;
-  openModal('history-modal');
-}
-
-// ─── Analytics ────────────────────────────────────────────────────────────────
-function renderAnalytics() {
-  // Weekly bookings (last 7 days)
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const today = new Date();
-  const counts = Array(7).fill(0);
-  allAppointments.forEach(a => {
-    if (!a.date) return;
-    const d = new Date(a.date + 'T12:00:00');
-    const diff = Math.floor((today - d) / 86400000);
-    if (diff >= 0 && diff < 7) counts[6 - diff]++;
-  });
-  const maxC = Math.max(...counts, 1);
-  document.getElementById('chart-weekly').innerHTML = counts.map((n, i) => {
-    const label = days[(today.getDay() - (6 - i) + 7) % 7];
-    const h = Math.max(Math.round(n / maxC * 72), 4);
-    return `<div class="w-bar-wrap"><div class="w-bar" style="height:${h}px"></div><div class="w-day">${label}</div></div>`;
-  }).join('');
-
-  // AI vs Human
-  const ai = allAppointments.filter(a => a.source === 'AI Voice').length;
-  const human = allAppointments.filter(a => a.source === 'Human').length;
-  const total = allAppointments.length || 1;
-  const aiPct = Math.round(ai / total * 100);
-  document.getElementById('chart-ai-human').innerHTML = `
-    <div class="donut" style="background:conic-gradient(var(--ai-color) 0% ${aiPct}%,var(--human-color) ${aiPct}% 100%)"></div>
-    <div class="donut-legend">
-      <div class="donut-item"><div class="donut-dot" style="background:var(--ai-color)"></div><span>AI Voice: <strong>${ai}</strong> (${aiPct}%)</span></div>
-      <div class="donut-item"><div class="donut-dot" style="background:var(--human-color)"></div><span>Human: <strong>${human}</strong> (${100-aiPct}%)</span></div>
-    </div>`;
-
-  // Top services
-  const svcMap = {};
-  allAppointments.forEach(a => { if (a.service) svcMap[a.service] = (svcMap[a.service]||0) + 1; });
-  const topSvc = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const maxS = topSvc[0]?.[1] || 1;
-  document.getElementById('chart-services').innerHTML = topSvc.map(([s,n])=>`
-    <div class="bar-row">
-      <span class="bar-label">${esc(s)}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxS*100)}%;background:var(--navy)"></div></div>
-      <span class="bar-val">${n}</span>
-    </div>`).join('') || '<div style="color:var(--text-light);font-size:13px;padding:16px 0">No data yet</div>';
-
-  // Status breakdown
-  const statMap = { Confirmed: 0, Pending: 0, Cancelled: 0 };
-  allAppointments.forEach(a => { if (statMap[a.status]!==undefined) statMap[a.status]++; });
-  const maxSt = Math.max(...Object.values(statMap), 1);
-  const stColors = { Confirmed:'var(--confirmed)', Pending:'var(--pending)', Cancelled:'var(--cancelled)' };
-  document.getElementById('chart-status').innerHTML = Object.entries(statMap).map(([s,n])=>`
-    <div class="bar-row">
-      <span class="bar-label">${s}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxSt*100)}%;background:${stColors[s]}"></div></div>
-      <span class="bar-val">${n}</span>
-    </div>`).join('');
+  setInterval(updateClock, 15000);
 }
 
 bootstrap();
