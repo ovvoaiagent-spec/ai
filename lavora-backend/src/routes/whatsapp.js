@@ -135,18 +135,73 @@ async function markRead(to, messageId) {
   });
 }
 
+// ─── Department helpers ───────────────────────────────────────────────────────
+const LASER_SERVICES  = ['laser hair removal', 'laser'];
+const BODY_SERVICES   = ['body wrap', 'body wraps', 'redustim', 'onda plus', 'onda', 'slimming'];
+// everything else → beauty
+
+function getDepartment(service) {
+  const s = (service || '').toLowerCase();
+  if (LASER_SERVICES.some(k => s.includes(k)))  return 'laser';
+  if (BODY_SERVICES.some(k => s.includes(k)))   return 'body';
+  return 'beauty';
+}
+
+const DEPT_CAPACITY  = { laser: 3, body: 4, beauty: 1 };
+const DEPT_CLOSE_HH  = { laser: 23, body: 20, beauty: 20 }; // closing hour (exclusive)
+const OPEN_HH        = 8;   // 8:00 AM
+const REST_START_HH  = 14;  // 2:00 PM
+const REST_END_HH    = 15;  // 3:00 PM
+
+function timeToMinutes(t) {
+  // accepts "HH:MM" or "H:MM"
+  const [h, m] = (t || '').split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+// Returns an error string if the slot is forbidden, null if OK
+function validateSlot(dateStr, timeStr, department) {
+  const date = new Date(dateStr + 'T00:00:00');
+  const dow  = date.getDay(); // 0=Sun,1=Mon,...,5=Fri,6=Sat
+  if (dow === 5) return 'friday_closed';
+
+  const mins      = timeToMinutes(timeStr);
+  const openMins  = OPEN_HH * 60;
+  const restStart = REST_START_HH * 60;
+  const restEnd   = REST_END_HH * 60;
+  const closeHH   = DEPT_CLOSE_HH[department] || 20;
+  const closeMins = closeHH * 60;
+
+  if (mins < openMins)              return 'before_open';
+  if (mins >= restStart && mins < restEnd) return 'rest_time';
+  if (mins >= closeMins)            return `after_close:${closeHH}`;
+  return null;
+}
+
+// Count active bookings for the same slot in the same department
+async function countSlotBookings(date, time, department) {
+  const all = await db.getAllAppointments();
+  return all.filter(a =>
+    a.status !== 'Cancelled' &&
+    a.date === date &&
+    a.time === time &&
+    getDepartment(a.service) === department
+  ).length;
+}
+
 // ─── Claude tool definitions ──────────────────────────────────────────────────
 const TOOLS = [
   {
     name: 'check_availability',
-    description: 'Check whether a specific date/time slot is available.',
+    description: 'Check whether a specific date/time/service slot is available, respecting department rules and capacity.',
     input_schema: {
       type: 'object',
       properties: {
-        date: { type: 'string', description: 'Date in YYYY-MM-DD or natural language (tomorrow, next Monday)' },
-        time: { type: 'string', description: 'Time in HH:MM or natural language (3pm, afternoon)' }
+        date:    { type: 'string', description: 'Date in YYYY-MM-DD or natural language (tomorrow, next Monday)' },
+        time:    { type: 'string', description: 'Time in HH:MM or natural language (3pm, afternoon)' },
+        service: { type: 'string', description: 'The service being requested — needed to determine department and capacity' }
       },
-      required: ['date', 'time']
+      required: ['date', 'time', 'service']
     }
   },
   {
@@ -283,12 +338,27 @@ async function executeTool(name, input, callerPhone) {
     switch (name) {
 
       case 'check_availability': {
-        const d = parseDate(input.date) || input.date;
-        const t = parseTime(input.time) || input.time;
-        const conflict = await db.checkConflict(d, t);
-        return conflict
-          ? { available: false, result: `${d} at ${t} is already booked. Please choose a different time.` }
-          : { available: true,  result: `${d} at ${t} is available.`, date: d, time: t };
+        const d    = parseDate(input.date) || input.date;
+        const t    = parseTime(input.time) || input.time;
+        const svc  = matchService(input.service) || input.service || '';
+        const dept = getDepartment(svc);
+        const cap  = DEPT_CAPACITY[dept];
+
+        const slotError = validateSlot(d, t, dept);
+        if (slotError === 'friday_closed')
+          return { available: false, result: 'The clinic is closed on Fridays. Please choose another day.' };
+        if (slotError === 'before_open')
+          return { available: false, result: 'The clinic opens at 8:00 AM. Please choose a time from 8 AM onward.' };
+        if (slotError === 'rest_time')
+          return { available: false, result: 'The clinic has a rest break from 2:00 PM to 3:00 PM. I can book you at 1:00 PM or from 3:00 PM onward — which works better?' };
+        if (slotError?.startsWith('after_close'))
+          return { available: false, result: `The ${dept} department closes at ${DEPT_CLOSE_HH[dept] > 12 ? DEPT_CLOSE_HH[dept] - 12 + ':00 PM' : DEPT_CLOSE_HH[dept] + ':00 AM'}. Please suggest an earlier time.` };
+
+        const booked = await countSlotBookings(d, t, dept);
+        if (booked >= cap)
+          return { available: false, result: `That time slot is fully booked for the ${dept} department. Please suggest a different time.`, department: dept };
+
+        return { available: true, result: `${d} at ${t} is available.`, date: d, time: t, department: dept, slots_remaining: cap - booked };
       }
 
       case 'book_appointment': {
@@ -296,9 +366,22 @@ async function executeTool(name, input, callerPhone) {
         const d       = parseDate(input.date)       || input.date;
         const t       = parseTime(input.time)       || input.time;
         const service = matchService(input.service) || input.service;
+        const dept    = getDepartment(service);
+        const cap     = DEPT_CAPACITY[dept];
 
-        if (await db.checkConflict(d, t))
-          return { success: false, result: 'That slot just got taken. Please suggest a different time.' };
+        const slotError = validateSlot(d, t, dept);
+        if (slotError === 'friday_closed')
+          return { success: false, result: 'The clinic is closed on Fridays.' };
+        if (slotError === 'rest_time')
+          return { success: false, result: 'No appointments between 2:00 PM and 3:00 PM (rest break). Please choose 1:00 PM or 3:00 PM onward.' };
+        if (slotError === 'before_open')
+          return { success: false, result: 'The clinic opens at 8:00 AM.' };
+        if (slotError?.startsWith('after_close'))
+          return { success: false, result: `The ${dept} department closes at ${DEPT_CLOSE_HH[dept] > 12 ? DEPT_CLOSE_HH[dept] - 12 + ':00 PM' : DEPT_CLOSE_HH[dept] + ':00 AM'}.` };
+
+        const booked = await countSlotBookings(d, t, dept);
+        if (booked >= cap)
+          return { success: false, result: `That slot is fully booked for the ${dept} department. Please suggest a different time.` };
 
         const aptId = `APT-${Date.now()}`;
         const apt = {
@@ -386,7 +469,7 @@ async function executeTool(name, input, callerPhone) {
         };
 
       case 'get_working_hours':
-        return { result: 'Test Clinic is open Saturday through Thursday, 9:00 AM to 6:00 PM. Closed on Fridays.' };
+        return { result: 'Test Clinic is open Saturday through Thursday. Morning: 8:00 AM to 2:00 PM. Afternoon: 3:00 PM to 8:00 PM (rest break 2–3 PM). Laser department stays open until 11:00 PM. Closed on Fridays.' };
 
       default:
         return { result: 'Unknown tool.' };
@@ -420,25 +503,38 @@ YOUR ROLE:
 
 CLINIC INFO:
 Name: Test Clinic
-Hours: Saturday to Thursday, 9:00 AM to 6:00 PM. Closed Fridays.
-Services: Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Laser Hair Removal, Onda Plus, Redustim, Body Wraps, Aesthetic Gynecology, Medical Skin Care, Dermatology, Consultation.
+Days open: Saturday to Thursday. Closed Fridays.
+Morning session: 8:00 AM – 2:00 PM
+REST BREAK: 2:00 PM – 3:00 PM (NO appointments during this time, all departments)
+Afternoon session: 3:00 PM – 8:00 PM (all departments except Laser)
+Laser department: 3:00 PM – 11:00 PM
+
+DEPARTMENTS & CAPACITY:
+- Beauty / Aesthetics (Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Aesthetic Gynecology, Medical Skin Care, Dermatology, Consultation): MAX 1 client per time slot. Closes 8:00 PM.
+- Body (Body Wraps, Redustim, Onda Plus, slimming treatments): MAX 4 clients per time slot. Closes 8:00 PM.
+- Laser (Laser Hair Removal): MAX 3 clients per time slot. Closes 11:00 PM.
+
+BOOKING CHECKLIST — run through this before every booking:
+1. Is it Friday? → Closed, offer another day.
+2. Is the time between 2:00 PM and 3:00 PM? → Rest break, redirect: "Our clinic has a rest break from 2 to 3 PM. I can book you at 1 PM or from 3 PM onward — which works better?"
+3. Is the time after 8:00 PM? → Only allowed for Laser. For other departments say: "The [department] department is available until 8:00 PM. May I suggest an earlier time?"
+4. Always call check_availability (with the service name) before confirming.
+5. If slot is full → offer next available time.
+6. Confirm all details before calling book_appointment.
 
 BOOKING RULES:
-1. Collect: full name, desired service, preferred date, preferred time.
-2. Phone is already known: ${callerPhone} — use it unless the patient gives a different number.
-3. Always call check_availability before confirming a booking.
-4. Appointments only during working hours (Sat–Thu, 9 AM–6 PM).
-5. Confirm all details with the patient before calling book_appointment.
+- Collect: full name, desired service, preferred date, preferred time.
+- Patient phone is already known: ${callerPhone} — use it unless they give a different number.
+- Always confirm successful bookings clearly.
 
 STYLE:
 - Warm, friendly, professional
 - SHORT messages — this is WhatsApp, not email. 2-4 sentences max per reply.
 - Plain text only — no asterisks, no bullet points with dashes, no markdown
 - One question at a time if you need more info
-- Always confirm success clearly (e.g. "Your appointment is confirmed for Monday 12 May at 3:00 PM")
 
 ESCALATION:
-If the patient asks a medical question you cannot answer, or has a complaint or emergency, reply:
+If the patient asks a medical question you cannot answer, or has a complaint or emergency:
 "For this I recommend speaking directly with our team. Please call us or visit the clinic and they will take great care of you."`;
 }
 
