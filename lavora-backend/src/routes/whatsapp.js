@@ -1,7 +1,5 @@
 /**
- * WhatsApp Business API receptionist.
- * Handles webhook verification, incoming messages, Claude AI conversations,
- * and CRM tool execution (book / reschedule / cancel / inquire).
+ * WhatsApp Business API — Lara, AI receptionist for Test Clinic.
  */
 
 const express = require('express');
@@ -24,9 +22,9 @@ const ACCESS_TOKEN    = process.env.WHATSAPP_ACCESS_TOKEN;
 const VERIFY_TOKEN    = process.env.WHATSAPP_VERIFY_TOKEN || 'testclinic_verify_2024';
 const WA_API          = () => `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
-// ─── In-memory conversation sessions (per sender phone) ───────────────────────
+// ─── In-memory conversation sessions ─────────────────────────────────────────
 const sessions = new Map();
-const SESSION_TTL_MS = 30 * 60 * 1000; // 30 min idle timeout
+const SESSION_TTL_MS = 30 * 60 * 1000;
 
 setInterval(() => {
   const now = Date.now();
@@ -35,39 +33,36 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// ─── Webhook verification (GET) — required by Meta ────────────────────────────
+// ─── Webhook verification (GET) ───────────────────────────────────────────────
 router.get('/whatsapp', (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    log.info('WhatsApp webhook verified successfully');
+    log.info('WhatsApp webhook verified');
     return res.status(200).send(challenge);
   }
-  log.warn(`WhatsApp webhook verification failed — token mismatch`);
   res.status(403).send('Forbidden');
 });
 
 // ─── Incoming messages (POST) ─────────────────────────────────────────────────
 router.post('/whatsapp', async (req, res) => {
-  // Meta requires 200 within 20 s — acknowledge immediately, process async
-  res.sendStatus(200);
+  res.sendStatus(200); // acknowledge immediately
 
   try {
     const body = req.body;
     if (body.object !== 'whatsapp_business_account') return;
 
     const value = body.entry?.[0]?.changes?.[0]?.value;
-    if (!value?.messages?.length) return; // status updates (delivered/read), ignore
+    if (!value?.messages?.length) return;
 
     const message = value.messages[0];
-    const from    = message.from; // e.g. "96512345678"
+    const from    = message.from;
 
-    // Mark message as read
     markRead(from, message.id).catch(() => {});
 
     if (message.type !== 'text') {
-      await sendWA(from, 'Sorry, I can only handle text messages right now. Please type your request and I will be happy to help!');
+      await sendWA(from, 'آسف، أقدر أتعامل مع الرسائل النصية فقط. Sorry, I can only handle text messages right now.');
       return;
     }
 
@@ -76,34 +71,61 @@ router.post('/whatsapp', async (req, res) => {
 
     log.info(`[${from}] → "${userText.substring(0, 100)}"`);
 
-    // Get / create session
     let session = sessions.get(from);
     if (!session) {
-      session = { messages: [], lastActivity: Date.now() };
+      // New session: silently look up patient in CRM
+      const profile = await lookupPatientProfile(from);
+      session = { messages: [], lastActivity: Date.now(), profile };
       sessions.set(from, session);
     }
     session.lastActivity = Date.now();
     session.messages.push({ role: 'user', content: userText });
 
-    // Run AI conversation
     const reply = await runConversation(from, session);
 
     await sendWA(from, reply);
 
     session.messages.push({ role: 'assistant', content: reply });
 
-    // Keep history bounded
-    if (session.messages.length > 20) session.messages = session.messages.slice(-20);
+    if (session.messages.length > 24) session.messages = session.messages.slice(-24);
 
   } catch (err) {
     log.error(`WhatsApp handler error: ${err.message}`, { stack: err.stack });
   }
 });
 
-// ─── Send WhatsApp text message ───────────────────────────────────────────────
+// ─── Silent patient CRM lookup ────────────────────────────────────────────────
+async function lookupPatientProfile(whatsappPhone) {
+  try {
+    const norm = normalizePhone(whatsappPhone);
+    const all  = await db.getAllAppointments();
+    const mine = all.filter(a =>
+      normalizePhone(a.phone) === norm || a.phone === whatsappPhone || a.phone === '+' + norm
+    );
+    if (!mine.length) return null;
+
+    mine.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+    const latest   = mine[0];
+    const upcoming = mine.filter(a => a.status !== 'Cancelled' && a.date >= new Date().toISOString().split('T')[0]);
+    upcoming.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+    return {
+      name:               latest.name,
+      lastService:        latest.service,
+      lastDate:           latest.date,
+      lastDoctor:         latest.doctor || null,
+      upcomingAppointment: upcoming[0] || null,
+      totalVisits:        mine.length
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─── WhatsApp send helpers ────────────────────────────────────────────────────
 async function sendWA(to, text) {
   if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-    log.warn('WhatsApp not configured — WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN missing');
+    log.warn('WhatsApp not configured — notification skipped');
     return;
   }
   try {
@@ -114,10 +136,7 @@ async function sendWA(to, text) {
       type: 'text',
       text: { body: text, preview_url: false }
     }, {
-      headers: {
-        Authorization: `Bearer ${ACCESS_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' }
     });
   } catch (err) {
     log.error(`WhatsApp send failed → ${to}: ${err.response?.data?.error?.message || err.message}`);
@@ -136,22 +155,21 @@ async function markRead(to, messageId) {
 }
 
 // ─── Department helpers ───────────────────────────────────────────────────────
-const LASER_SERVICES = ['laser hair removal', 'laser'];
-const BODY_SERVICES  = ['body wrap', 'body wraps', 'redustim', 'onda plus', 'onda', 'slimming'];
-const GYNO_SERVICES  = ['gynecology', 'gynaecology', 'gynecolog', 'aesthetic gynecology'];
-// everything else → beauty
+const LASER_SERVICES    = ['laser hair removal', 'laser hair', 'full body laser', 'partial laser'];
+const SLIMMING_SERVICES = ['body wrap', 'body wraps', 'redustim', 'onda plus', 'onda', 'slimming'];
+const GYNO_SERVICES     = ['gynecology', 'gynaecology', 'gynecolog', 'vaginal', 'pelvic', 'intimate', 'vaginoplasty', 'labiaplasty'];
 
 function getDepartment(service) {
   const s = (service || '').toLowerCase();
-  if (GYNO_SERVICES.some(k => s.includes(k)))  return 'gynecology';
-  if (LASER_SERVICES.some(k => s.includes(k))) return 'laser';
-  if (BODY_SERVICES.some(k => s.includes(k)))  return 'body';
+  if (GYNO_SERVICES.some(k => s.includes(k)))    return 'gynecology';
+  if (LASER_SERVICES.some(k => s.includes(k)))   return 'laser';
+  if (SLIMMING_SERVICES.some(k => s.includes(k))) return 'slimming';
   return 'beauty';
 }
 
-const DEPT_CAPACITY  = { laser: 3, body: 4, beauty: 1, gynecology: 1 };
-const DEPT_CLOSE_HH  = { laser: 23, body: 20, beauty: 20, gynecology: 20 };
-const DEPT_SLOT_MINS = { gynecology: 30 }; // departments that need a minimum slot window
+const DEPT_CAPACITY  = { laser: 3, slimming: 4, beauty: 1, gynecology: 1 };
+const DEPT_CLOSE_HH  = { laser: 23, slimming: 20, beauty: 20, gynecology: 20 };
+const DEPT_SLOT_MINS = { gynecology: 30 };
 const OPEN_HH        = 8;
 const REST_START_HH  = 14;
 const REST_END_HH    = 15;
@@ -159,6 +177,11 @@ const REST_END_HH    = 15;
 function timeToMinutes(t) {
   const [h, m] = (t || '').split(':').map(Number);
   return h * 60 + (m || 0);
+}
+
+function formatCloseTime(hh) {
+  if (hh === 23) return '11:00 PM';
+  return hh > 12 ? `${hh - 12}:00 PM` : `${hh}:00 AM`;
 }
 
 function validateSlot(dateStr, timeStr, department) {
@@ -173,27 +196,23 @@ function validateSlot(dateStr, timeStr, department) {
   const closeHH   = DEPT_CLOSE_HH[department] || 20;
   const closeMins = closeHH * 60;
 
-  if (mins < openMins)                         return 'before_open';
-  if (mins >= restStart && mins < restEnd)     return 'rest_time';
-  if (mins >= closeMins)                       return `after_close:${closeHH}`;
+  if (mins < openMins)                     return 'before_open';
+  if (mins >= restStart && mins < restEnd) return 'rest_time';
+  if (mins >= closeMins)                   return `after_close:${closeHH}`;
   return null;
 }
 
-// Count active bookings for the same slot in the same department.
-// For departments with a slot window (e.g. gynecology = 30 min),
-// any existing booking within ±slotMins of the requested time blocks the slot.
 async function countSlotBookings(date, time, department) {
-  const all      = await db.getAllAppointments();
-  const reqMins  = timeToMinutes(time);
-  const slotWin  = DEPT_SLOT_MINS[department] || 0;
+  const all     = await db.getAllAppointments();
+  const reqMins = timeToMinutes(time);
+  const slotWin = DEPT_SLOT_MINS[department] || 0;
 
   return all.filter(a => {
     if (a.status === 'Cancelled') return false;
     if (a.date !== date)          return false;
     if (getDepartment(a.service) !== department) return false;
     if (slotWin === 0) return a.time === time;
-    const diff = Math.abs(timeToMinutes(a.time) - reqMins);
-    return diff < slotWin;
+    return Math.abs(timeToMinutes(a.time) - reqMins) < slotWin;
   }).length;
 }
 
@@ -201,40 +220,39 @@ async function countSlotBookings(date, time, department) {
 const TOOLS = [
   {
     name: 'check_availability',
-    description: 'Check whether a specific date/time/service slot is available, respecting department rules and capacity.',
+    description: 'Check if a date/time/service slot is available, enforcing department capacity and time rules.',
     input_schema: {
       type: 'object',
       properties: {
-        date:    { type: 'string', description: 'Date in YYYY-MM-DD or natural language (tomorrow, next Monday)' },
-        time:    { type: 'string', description: 'Time in HH:MM or natural language (3pm, afternoon)' },
-        service: { type: 'string', description: 'The service being requested — needed to determine department and capacity' }
+        date:    { type: 'string', description: 'Date in YYYY-MM-DD or natural language' },
+        time:    { type: 'string', description: 'Time in HH:MM or natural language' },
+        service: { type: 'string', description: 'Service name — determines department and capacity' }
       },
       required: ['date', 'time', 'service']
     }
   },
   {
     name: 'book_appointment',
-    description: 'Book a new appointment. The patient phone is already known from WhatsApp.',
+    description: 'Book a confirmed appointment in the CRM.',
     input_schema: {
       type: 'object',
       properties: {
-        name:    { type: 'string', description: 'Patient full name' },
-        phone:   { type: 'string', description: "Patient phone — use the caller's WhatsApp number if they don't provide one" },
+        name:    { type: 'string' },
+        phone:   { type: 'string', description: "Patient phone — use WhatsApp number if not provided" },
         date:    { type: 'string' },
         time:    { type: 'string' },
-        service: { type: 'string', description: 'Requested service' }
+        service: { type: 'string' },
+        doctor:  { type: 'string', description: 'Doctor name (required for Beauty and Gynecology, empty for Slimming/Laser)' }
       },
       required: ['name', 'phone', 'date', 'time', 'service']
     }
   },
   {
     name: 'find_appointment',
-    description: 'Look up an existing appointment by phone number.',
+    description: 'Find upcoming appointment by phone number.',
     input_schema: {
       type: 'object',
-      properties: {
-        phone: { type: 'string' }
-      },
+      properties: { phone: { type: 'string' } },
       required: ['phone']
     }
   },
@@ -244,8 +262,8 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        appointment_id: { type: 'string', description: 'Appointment ID if known' },
-        phone:          { type: 'string', description: 'Patient phone if ID not known' }
+        appointment_id: { type: 'string' },
+        phone:          { type: 'string' }
       }
     }
   },
@@ -265,7 +283,7 @@ const TOOLS = [
   },
   {
     name: 'get_services',
-    description: 'Return the list of services the clinic offers.',
+    description: 'Return clinic services by department.',
     input_schema: { type: 'object', properties: {} }
   },
   {
@@ -277,37 +295,36 @@ const TOOLS = [
 
 // ─── Agentic conversation loop ────────────────────────────────────────────────
 async function runConversation(callerPhone, session) {
-  const system   = buildSystemPrompt(callerPhone);
+  const system   = buildSystemPrompt(callerPhone, session.profile);
   let   messages = [...session.messages];
 
-  for (let turn = 0; turn < 6; turn++) {
+  for (let turn = 0; turn < 8; turn++) {
     let response;
     try {
       response = await anthropic.messages.create({
         model:      'claude-haiku-4-5-20251001',
-        max_tokens: 512,
+        max_tokens: 600,
         system,
         tools:      TOOLS,
         messages
       });
     } catch (err) {
       log.error(`Claude API error: ${err.message}`);
-      return 'Sorry, I am having technical difficulties. Please call us directly or try again in a moment.';
+      return 'عذراً، حدث خطأ تقني. Sorry, technical issue — please try again or call us directly.';
     }
 
     if (response.stop_reason === 'end_turn') {
       const textBlock = response.content.find(b => b.type === 'text');
-      return textBlock?.text?.trim() || "I'm here to help — how can I assist you?";
+      return textBlock?.text?.trim() || "كيف أقدر أساعدك؟ How can I help you?";
     }
 
     if (response.stop_reason === 'tool_use') {
       messages.push({ role: 'assistant', content: response.content });
-
       const toolResults = [];
       for (const block of response.content) {
         if (block.type !== 'tool_use') continue;
         const result = await executeTool(block.name, block.input, callerPhone);
-        log.info(`Tool ${block.name} → ${JSON.stringify(result).substring(0, 120)}`);
+        log.info(`Tool ${block.name} → ${JSON.stringify(result).substring(0, 140)}`);
         toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
       }
       messages.push({ role: 'user', content: toolResults });
@@ -317,23 +334,23 @@ async function runConversation(callerPhone, session) {
     break;
   }
 
-  return 'Sorry, I could not process that. Please try again or call us directly.';
+  return 'عذراً، ما قدرت أكمل طلبك. Sorry, could not process that — please try again.';
 }
 
-// ─── Tool execution (direct DB access — no HTTP round-trip) ───────────────────
+// ─── Tool execution ───────────────────────────────────────────────────────────
 function normalizePhone(raw) {
   if (!raw) return raw;
   let p = String(raw).replace(/[\s\-().+]/g, '');
   if (p.startsWith('00')) p = p.slice(2);
   if (p.startsWith('0') && p.length === 9) p = '968' + p.slice(1);
   if (/^\d{8}$/.test(p)) p = '968' + p;
-  return p; // stored without '+' to match WhatsApp format
+  return p;
 }
 
 async function findActiveAppointment(phone) {
   const norm = normalizePhone(phone);
   const all  = await db.getAllAppointments();
-  const hits  = all.filter(a =>
+  const hits = all.filter(a =>
     a.status !== 'Cancelled' &&
     (normalizePhone(a.phone) === norm || a.phone === phone || a.phone === '+' + norm)
   );
@@ -348,23 +365,18 @@ async function executeTool(name, input, callerPhone) {
       case 'check_availability': {
         const d    = parseDate(input.date) || input.date;
         const t    = parseTime(input.time) || input.time;
-        const svc  = matchService(input.service) || input.service || '';
+        const svc  = input.service || '';
         const dept = getDepartment(svc);
         const cap  = DEPT_CAPACITY[dept];
 
-        const slotError = validateSlot(d, t, dept);
-        if (slotError === 'friday_closed')
-          return { available: false, result: 'The clinic is closed on Fridays. Please choose another day.' };
-        if (slotError === 'before_open')
-          return { available: false, result: 'The clinic opens at 8:00 AM. Please choose a time from 8 AM onward.' };
-        if (slotError === 'rest_time')
-          return { available: false, result: 'The clinic has a rest break from 2:00 PM to 3:00 PM. I can book you at 1:00 PM or from 3:00 PM onward — which works better?' };
-        if (slotError?.startsWith('after_close'))
-          return { available: false, result: `The ${dept} department closes at ${DEPT_CLOSE_HH[dept] > 12 ? DEPT_CLOSE_HH[dept] - 12 + ':00 PM' : DEPT_CLOSE_HH[dept] + ':00 AM'}. Please suggest an earlier time.` };
+        const err = validateSlot(d, t, dept);
+        if (err === 'friday_closed') return { available: false, result: 'Clinic is closed on Fridays.' };
+        if (err === 'before_open')   return { available: false, result: 'Clinic opens at 8:00 AM.' };
+        if (err === 'rest_time')     return { available: false, result: 'No appointments 2:00 PM–3:00 PM (rest break). Next available: 1:00 PM or 3:00 PM onward.' };
+        if (err?.startsWith('after_close')) return { available: false, result: `${dept} department closes at ${formatCloseTime(DEPT_CLOSE_HH[dept])}. Please suggest an earlier time.` };
 
         const booked = await countSlotBookings(d, t, dept);
-        if (booked >= cap)
-          return { available: false, result: `That time slot is fully booked for the ${dept} department. Please suggest a different time.`, department: dept };
+        if (booked >= cap) return { available: false, result: `That slot is fully booked (${dept}). Please suggest a different time.`, slots_taken: booked, capacity: cap };
 
         return { available: true, result: `${d} at ${t} is available.`, date: d, time: t, department: dept, slots_remaining: cap - booked };
       }
@@ -374,27 +386,23 @@ async function executeTool(name, input, callerPhone) {
         const d       = parseDate(input.date)       || input.date;
         const t       = parseTime(input.time)       || input.time;
         const service = matchService(input.service) || input.service;
+        const doctor  = input.doctor || '';
         const dept    = getDepartment(service);
         const cap     = DEPT_CAPACITY[dept];
 
-        const slotError = validateSlot(d, t, dept);
-        if (slotError === 'friday_closed')
-          return { success: false, result: 'The clinic is closed on Fridays.' };
-        if (slotError === 'rest_time')
-          return { success: false, result: 'No appointments between 2:00 PM and 3:00 PM (rest break). Please choose 1:00 PM or 3:00 PM onward.' };
-        if (slotError === 'before_open')
-          return { success: false, result: 'The clinic opens at 8:00 AM.' };
-        if (slotError?.startsWith('after_close'))
-          return { success: false, result: `The ${dept} department closes at ${DEPT_CLOSE_HH[dept] > 12 ? DEPT_CLOSE_HH[dept] - 12 + ':00 PM' : DEPT_CLOSE_HH[dept] + ':00 AM'}.` };
+        const err = validateSlot(d, t, dept);
+        if (err === 'friday_closed') return { success: false, result: 'Clinic is closed on Fridays.' };
+        if (err === 'rest_time')     return { success: false, result: 'No appointments 2:00 PM–3:00 PM (rest break).' };
+        if (err === 'before_open')   return { success: false, result: 'Clinic opens at 8:00 AM.' };
+        if (err?.startsWith('after_close')) return { success: false, result: `${dept} department closes at ${formatCloseTime(DEPT_CLOSE_HH[dept])}.` };
 
         const booked = await countSlotBookings(d, t, dept);
-        if (booked >= cap)
-          return { success: false, result: `That slot is fully booked for the ${dept} department. Please suggest a different time.` };
+        if (booked >= cap) return { success: false, result: `That slot is fully booked for ${dept}. Please suggest a different time.` };
 
         const aptId = `APT-${Date.now()}`;
         const apt = {
           id: aptId, name: input.name, phone,
-          service, doctor: '',
+          service, doctor,
           date: d, time: t,
           status: 'Confirmed', source: 'WhatsApp',
           callDuration: '', notes: '',
@@ -409,18 +417,18 @@ async function executeTool(name, input, callerPhone) {
         await activityService.addActivity({
           actor: 'WhatsApp AI', actionType: activityService.ACTION_TYPES.BOOKED,
           patientName: input.name,
-          details: `${service} on ${d} at ${t} | ID: ${aptId}`
+          details: `${service}${doctor ? ' with ' + doctor : ''} on ${d} at ${t} | ID: ${aptId}`
         });
 
-        log.info(`Booked ${aptId} via WhatsApp`);
-        return { success: true, result: 'Appointment booked successfully.', appointment_id: aptId, date: d, time: t, service };
+        log.info(`Booked ${aptId} via WhatsApp — ${service}${doctor ? ' / ' + doctor : ''}`);
+        return { success: true, result: 'Appointment booked successfully.', appointment_id: aptId, date: d, time: t, service, doctor };
       }
 
       case 'find_appointment': {
         const phone = input.phone || callerPhone;
         const apt   = await findActiveAppointment(phone);
         if (!apt) return { found: false, result: 'No upcoming appointment found for this number.' };
-        return { found: true, result: `Found your ${apt.service} on ${apt.date} at ${apt.time}.`, appointment_id: apt.id, service: apt.service, date: apt.date, time: apt.time, status: apt.status };
+        return { found: true, result: `Appointment found: ${apt.service}${apt.doctor ? ' with ' + apt.doctor : ''} on ${apt.date} at ${apt.time}.`, appointment_id: apt.id, service: apt.service, doctor: apt.doctor || '', date: apt.date, time: apt.time, status: apt.status, name: apt.name };
       }
 
       case 'cancel_appointment': {
@@ -428,7 +436,7 @@ async function executeTool(name, input, callerPhone) {
           ? await db.getAppointmentById(input.appointment_id)
           : await findActiveAppointment(input.phone || callerPhone);
 
-        if (!apt) return { success: false, result: 'Could not find that appointment to cancel.' };
+        if (!apt) return { success: false, result: 'Could not find that appointment.' };
 
         await db.cancelAppointment(apt.id);
         googleSync.cancel(apt);
@@ -440,7 +448,7 @@ async function executeTool(name, input, callerPhone) {
           details: `${apt.service} on ${apt.date} at ${apt.time} | ID: ${apt.id}`
         });
 
-        return { success: true, result: 'Appointment cancelled successfully.', service: apt.service, date: apt.date, time: apt.time };
+        return { success: true, result: 'Appointment cancelled.', service: apt.service, date: apt.date, time: apt.time };
       }
 
       case 'reschedule_appointment': {
@@ -448,15 +456,21 @@ async function executeTool(name, input, callerPhone) {
           ? await db.getAppointmentById(input.appointment_id)
           : await findActiveAppointment(input.phone || callerPhone);
 
-        if (!apt) return { success: false, result: 'Could not find that appointment to reschedule.' };
+        if (!apt) return { success: false, result: 'Could not find that appointment.' };
 
         const newDate = parseDate(input.new_date) || input.new_date;
         const newTime = parseTime(input.new_time) || input.new_time;
+        const dept    = getDepartment(apt.service);
 
-        if (await db.checkConflict(newDate, newTime))
-          return { success: false, result: `${newDate} at ${newTime} is already taken. Please suggest another time.` };
+        const err = validateSlot(newDate, newTime, dept);
+        if (err === 'friday_closed') return { success: false, result: 'Clinic is closed on Fridays.' };
+        if (err === 'rest_time')     return { success: false, result: 'No appointments 2:00 PM–3:00 PM (rest break).' };
+        if (err?.startsWith('after_close')) return { success: false, result: `${dept} closes at ${formatCloseTime(DEPT_CLOSE_HH[dept])}.` };
 
-        await db.updateAppointment(apt.id, { date: newDate, time: newTime, status: 'Confirmed' });
+        const booked = await countSlotBookings(newDate, newTime, dept);
+        if (booked >= DEPT_CAPACITY[dept]) return { success: false, result: `That slot is fully booked. Please suggest another time.` };
+
+        await db.updateAppointment(apt.id, { date: newDate, time: newTime, status: 'Confirmed', reminderSent: false });
         const updated = { ...apt, date: newDate, time: newTime };
         googleSync.reschedule(updated);
         notify.sendRescheduleConfirmation(updated);
@@ -467,17 +481,20 @@ async function executeTool(name, input, callerPhone) {
           details: `${apt.service} → ${newDate} ${newTime} | ID: ${apt.id}`
         });
 
-        return { success: true, result: 'Appointment rescheduled.', service: apt.service, date: newDate, time: newTime };
+        return { success: true, result: 'Appointment rescheduled.', service: apt.service, doctor: apt.doctor || '', date: newDate, time: newTime };
       }
 
       case 'get_services':
         return {
-          result: 'Services available at Test Clinic.',
-          services: ['Botox','Fillers','Profhilo','Thread Lifting','Endolift','PRP','Mesotherapy','Exosomes','Stem Cell','Frax Pro','Picoway','RedTouch','Chemical Peels','Laser Hair Removal','Onda Plus','Redustim','Body Wraps','Aesthetic Gynecology','Medical Skin Care','Dermatology','Consultation']
+          result: 'Test Clinic services by department.',
+          beauty: ['Botox & Dermal Fillers','Skinboosters (Profhilo, Polynucleotides)','Thread Lifting','Facial Lifting (Endolift, Fotona D)','PRP, Mesotherapy, Exosome Therapy','Skin Resurfacing & Chemical Peels','Scar & Stretch Mark Treatments','Vascular Laser'],
+          slimming: ['Onda Plus','Redustim','Body Wraps'],
+          laser: ['Full Body Laser Hair Removal','Partial Areas Laser Hair Removal'],
+          gynecology: ['Vaginal Rejuvenation','Pelvic Floor Strengthening','Non-surgical Intimate Rejuvenation','Vaginoplasty & Labiaplasty']
         };
 
       case 'get_working_hours':
-        return { result: 'Test Clinic is open Saturday through Thursday. Morning: 8:00 AM to 2:00 PM. Afternoon: 3:00 PM to 8:00 PM (rest break 2–3 PM). Laser department stays open until 11:00 PM. Closed on Fridays.' };
+        return { result: 'Saturday–Thursday 8:00 AM–11:00 PM (rest break 2–3 PM, no appointments). Beauty/Slimming/Gynecology close at 8:00 PM. Laser closes at 11:00 PM. Closed Fridays.' };
 
       default:
         return { result: 'Unknown tool.' };
@@ -489,62 +506,151 @@ async function executeTool(name, input, callerPhone) {
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────
-function buildSystemPrompt(callerPhone) {
+function buildSystemPrompt(callerPhone, profile) {
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  return `You are the AI receptionist for Test Clinic, a premium aesthetic and medical clinic. You are chatting via WhatsApp.
+  const isReturning = !!profile;
+  const clientContext = isReturning
+    ? `RETURNING CLIENT DETECTED:
+Name: ${profile.name}
+Last service: ${profile.lastService} on ${profile.lastDate}${profile.lastDoctor ? ' with ' + profile.lastDoctor : ''}
+Total visits: ${profile.totalVisits}
+Upcoming appointment: ${profile.upcomingAppointment ? `${profile.upcomingAppointment.service} on ${profile.upcomingAppointment.date} at ${profile.upcomingAppointment.time}` : 'None'}
+→ Use their name naturally in the greeting. Never ask if they are new or returning.`
+    : `NEW CLIENT: Not found in CRM. Collect their name early in the conversation.`;
+
+  return `You are Lara (لارا), the WhatsApp AI receptionist for Test Clinic — a prestigious multi-specialty aesthetic, dermatology, and regenerative medicine clinic in Muscat, Oman. You represent the brand: "Where Science, Beauty, and Longevity Meet."
 
 TODAY: ${today}
 PATIENT WHATSAPP NUMBER: ${callerPhone}
 
-LANGUAGE RULE:
-Detect the language the patient writes in (Arabic or English) and reply in the same language every time.
-If they mix both, follow the dominant language. Never ask them to choose a language — just mirror theirs.
+${clientContext}
 
-YOUR ROLE:
-- Book new appointments
-- Find, reschedule, or cancel existing appointments
-- Answer questions about services, pricing, working hours
-- Escalate complex or medical questions to the clinic team
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LANGUAGE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Always open with a bilingual greeting (Arabic + English together).
+- Detect the client's language from their FIRST reply.
+- From that point: continue 100% in their chosen language for the whole conversation.
+- Arabic: use warm natural Omani dialect. Never stiff formal Arabic (فصحى).
+- English: clear, warm, professional.
+- Never mix both languages in one message after the opening.
 
-CLINIC INFO:
-Name: Test Clinic
-Days open: Saturday to Thursday. Closed Fridays.
-Morning session: 8:00 AM – 2:00 PM
-REST BREAK: 2:00 PM – 3:00 PM (NO appointments during this time, all departments)
-Afternoon session: 3:00 PM – 8:00 PM (all departments except Laser)
-Laser department: 3:00 PM – 11:00 PM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPENING MESSAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FOR NEW CLIENT:
+"👋 أهلاً بك في عيادة تيست!
+Welcome to Test Clinic — where science, beauty & longevity meet. ✨
 
-DEPARTMENTS & CAPACITY:
-- Beauty / Aesthetics (Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Medical Skin Care, Dermatology, Consultation): MAX 1 client per time slot. Closes 8:00 PM.
-- Body (Body Wraps, Redustim, Onda Plus, slimming treatments): MAX 4 clients per time slot. Closes 8:00 PM.
-- Laser (Laser Hair Removal): MAX 3 clients per time slot. Closes 11:00 PM.
-- Gynecology (Aesthetic Gynecology): MAX 1 client per 30-minute window. Closes 8:00 PM. If a slot is taken, the next available is 30 minutes later.
+How can I help you today?
+1 Learn about our services
+2 Book an appointment"
 
-BOOKING CHECKLIST — run through this before every booking:
-1. Is it Friday? → Closed, offer another day.
-2. Is the time between 2:00 PM and 3:00 PM? → Rest break, redirect: "Our clinic has a rest break from 2 to 3 PM. I can book you at 1 PM or from 3 PM onward — which works better?"
-3. Is the time after 8:00 PM? → Only allowed for Laser. For other departments say: "The [department] department is available until 8:00 PM. May I suggest an earlier time?"
-4. Always call check_availability (with the service name) before confirming.
-5. If slot is full → offer next available time.
-6. Confirm all details before calling book_appointment.
+FOR RETURNING CLIENT (use their name from CRM):
+"👋 أهلاً وسهلاً [Name]! Welcome back to Test Clinic. ✨
 
-BOOKING RULES:
-- Collect: full name, desired service, preferred date, preferred time.
-- Patient phone is already known: ${callerPhone} — use it unless they give a different number.
-- Always confirm successful bookings clearly.
+How can I help you today?
+1 Check upcoming appointment
+2 Reschedule appointment
+3 Cancel appointment
+4 Book a new appointment"
 
-STYLE:
-- Warm, friendly, professional
-- SHORT messages — this is WhatsApp, not email. 2-4 sentences max per reply.
-- Plain text only — no asterisks, no bullet points with dashes, no markdown
-- One question at a time if you need more info
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLINIC KNOWLEDGE BASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Location: November Street, Al Marafah Street, Al Ghubrah Ash Shamaliyyah, Muscat, Oman.
+Hours: Saturday–Thursday, 8:00 AM–11:00 PM. Rest break: 2:00 PM–3:00 PM (no appointments). Closed Fridays.
 
-ESCALATION:
-If the patient asks a medical question you cannot answer, or has a complaint or emergency:
-"For this I recommend speaking directly with our team. Please call us or visit the clinic and they will take great care of you."`;
+DEPARTMENTS:
+1. Beauty & Aesthetics — Max 1 client/slot, closes 8:00 PM.
+   Doctors: Dr. Neda (Dermatology & Cosmetic), Dr. Hussein (Dermatology, Cosmetic & Laser), Dr. Amani (Dermatology & Cosmetic)
+   Services: Botox & Dermal Fillers, Skinboosters (Profhilo, Polynucleotides), Thread Lifting, Facial Lifting (Endolift, Fotona D), PRP / Mesotherapy / Exosome Therapy, Skin Resurfacing & Chemical Peels, Scar & Stretch Mark Treatments, Vascular Laser
+
+2. Body Slimming — Max 4 clients/slot, closes 8:00 PM.
+   Device-based, no doctor selection needed.
+   Services: Onda Plus, Redustim, Body Wraps
+
+3. Laser Hair Removal — Max 3 clients/slot, closes 11:00 PM.
+   Available for men and women. Device-based, no doctor selection.
+   Services: Full body, Partial areas
+
+4. Gynecology — Max 1 client per 30-minute window, closes 8:00 PM.
+   Always with Dr. Leila (OB/GYN | Aesthetic Gynecology Specialist). Do not ask the client to choose a doctor.
+   Services: Vaginal Rejuvenation, Pelvic Floor Strengthening, Non-surgical Intimate Rejuvenation, Vaginoplasty & Labiaplasty
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BOOKING FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Department selection (show numbered menu)
+STEP 2 — Service selection (show numbered menu for chosen department)
+STEP 3 — Doctor selection (Beauty only — mandatory; Gynecology always Dr. Leila; Slimming/Laser skip)
+STEP 4 — Ask preferred day
+STEP 5 — Offer up to 4 available time slots (never ask "what time?", always proactively offer slots)
+STEP 6 — Confirm phone: "Shall I register your appointment under the number you're messaging from, or would you prefer a different one?"
+          Arabic: "أسجل موعدك على الرقم اللي تراسلنا منه، أو تفضل رقم ثاني؟"
+STEP 7 — Call check_availability, then book_appointment, then send confirmation.
+
+BOOKING CONFIRMATION (send once only):
+English:
+"✅ You're all set, [Name]!
+📅 [Day], [Date]
+🕐 [Time]
+💆 [Service]
+👩‍⚕️ [Doctor — if applicable]
+📍 Test Clinic, Al Ghubrah, Muscat
+We look forward to seeing you! 🌿
+We'll send you a reminder 24 hours before your appointment."
+
+Arabic:
+"✅ تم الحجز، [الاسم]!
+📅 [اليوم]، [التاريخ]
+🕐 [الوقت]
+💆 [الخدمة]
+👩‍⚕️ [الطبيب — إن وجد]
+📍 عيادة تيست، الغبرة، مسقط
+نتطلع لرؤيتك! 🌿
+سنرسل لك تذكيراً قبل ٢٤ ساعة من موعدك."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BOOKING RULES — INTERNAL CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before confirming ANY appointment:
+- Friday? → Closed.
+- 2:00 PM–3:00 PM? → Rest break, no bookings. Offer 1:00 PM or 3:00 PM+.
+- After 8:00 PM? → Only Laser allowed. Others redirect to earlier time.
+- Always call check_availability with the service name before booking.
+- If slot full → offer next available time.
+- Doctor selection is MANDATORY for Beauty. Never skip it.
+- Phone is already known: ${callerPhone} — confirm before finalizing.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STYLE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 3–5 lines maximum per message.
+- Use numbered lists (1, 2, 3...) whenever presenting choices.
+- Max 2 emojis per message.
+- Never ask two questions in one message — one at a time only.
+- Never send a wall of text.
+- Never repeat appointment details after the confirmation message.
+- Never quote prices — direct to clinic team.
+- Never give medical advice.
+- Never ask why a client is cancelling.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MEDICAL QUESTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+English: "That's a great question for our specialists! 🌿 They'll assess your needs in person. Would you like to book a consultation?"
+Arabic: "هذا السؤال أطباؤنا يجاوبونك عليه أفضل! 🌿 يقدرون يقيّموا وضعك بشكل شخصي. تبغى أحجز لك استشارة؟"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ESCALATION — HUMAN HANDOFF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Trigger when: client asks for a human, frustration/urgency expressed, medical emergency, or you cannot resolve after 2 attempts.
+English: "I'm connecting you with our team right away. 🌿 Please hold on for a moment."
+Arabic: "سأوصلك بفريقنا الحين. 🌿 تفضل بالانتظار لحظة."`;
 }
 
 module.exports = router;

@@ -74,9 +74,15 @@ function sendRescheduleConfirmation(apt) {
 
 // ── 24-hour reminder ──────────────────────────────────────────────────────────
 function sendReminder(apt) {
+  const doctorLine = apt.doctor ? `\n👩‍⚕️ ${apt.doctor}` : '';
   safe('reminder', () => sendWA(apt.phone,
-    `⏰ Test Clinic — Appointment Reminder\n` +
-    `Hi ${apt.name}, this is a reminder that you have a ${apt.service} appointment tomorrow at ${apt.time}.`
+    `👋 أهلاً ${apt.name}، تذكير من عيادة تيست.\n` +
+    `Hello ${apt.name}, a reminder from Test Clinic.\n\n` +
+    `📅 غداً — ${apt.date} الساعة ${apt.time}\n` +
+    `💆 ${apt.service}` +
+    doctorLine + `\n\n` +
+    `📍 عيادة تيست، الغبرة، مسقط\n` +
+    `نتطلع لرؤيتك! 🌿`
   ));
 }
 
