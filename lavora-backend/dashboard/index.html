@@ -15,6 +15,8 @@
   --border: #e2e8f0;
   --green: #10b981; --red: #ef4444; --amber: #f59e0b;
   --purple: #7c3aed; --blue: #0891b2;
+  --dept-beauty: #c9a84c; --dept-slimming: #7c3aed;
+  --dept-laser: #0891b2; --dept-gyno: #db2777;
   --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
   --r: 10px; --sidebar: 220px;
 }
@@ -215,6 +217,26 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 .rev-grid { display: grid; grid-template-columns: 1fr 80px; gap: 5px 8px; align-items: center; font-size: 12px; max-height: 200px; overflow-y: auto; }
 .rev-price-input { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; width: 100%; }
 
+/* ── Department nav items ── */
+.nav-item.dept-beauty.active  { background: rgba(201,168,76,.15);  color: var(--dept-beauty); }
+.nav-item.dept-slimming.active { background: rgba(124,58,237,.15); color: var(--dept-slimming); }
+.nav-item.dept-laser.active   { background: rgba(8,145,178,.15);   color: var(--dept-laser); }
+.nav-item.dept-gyno.active    { background: rgba(219,39,119,.15);  color: var(--dept-gyno); }
+
+/* ── Department page header stripe ── */
+.dept-stripe { height: 4px; border-radius: 4px 4px 0 0; margin-bottom: 20px; }
+.dept-beauty-stripe  { background: var(--dept-beauty); }
+.dept-slimming-stripe { background: var(--dept-slimming); }
+.dept-laser-stripe   { background: var(--dept-laser); }
+.dept-gyno-stripe    { background: var(--dept-gyno); }
+
+/* ── Department badge on apt card ── */
+.dept-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: .4px; }
+.dept-badge-beauty   { background: rgba(201,168,76,.12);  color: #92700a; }
+.dept-badge-slimming { background: rgba(124,58,237,.12); color: #5b21b6; }
+.dept-badge-laser    { background: rgba(8,145,178,.12);  color: #0369a1; }
+.dept-badge-gyno     { background: rgba(219,39,119,.12); color: #9d174d; }
+
 /* ── Modals ── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 500; }
 .modal-overlay.open { display: flex; }
@@ -291,6 +313,25 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         </div>
         <div class="nav-item" onclick="gotoPage('past',this)" data-page="past">
           <span class="nav-icon">&#8801;</span> Past
+        </div>
+      </div>
+      <div class="nav-section" style="margin-top:8px">
+        <div class="nav-label">Departments</div>
+        <div class="nav-item dept-beauty" onclick="gotoDept('beauty',this)" data-page="dept">
+          <span class="nav-icon" style="color:var(--dept-beauty)">&#9632;</span> Beauty
+          <span class="nav-badge" id="badge-beauty" style="background:var(--dept-beauty)">—</span>
+        </div>
+        <div class="nav-item dept-slimming" onclick="gotoDept('slimming',this)" data-page="dept">
+          <span class="nav-icon" style="color:var(--dept-slimming)">&#9632;</span> Slimming
+          <span class="nav-badge" id="badge-slimming" style="background:var(--dept-slimming)">—</span>
+        </div>
+        <div class="nav-item dept-laser" onclick="gotoDept('laser',this)" data-page="dept">
+          <span class="nav-icon" style="color:var(--dept-laser)">&#9632;</span> Laser
+          <span class="nav-badge" id="badge-laser" style="background:var(--dept-laser)">—</span>
+        </div>
+        <div class="nav-item dept-gyno" onclick="gotoDept('gynecology',this)" data-page="dept">
+          <span class="nav-icon" style="color:var(--dept-gyno)">&#9632;</span> Gynecology
+          <span class="nav-badge" id="badge-gyno" style="background:var(--dept-gyno)">—</span>
         </div>
       </div>
       <div class="nav-section" style="margin-top:8px">
@@ -408,6 +449,30 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <button class="btn-outline" onclick="loadActivity()">Refresh</button>
       </div>
       <div class="activity-feed" id="activity-list"></div>
+    </div>
+
+    <!-- Page: Department -->
+    <div class="page" id="page-dept">
+      <div id="dept-stripe" class="dept-stripe dept-beauty-stripe"></div>
+      <div class="page-header">
+        <span class="page-title" id="dept-page-title">Beauty Department</span>
+        <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
+      </div>
+      <div class="stats-row" id="dept-stats-row"></div>
+      <div class="toolbar">
+        <input class="search-box" id="dept-search" placeholder="Search name, phone, service..." oninput="renderDeptPage()">
+        <select class="filter-sel" id="dept-f-status" onchange="renderDeptPage()">
+          <option value="">All Statuses</option>
+          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+        </select>
+        <select class="filter-sel" id="dept-f-time" onchange="renderDeptPage()">
+          <option value="upcoming">Upcoming</option>
+          <option value="today">Today Only</option>
+          <option value="all">All Time</option>
+        </select>
+        <button class="btn-outline" onclick="exportDeptCSV()">Export CSV</button>
+      </div>
+      <div id="dept-content"></div>
     </div>
 
     <!-- Page: CEO -->
@@ -620,11 +685,120 @@ let cancelTargetId = null;
 let countdownSecs = 30;
 let countdownTimer = null;
 let ceoUnlocked = false;
+let activeDept = 'beauty';
+
+// ─── Department Logic ─────────────────────────────────────────────────────────
+const DEPT_CONFIG = {
+  beauty:    { label: 'Beauty',     color: 'var(--dept-beauty)',   stripe: 'dept-beauty-stripe',   badge: 'dept-badge-beauty'   },
+  slimming:  { label: 'Slimming',   color: 'var(--dept-slimming)', stripe: 'dept-slimming-stripe', badge: 'dept-badge-slimming' },
+  laser:     { label: 'Laser',      color: 'var(--dept-laser)',    stripe: 'dept-laser-stripe',    badge: 'dept-badge-laser'    },
+  gynecology:{ label: 'Gynecology', color: 'var(--dept-gyno)',     stripe: 'dept-gyno-stripe',     badge: 'dept-badge-gyno'     }
+};
+
+const LASER_SVCS    = ['laser hair removal','laser hair','full body laser','partial laser'];
+const SLIMMING_SVCS = ['body wrap','body wraps','redustim','onda plus','onda'];
+const GYNO_SVCS     = ['aesthetic gynecology','gynecology','gynaecology','vaginal','pelvic','intimate','vaginoplasty','labiaplasty'];
+
+function getDepartment(service) {
+  if (!service) return 'beauty';
+  const s = service.toLowerCase();
+  if (LASER_SVCS.some(x => s.includes(x)))    return 'laser';
+  if (SLIMMING_SVCS.some(x => s.includes(x))) return 'slimming';
+  if (GYNO_SVCS.some(x => s.includes(x)))     return 'gynecology';
+  return 'beauty';
+}
+
+function deptBadge(service) {
+  const dept = getDepartment(service);
+  const cfg  = DEPT_CONFIG[dept];
+  return `<span class="dept-badge ${cfg.badge}">${cfg.label}</span>`;
+}
+
+function updateDeptBadges() {
+  const today = todayStr();
+  ['beauty','slimming','laser','gynecology'].forEach(dept => {
+    const count = allAppointments.filter(a =>
+      getDepartment(a.service) === dept && (a.date||'0000') >= today
+    ).length;
+    const idMap = { beauty:'badge-beauty', slimming:'badge-slimming', laser:'badge-laser', gynecology:'badge-gyno' };
+    const el = document.getElementById(idMap[dept]);
+    if (el) el.textContent = count;
+  });
+}
+
+function gotoDept(dept, el) {
+  activeDept = dept;
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('page-dept').classList.add('active');
+  const cfg = DEPT_CONFIG[dept];
+  document.getElementById('topbar-title').textContent = cfg.label + ' Department';
+  document.getElementById('dept-page-title').textContent = cfg.label + ' Department';
+  const stripe = document.getElementById('dept-stripe');
+  stripe.className = `dept-stripe ${cfg.stripe}`;
+  renderDeptPage();
+}
+
+function renderDeptPage() {
+  const today    = todayStr();
+  const search   = (document.getElementById('dept-search').value || '').toLowerCase();
+  const fStat    = document.getElementById('dept-f-status').value;
+  const timeMode = document.getElementById('dept-f-time').value;
+
+  let rows = allAppointments.filter(a => {
+    if (getDepartment(a.service) !== activeDept) return false;
+    if (timeMode === 'today')    { if (a.date !== today) return false; }
+    else if (timeMode === 'upcoming') { if ((a.date||'0000') < today) return false; }
+    const matchSearch = !search || [a.name, a.phone, a.service, a.doctor].join(' ').toLowerCase().includes(search);
+    return matchSearch && (!fStat || a.status === fStat);
+  });
+  rows.sort((a,b) => ((a.date||'9999')+(a.time||'99:99')).localeCompare((b.date||'9999')+(b.time||'99:99')));
+
+  // Dept stats
+  const todayCount     = rows.filter(a => a.date === today).length;
+  const confirmedCount = rows.filter(a => a.status === 'Confirmed').length;
+  const pendingCount   = rows.filter(a => a.status === 'Pending').length;
+  const cfg = DEPT_CONFIG[activeDept];
+  document.getElementById('dept-stats-row').innerHTML = `
+    <div class="stat-tile" style="border-top-color:${cfg.color}"><div class="stat-n">${rows.length}</div><div class="stat-l">Shown</div></div>
+    <div class="stat-tile s-today"><div class="stat-n">${todayCount}</div><div class="stat-l">Today</div></div>
+    <div class="stat-tile s-confirmed"><div class="stat-n">${confirmedCount}</div><div class="stat-l">Confirmed</div></div>
+    <div class="stat-tile s-pending"><div class="stat-n">${pendingCount}</div><div class="stat-l">Pending</div></div>`;
+
+  const el = document.getElementById('dept-content');
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128197;</div><div>No appointments in this department</div></div>';
+    return;
+  }
+
+  // Group by date
+  const groups = {};
+  rows.forEach(a => { (groups[a.date] = groups[a.date] || []).push(a); });
+  el.innerHTML = Object.entries(groups).map(([date, apts]) => `
+    <div class="day-group">
+      <div class="day-label">${dayLabel(date)}</div>
+      ${apts.map(a => aptCard(a)).join('')}
+    </div>`).join('');
+}
+
+function exportDeptCSV() {
+  const today    = todayStr();
+  const timeMode = document.getElementById('dept-f-time').value;
+  let rows = allAppointments.filter(a => {
+    if (getDepartment(a.service) !== activeDept) return false;
+    if (timeMode === 'today')    return a.date === today;
+    if (timeMode === 'upcoming') return (a.date||'0000') >= today;
+    return true;
+  });
+  downloadCSV(rows, `${activeDept}-${today}.csv`);
+}
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
 const PAGE_TITLES = {
   today: "Today's Schedule", upcoming: 'Upcoming Appointments',
-  past: 'Past Appointments', activity: 'Activity Feed', ceo: 'CEO Overview'
+  past: 'Past Appointments', activity: 'Activity Feed', ceo: 'CEO Overview',
+  dept: 'Department View'
 };
 
 function gotoPage(name, el) {
@@ -844,12 +1018,14 @@ async function loadAll() {
     renderActivity(activity.activities || []);
     document.getElementById('badge-upcoming').textContent =
       allAppointments.filter(a => (a.date || '0000') >= todayStr()).length;
+    updateDeptBadges();
     const active = document.querySelector('.page.active');
     if (active) {
       const id = active.id.replace('page-', '');
       if (id === 'today')    renderToday();
       if (id === 'upcoming') renderUpcoming();
       if (id === 'past')     renderPastTable();
+      if (id === 'dept')     renderDeptPage();
       if (id === 'ceo' && ceoUnlocked) renderCeoMetrics();
     }
     setConn(true);
