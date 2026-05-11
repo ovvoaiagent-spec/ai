@@ -1,7 +1,7 @@
 /**
  * Outbound WhatsApp notifications via Meta Business API.
- * Replaces Twilio SMS for booking confirmations, cancellations,
- * reschedule confirmations, and 24-hour reminders.
+ * All messages sent in the client's language (apt.language = "ar" | "en").
+ * Defaults to Arabic if not set.
  */
 
 const axios = require('axios');
@@ -20,10 +20,7 @@ async function sendWA(to, text) {
     log.warn('WhatsApp not configured — notification skipped');
     return;
   }
-
-  // Normalize phone: strip non-digits, remove leading 00 or +
-  let phone = String(to).replace(/[\s\-().]/g, '').replace(/^\+/, '').replace(/^00/, '');
-
+  const phone = String(to).replace(/[\s\-().]/g, '').replace(/^\+/, '').replace(/^00/, '');
   try {
     await axios.post(
       `https://graph.facebook.com/v20.0/${phoneId}/messages`,
@@ -46,44 +43,42 @@ function safe(label, fn) {
   fn().catch(err => log.warn(`${label} failed (non-fatal): ${err.message}`));
 }
 
+function isAr(apt) {
+  return (apt.language || 'ar') !== 'en';
+}
+
 // ── Booking confirmation ──────────────────────────────────────────────────────
 function sendBookingConfirmation(apt) {
-  safe('booking-confirmation', () => sendWA(apt.phone,
-    `✅ Test Clinic — Booking Confirmed\n` +
-    `Name: ${apt.name}\n` +
-    `Service: ${apt.service}\n` +
-    `Date: ${apt.date} at ${apt.time}`
-  ));
+  const doctorLine = apt.doctor ? (isAr(apt) ? `\n👩‍⚕️ ${apt.doctor}` : `\n👩‍⚕️ ${apt.doctor}`) : '';
+  const text = isAr(apt)
+    ? `✅ تم الحجز، ${apt.name}!\n\n📅 ${apt.date}\n🕐 ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 عيادة تيست، الغبرة، مسقط`
+    : `✅ Booking Confirmed, ${apt.name}!\n\n📅 ${apt.date}\n🕐 ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 Test Clinic, Al Ghubrah, Muscat`;
+  safe('booking-confirmation', () => sendWA(apt.phone, text));
 }
 
 // ── Cancellation confirmation ─────────────────────────────────────────────────
 function sendCancellationConfirmation(apt) {
-  safe('cancellation-confirmation', () => sendWA(apt.phone,
-    `❌ Test Clinic — Appointment Cancelled\n` +
-    `Your ${apt.service} appointment on ${apt.date} at ${apt.time} has been cancelled.`
-  ));
+  const text = isAr(apt)
+    ? `❌ تم إلغاء الموعد.\nموعد ${apt.service} بتاريخ ${apt.date} الساعة ${apt.time} تم إلغاؤه.`
+    : `❌ Appointment Cancelled.\nYour ${apt.service} appointment on ${apt.date} at ${apt.time} has been cancelled.`;
+  safe('cancellation-confirmation', () => sendWA(apt.phone, text));
 }
 
 // ── Reschedule confirmation ───────────────────────────────────────────────────
 function sendRescheduleConfirmation(apt) {
-  safe('reschedule-confirmation', () => sendWA(apt.phone,
-    `🔄 Test Clinic — Appointment Rescheduled\n` +
-    `Your ${apt.service} appointment has been moved to ${apt.date} at ${apt.time}.`
-  ));
+  const text = isAr(apt)
+    ? `🔄 تم تعديل الموعد.\nموعدك لـ ${apt.service} نُقل إلى ${apt.date} الساعة ${apt.time}.`
+    : `🔄 Appointment Rescheduled.\nYour ${apt.service} appointment has been moved to ${apt.date} at ${apt.time}.`;
+  safe('reschedule-confirmation', () => sendWA(apt.phone, text));
 }
 
 // ── 24-hour reminder ──────────────────────────────────────────────────────────
 function sendReminder(apt) {
   const doctorLine = apt.doctor ? `\n👩‍⚕️ ${apt.doctor}` : '';
-  safe('reminder', () => sendWA(apt.phone,
-    `👋 أهلاً ${apt.name}، تذكير من عيادة تيست.\n` +
-    `Hello ${apt.name}, a reminder from Test Clinic.\n\n` +
-    `📅 غداً — ${apt.date} الساعة ${apt.time}\n` +
-    `💆 ${apt.service}` +
-    doctorLine + `\n\n` +
-    `📍 عيادة تيست، الغبرة، مسقط\n` +
-    `نتطلع لرؤيتك! 🌿`
-  ));
+  const text = isAr(apt)
+    ? `👋 أهلاً ${apt.name}، تذكير من عيادة تيست.\n\n📅 غداً — ${apt.date} الساعة ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 عيادة تيست، الغبرة، مسقط\n\nنتطلع لرؤيتك! 🌿`
+    : `👋 Hello ${apt.name}, a reminder from Test Clinic.\n\n📅 Tomorrow — ${apt.date} at ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 Test Clinic, Al Ghubrah, Muscat\n\nWe look forward to seeing you! 🌿`;
+  safe('reminder', () => sendWA(apt.phone, text));
 }
 
 module.exports = {

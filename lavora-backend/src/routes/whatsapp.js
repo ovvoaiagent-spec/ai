@@ -287,8 +287,9 @@ const TOOLS = [
         phone:   { type: 'string', description: "Patient phone — use WhatsApp number if not provided" },
         date:    { type: 'string' },
         time:    { type: 'string' },
-        service: { type: 'string' },
-        doctor:  { type: 'string', description: 'Doctor name (required for Beauty and Gynecology, empty for Slimming/Laser)' }
+        service:  { type: 'string' },
+        doctor:   { type: 'string', description: 'Doctor name (required for Beauty and Gynecology, empty for Slimming/Laser)' },
+        language: { type: 'string', description: 'Client language detected from conversation: "ar" for Arabic, "en" for English' }
       },
       required: ['name', 'phone', 'date', 'time', 'service']
     }
@@ -457,12 +458,14 @@ async function executeTool(name, input, callerPhone) {
         const booked = await countSlotBookings(d, t, dept);
         if (booked >= cap) return { success: false, result: `That slot is fully booked for ${dept}. Please suggest a different time.` };
 
-        const aptId = `APT-${Date.now()}`;
+        const aptId   = `APT-${Date.now()}`;
+        const language = (input.language === 'ar' || input.language === 'en') ? input.language : 'ar';
         const apt = {
           id: aptId, name: input.name, phone,
           service, doctor,
           date: d, time: t,
           status: 'Confirmed', source: 'WhatsApp',
+          language,
           callDuration: '', notes: '',
           timestamp: new Date().toISOString(),
           calendarEventId: ''
@@ -786,7 +789,7 @@ Arabic: "أسجل موعدك على الرقم اللي تراسلنا منه، 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 8 — FINAL BOOKING CONFIRMATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Call check_availability → then book_appointment → then send this ONCE. Never repeat details again.
+Call check_availability → then book_appointment (include language: "ar" or "en" based on what the client is using) → then send this ONCE. Never repeat details again.
 
 English:
 "✅ You're all set, [Name]!
