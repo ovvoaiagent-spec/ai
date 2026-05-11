@@ -212,7 +212,7 @@ router.delete('/appointments/:id', async (req, res) => {
     const existing = await db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
-    await db.cancelAppointment(id);
+    await db.hardDeleteAppointment(id);
     googleSync.cancel(existing);
     sms.sendCancellationConfirmation(existing);
 
@@ -223,7 +223,7 @@ router.delete('/appointments/:id', async (req, res) => {
       details: `ID: ${id} | Service: ${existing.service} | Date: ${existing.date} ${existing.time}`
     });
 
-    res.json({ success: true, message: `Appointment ${id} cancelled` });
+    res.json({ success: true, message: `Appointment ${id} deleted` });
 
   } catch (err) {
     console.error('[API] DELETE /appointments/:id error:', err.message);

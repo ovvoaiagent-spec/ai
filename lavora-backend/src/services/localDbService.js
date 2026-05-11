@@ -122,6 +122,15 @@ async function cancelAppointment(id) {
   return updateAppointment(id, { status: 'Cancelled' });
 }
 
+async function hardDeleteAppointment(id) {
+  if (pool) {
+    await pool.query('DELETE FROM appointments WHERE id = $1', [id]);
+    return;
+  }
+  const all = readFile(FILES.appointments).filter(a => a.id !== id);
+  writeFile(FILES.appointments, all);
+}
+
 async function checkConflict(date, time, doctor = null) {
   if (pool) {
     const doctorClause = doctor ? `AND data->>'doctor' = $3` : '';
@@ -233,7 +242,7 @@ module.exports = {
   initDb,
   getAllAppointments, getAppointmentById,
   appendAppointment, updateAppointment,
-  cancelAppointment, checkConflict,
+  cancelAppointment, hardDeleteAppointment, checkConflict,
   appendMissedCapture, appendCallLog,
   getAllActivities, appendActivity, getStats
 };
