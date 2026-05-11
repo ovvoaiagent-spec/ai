@@ -136,33 +136,34 @@ async function markRead(to, messageId) {
 }
 
 // ─── Department helpers ───────────────────────────────────────────────────────
-const LASER_SERVICES  = ['laser hair removal', 'laser'];
-const BODY_SERVICES   = ['body wrap', 'body wraps', 'redustim', 'onda plus', 'onda', 'slimming'];
+const LASER_SERVICES = ['laser hair removal', 'laser'];
+const BODY_SERVICES  = ['body wrap', 'body wraps', 'redustim', 'onda plus', 'onda', 'slimming'];
+const GYNO_SERVICES  = ['gynecology', 'gynaecology', 'gynecolog', 'aesthetic gynecology'];
 // everything else → beauty
 
 function getDepartment(service) {
   const s = (service || '').toLowerCase();
-  if (LASER_SERVICES.some(k => s.includes(k)))  return 'laser';
-  if (BODY_SERVICES.some(k => s.includes(k)))   return 'body';
+  if (GYNO_SERVICES.some(k => s.includes(k)))  return 'gynecology';
+  if (LASER_SERVICES.some(k => s.includes(k))) return 'laser';
+  if (BODY_SERVICES.some(k => s.includes(k)))  return 'body';
   return 'beauty';
 }
 
-const DEPT_CAPACITY  = { laser: 3, body: 4, beauty: 1 };
-const DEPT_CLOSE_HH  = { laser: 23, body: 20, beauty: 20 }; // closing hour (exclusive)
-const OPEN_HH        = 8;   // 8:00 AM
-const REST_START_HH  = 14;  // 2:00 PM
-const REST_END_HH    = 15;  // 3:00 PM
+const DEPT_CAPACITY  = { laser: 3, body: 4, beauty: 1, gynecology: 1 };
+const DEPT_CLOSE_HH  = { laser: 23, body: 20, beauty: 20, gynecology: 20 };
+const DEPT_SLOT_MINS = { gynecology: 30 }; // departments that need a minimum slot window
+const OPEN_HH        = 8;
+const REST_START_HH  = 14;
+const REST_END_HH    = 15;
 
 function timeToMinutes(t) {
-  // accepts "HH:MM" or "H:MM"
   const [h, m] = (t || '').split(':').map(Number);
   return h * 60 + (m || 0);
 }
 
-// Returns an error string if the slot is forbidden, null if OK
 function validateSlot(dateStr, timeStr, department) {
   const date = new Date(dateStr + 'T00:00:00');
-  const dow  = date.getDay(); // 0=Sun,1=Mon,...,5=Fri,6=Sat
+  const dow  = date.getDay();
   if (dow === 5) return 'friday_closed';
 
   const mins      = timeToMinutes(timeStr);
@@ -172,21 +173,28 @@ function validateSlot(dateStr, timeStr, department) {
   const closeHH   = DEPT_CLOSE_HH[department] || 20;
   const closeMins = closeHH * 60;
 
-  if (mins < openMins)              return 'before_open';
-  if (mins >= restStart && mins < restEnd) return 'rest_time';
-  if (mins >= closeMins)            return `after_close:${closeHH}`;
+  if (mins < openMins)                         return 'before_open';
+  if (mins >= restStart && mins < restEnd)     return 'rest_time';
+  if (mins >= closeMins)                       return `after_close:${closeHH}`;
   return null;
 }
 
-// Count active bookings for the same slot in the same department
+// Count active bookings for the same slot in the same department.
+// For departments with a slot window (e.g. gynecology = 30 min),
+// any existing booking within ±slotMins of the requested time blocks the slot.
 async function countSlotBookings(date, time, department) {
-  const all = await db.getAllAppointments();
-  return all.filter(a =>
-    a.status !== 'Cancelled' &&
-    a.date === date &&
-    a.time === time &&
-    getDepartment(a.service) === department
-  ).length;
+  const all      = await db.getAllAppointments();
+  const reqMins  = timeToMinutes(time);
+  const slotWin  = DEPT_SLOT_MINS[department] || 0;
+
+  return all.filter(a => {
+    if (a.status === 'Cancelled') return false;
+    if (a.date !== date)          return false;
+    if (getDepartment(a.service) !== department) return false;
+    if (slotWin === 0) return a.time === time;
+    const diff = Math.abs(timeToMinutes(a.time) - reqMins);
+    return diff < slotWin;
+  }).length;
 }
 
 // ─── Claude tool definitions ──────────────────────────────────────────────────
@@ -510,9 +518,10 @@ Afternoon session: 3:00 PM – 8:00 PM (all departments except Laser)
 Laser department: 3:00 PM – 11:00 PM
 
 DEPARTMENTS & CAPACITY:
-- Beauty / Aesthetics (Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Aesthetic Gynecology, Medical Skin Care, Dermatology, Consultation): MAX 1 client per time slot. Closes 8:00 PM.
+- Beauty / Aesthetics (Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Medical Skin Care, Dermatology, Consultation): MAX 1 client per time slot. Closes 8:00 PM.
 - Body (Body Wraps, Redustim, Onda Plus, slimming treatments): MAX 4 clients per time slot. Closes 8:00 PM.
 - Laser (Laser Hair Removal): MAX 3 clients per time slot. Closes 11:00 PM.
+- Gynecology (Aesthetic Gynecology): MAX 1 client per 30-minute window. Closes 8:00 PM. If a slot is taken, the next available is 30 minutes later.
 
 BOOKING CHECKLIST — run through this before every booking:
 1. Is it Friday? → Closed, offer another day.
