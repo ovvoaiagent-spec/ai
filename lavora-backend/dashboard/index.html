@@ -300,6 +300,15 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Nurse Station ── */
+.nurse-today-card { background: linear-gradient(135deg, var(--navy), var(--navy2)); color: white; border-radius: var(--r); padding: 20px 24px; margin-bottom: 8px; }
+.nurse-today-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; opacity: .6; text-transform: uppercase; margin-bottom: 8px; }
+.nurse-today-service { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.nurse-today-meta { font-size: 13px; opacity: .7; margin-bottom: 16px; }
+.btn-complete { padding: 10px 24px; background: var(--green); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .2s; }
+.btn-complete:hover { background: #059669; }
+.btn-complete:disabled { background: #6b7280; cursor: default; }
 </style>
 </head>
 <body>
@@ -385,6 +394,9 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <div class="nav-item" onclick="gotoPage('patients',this)" data-page="patients">
           <span class="nav-icon">&#9786;</span> Patient Portfolio
           <span class="nav-badge" id="badge-patients" style="background:var(--navy2)">—</span>
+        </div>
+        <div class="nav-item" onclick="gotoPage('nurse',this)" data-page="nurse">
+          <span class="nav-icon">&#10010;</span> Nurse Station
         </div>
       </div>
     </nav>
@@ -752,6 +764,45 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
       </div>
     </div>
 
+    <!-- Page: Nurse Station -->
+    <div class="page" id="page-nurse">
+      <div class="page-header">
+        <span class="page-title">Nurse Station</span>
+      </div>
+      <div style="max-width:600px">
+        <div class="chart-card" style="margin-bottom:20px">
+          <div class="chart-title">Look Up Client</div>
+          <div class="field">
+            <label>Your Name</label>
+            <select id="nurse-self" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit">
+              <option value="">Select your name...</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Client Phone Number</label>
+            <div style="display:flex;gap:8px">
+              <input id="nurse-phone" type="tel" placeholder="+968 9X XXX XXX" style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" onkeydown="if(event.key==='Enter')nurseLookup()">
+              <button class="btn-gold" onclick="nurseLookup()">Look Up</button>
+            </div>
+          </div>
+          <div id="nurse-lookup-err" style="color:var(--red);font-size:13px;display:none;margin-top:4px"></div>
+        </div>
+
+        <div id="nurse-client-result" style="display:none">
+          <div class="patient-detail-header" style="margin-bottom:16px">
+            <div class="patient-detail-avatar" id="nurse-pd-avatar"></div>
+            <div class="patient-detail-info">
+              <div class="patient-detail-name" id="nurse-pd-name"></div>
+              <div class="patient-detail-meta" id="nurse-pd-meta"></div>
+            </div>
+          </div>
+          <div id="nurse-today-apt" style="margin-bottom:16px"></div>
+          <div style="font-size:13px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Visit History</div>
+          <div id="nurse-history"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1010,7 +1061,7 @@ function exportDeptCSV() {
 const PAGE_TITLES = {
   today: "Today's Schedule", upcoming: 'Upcoming Appointments',
   past: 'Past Appointments', activity: 'Activity Feed', ceo: 'CEO Overview',
-  dept: 'Department View', settings: 'Clinic Settings', patients: 'Patient Portfolio'
+  dept: 'Department View', settings: 'Clinic Settings', patients: 'Patient Portfolio', nurse: 'Nurse Station'
 };
 
 function gotoPage(name, el) {
@@ -1027,6 +1078,7 @@ function gotoPage(name, el) {
   if (name === 'ceo')      renderCeo();
   if (name === 'settings') renderSettingsGoto();
   if (name === 'patients') renderPatients();
+  if (name === 'nurse')    { populateNurseSelect(); }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1669,6 +1721,7 @@ function renderSettingsForm(s) {
 
   // Staff
   renderStaffList(s.staff || []);
+  populateNurseSelect();
 }
 
 function toggleWorkDay(el, day) {
@@ -1974,6 +2027,120 @@ function showPatientDetail(phone) {
 function backToPatients() {
   document.getElementById('patient-detail').style.display = 'none';
   document.getElementById('patients-list-view').style.display = 'block';
+}
+
+// ─── Nurse Station ───────────────────────────────────────────────────────────
+function populateNurseSelect() {
+  const sel = document.getElementById('nurse-self');
+  if (!sel) return;
+  const s = currentSettings || {};
+  const staff = s.staff || [];
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Select your name...</option>' +
+    staff.map(m => `<option value="${esc(m.name)}">${esc(m.name)}${m.role ? ' (' + esc(m.role) + ')' : ''}</option>`).join('');
+  if (prev) sel.value = prev;
+}
+
+function nurseLookup() {
+  const rawPhone = document.getElementById('nurse-phone').value.trim();
+  const errEl = document.getElementById('nurse-lookup-err');
+  errEl.style.display = 'none';
+  if (!rawPhone) { errEl.textContent = 'Please enter a phone number.'; errEl.style.display = 'block'; return; }
+
+  // Match phone loosely
+  const norm = rawPhone.replace(/[\s\-().]/g, '');
+  const matches = allAppointments.filter(a => {
+    if (!a.phone) return false;
+    const p = a.phone.replace(/[\s\-().]/g, '');
+    return p === norm || p.endsWith(norm) || norm.endsWith(p.slice(-8));
+  });
+
+  if (!matches.length) {
+    errEl.textContent = 'No client found with that phone number.';
+    errEl.style.display = 'block';
+    document.getElementById('nurse-client-result').style.display = 'none';
+    return;
+  }
+
+  const phone = matches[0].phone;
+  renderNurseClientView(phone);
+}
+
+function renderNurseClientView(phone) {
+  const apts = allAppointments.filter(a => a.phone === phone);
+  apts.sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
+  const name     = apts[0].name;
+  const col      = ptColor(phone);
+  const initials = ptInitials(name);
+  const today    = todayStr();
+
+  const avatar = document.getElementById('nurse-pd-avatar');
+  avatar.style.background = col;
+  avatar.textContent = initials;
+  document.getElementById('nurse-pd-name').textContent = name;
+  document.getElementById('nurse-pd-meta').textContent = `${phone} · ${apts.length} session${apts.length!==1?'s':''}`;
+
+  // Today/upcoming appointment card
+  const active = apts.filter(a => a.status !== 'Cancelled' && (a.date||'0000') >= today);
+  active.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  const next = active[0];
+  const todayEl = document.getElementById('nurse-today-apt');
+  if (next) {
+    const isToday = next.date === today;
+    const nurseName = document.getElementById('nurse-self').value;
+    const alreadyDone = next.staff && next.status === 'Confirmed';
+    todayEl.innerHTML = `
+      <div class="nurse-today-card">
+        <div class="nurse-today-label">${isToday ? 'Today\'s Appointment' : 'Next Appointment'}</div>
+        <div class="nurse-today-service">${esc(next.service)}</div>
+        <div class="nurse-today-meta">${esc(next.date)} at ${esc(next.time)}${next.doctor ? ' · ' + esc(next.doctor) : ''}${next.staff ? ' · Nurse: ' + esc(next.staff) : ''}</div>
+        ${alreadyDone
+          ? `<span style="background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600">&#10003; Completed by ${esc(next.staff)}</span>`
+          : `<button class="btn-complete" onclick="nurseCompleteSession('${esc(next.id)}','${esc(phone)}')" ${!nurseName ? 'disabled title="Select your name first"' : ''}>&#10003; Mark Session Complete</button>`
+        }
+      </div>`;
+  } else {
+    todayEl.innerHTML = '<div style="color:var(--text3);font-size:13px;margin-bottom:8px">No upcoming appointments.</div>';
+  }
+
+  // Full history
+  document.getElementById('nurse-history').innerHTML = apts.map(a => {
+    const sc   = (a.status||'').toLowerCase();
+    const dept = getDepartment(a.service);
+    const cfg  = DEPT_CONFIG[dept];
+    return `
+      <div class="session-row s-${sc}" style="margin-bottom:8px">
+        <div class="session-date">
+          <div style="font-size:11px;color:var(--text3)">${esc(a.date||'')}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--navy)">${esc(a.time||'—')}</div>
+        </div>
+        <div class="session-body">
+          <div class="session-service">${esc(a.service||'—')}</div>
+          <div class="session-staff-line">
+            ${a.doctor ? `<span class="badge badge-doctor">${esc(a.doctor)}</span>` : ''}
+            ${a.staff  ? `<span class="badge badge-staff">${esc(a.staff)}</span>`  : ''}
+            <span class="dept-badge ${cfg?.badge||''}">${cfg?.label||dept}</span>
+            <span class="badge badge-${sc}">${esc(a.status)}</span>
+          </div>
+          ${a.notes ? `<div class="session-notes">${esc(a.notes)}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('nurse-client-result').style.display = 'block';
+}
+
+async function nurseCompleteSession(aptId, phone) {
+  const nurseName = document.getElementById('nurse-self').value;
+  if (!nurseName) { toast('Please select your name first.', 'error'); return; }
+  try {
+    await API.updateAppointment(aptId, { status: 'Confirmed', staff: nurseName });
+    toast(`Session marked complete by ${nurseName}`, 'success');
+    await loadAll();
+    renderNurseClientView(phone);
+  } catch (err) {
+    toast('Error: ' + err.message, 'error');
+  }
 }
 
 // ─── Staff Settings ───────────────────────────────────────────────────────────
