@@ -216,15 +216,18 @@ async function countSlotBookings(date, time, department) {
   }).length;
 }
 
-// Returns up to maxSlots available time strings for a given date + service
+// Returns up to maxSlots available time strings spread across morning AND evening
 async function getAvailableSlots(dateStr, service, maxSlots = 4) {
-  const dept      = getDepartment(service);
-  const closeHH   = DEPT_CLOSE_HH[dept];
-  const stepMins  = dept === 'gynecology' ? 30 : 60;
-  const available = [];
+  const dept     = getDepartment(service);
+  const closeHH  = DEPT_CLOSE_HH[dept];
+  const stepMins = dept === 'gynecology' ? 30 : 60;
 
   const date = new Date(dateStr + 'T00:00:00');
   if (date.getDay() === 5) return [];
+
+  // Collect ALL available slots across the full day
+  const morning = []; // 08:00 – 13:00
+  const evening = []; // 15:00 – close
 
   for (let totalMins = OPEN_HH * 60; totalMins < closeHH * 60; totalMins += stepMins) {
     const h = Math.floor(totalMins / 60);
@@ -233,11 +236,30 @@ async function getAvailableSlots(dateStr, service, maxSlots = 4) {
     const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     const booked  = await countSlotBookings(dateStr, timeStr, dept);
     if (booked < DEPT_CAPACITY[dept]) {
-      available.push(timeStr);
-      if (available.length >= maxSlots) break;
+      if (h < REST_START_HH) morning.push(timeStr);
+      else                   evening.push(timeStr);
     }
   }
-  return available;
+
+  // Distribute evenly: half morning, half evening
+  const half   = Math.floor(maxSlots / 2);
+  const result = [];
+
+  // Pick evenly spaced from morning
+  if (morning.length) {
+    const step = Math.max(1, Math.floor(morning.length / half));
+    for (let i = 0; i < morning.length && result.length < half; i += step) result.push(morning[i]);
+  }
+
+  // Fill remaining from evening
+  const need = maxSlots - result.length;
+  if (evening.length) {
+    const step = Math.max(1, Math.floor(evening.length / need));
+    for (let i = 0; i < evening.length && result.filter(t => timeToMinutes(t) >= REST_END_HH * 60).length < need; i += step)
+      result.push(evening[i]);
+  }
+
+  return result.sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
 }
 
 // ─── Claude tool definitions ──────────────────────────────────────────────────
@@ -717,26 +739,32 @@ Send:
 → Client gives a day → call get_available_slots(date, service) → go to STEP 6.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 6 — OFFER AVAILABLE TIME SLOTS
+STEP 6 — TIME SELECTION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-NEVER ask "what time do you prefer?" — ALWAYS call get_available_slots and proactively offer times.
-Show maximum 4 available slots. Format:
+TWO SCENARIOS — follow the correct one:
 
+SCENARIO A — CLIENT DID NOT SUGGEST A TIME:
+Call get_available_slots(date, service) and proactively offer up to 4 slots spread across morning and evening. Format:
 "For [Day], here are the available times: 🕐
 
-1 10:00 AM
-2 1:00 PM
-3 3:00 PM
-4 5:00 PM
+1 [time]
+2 [time]
+3 [time]
+4 [time]
 
 Which works best for you?"
 
-IF CLIENT REQUESTS A SPECIFIC TIME:
-→ Call check_availability(date, time, service).
-→ If available: proceed to STEP 7.
-→ If not available: offer the slots returned by get_available_slots instead.
+SCENARIO B — CLIENT SUGGESTS A SPECIFIC TIME (e.g. "6 PM", "10 AM"):
+1. Call check_availability(date, time, service) immediately.
+2. If AVAILABLE → do NOT suggest alternatives. Go straight to STEP 7.
+3. If NOT AVAILABLE → say the slot is taken, call get_available_slots, and offer the next available times.
 
-SLOT RULES (enforced automatically by tools — do not explain to client):
+SCENARIO C — CLIENT CANNOT MAKE ANY OF THE SUGGESTED TIMES:
+Ask: "What time works best for you?"
+OR: "Would you like me to check what's available for you?"
+If client says "check for me" → call get_available_slots again and offer a new list.
+
+SLOT RULES (enforced automatically by tools — never explain to client):
 - No slots 2:00 PM–3:00 PM (rest time).
 - Beauty & Gynecology: max 1 client per slot.
 - Slimming: max 4 clients per slot.
