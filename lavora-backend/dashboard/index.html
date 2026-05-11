@@ -327,6 +327,9 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 .cal-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
 .cal-leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
 .cal-leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.cal-dept-btn { padding: 7px 16px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; background: white; color: var(--text2); transition: all .15s; font-family: inherit; }
+.cal-dept-btn:hover { border-color: var(--dc, var(--navy)); color: var(--dc, var(--navy)); }
+.cal-dept-btn.active { background: var(--dc, var(--navy)); border-color: var(--dc, var(--navy)); color: white; }
 
 /* ── Nurse Station ── */
 .nurse-today-card { background: linear-gradient(135deg, var(--navy), var(--navy2)); color: white; border-radius: var(--r); padding: 20px 24px; margin-bottom: 8px; }
@@ -802,12 +805,12 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         </div>
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
-      <div class="cal-legend">
-        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(201,168,76,.5);border-left:2px solid var(--dept-beauty)"></span>Beauty</div>
-        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(124,58,237,.3);border-left:2px solid var(--dept-slimming)"></span>Slimming</div>
-        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(8,145,178,.3);border-left:2px solid var(--dept-laser)"></span>Laser</div>
-        <div class="cal-leg-item"><span class="cal-leg-dot" style="background:rgba(219,39,119,.3);border-left:2px solid var(--dept-gyno)"></span>Gynecology</div>
-        <div class="cal-leg-item" style="margin-left:8px;color:var(--text3)">&#9632; Striped = rest break &nbsp; &#9632; Grey = closed hours</div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        <button class="cal-dept-btn active" data-dept="" onclick="setCalDept('',this)">All</button>
+        <button class="cal-dept-btn" data-dept="beauty"     onclick="setCalDept('beauty',this)"     style="--dc:var(--dept-beauty)">Beauty</button>
+        <button class="cal-dept-btn" data-dept="slimming"   onclick="setCalDept('slimming',this)"   style="--dc:var(--dept-slimming)">Slimming</button>
+        <button class="cal-dept-btn" data-dept="laser"      onclick="setCalDept('laser',this)"      style="--dc:var(--dept-laser)">Laser</button>
+        <button class="cal-dept-btn" data-dept="gynecology" onclick="setCalDept('gynecology',this)" style="--dc:var(--dept-gyno)">Gynecology</button>
       </div>
       <div class="cal-outer">
         <div class="cal-grid" id="cal-grid"></div>
@@ -2189,7 +2192,8 @@ function backToPatients() {
 }
 
 // ─── Calendar ────────────────────────────────────────────────────────────────
-let calWeekOffset = 0;
+let calWeekOffset  = 0;
+let calDeptFilter  = '';
 
 function calWeekDates(offset) {
   const today = new Date();
@@ -2226,7 +2230,8 @@ function renderCalendar() {
   const dayStrs = days.map(d => d.toISOString().split('T')[0]);
   const aptMap  = {};
   allAppointments
-    .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time)
+    .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time &&
+      (!calDeptFilter || getDepartment(a.service) === calDeptFilter))
     .forEach(a => {
       const h   = parseInt(a.time.split(':')[0]);
       const key = `${a.date}_${h}`;
@@ -2287,6 +2292,13 @@ function renderCalendar() {
 function calPrevWeek() { calWeekOffset--; renderCalendar(); }
 function calNextWeek() { calWeekOffset++; renderCalendar(); }
 function calToday()    { calWeekOffset = 0; renderCalendar(); }
+
+function setCalDept(dept, btn) {
+  calDeptFilter = dept;
+  document.querySelectorAll('.cal-dept-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCalendar();
+}
 
 // ─── Nurse Station ───────────────────────────────────────────────────────────
 function populateNurseSelect() {
