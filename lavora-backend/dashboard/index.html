@@ -15,8 +15,8 @@
   --border: #e2e8f0;
   --green: #10b981; --red: #ef4444; --amber: #f59e0b;
   --purple: #7c3aed; --blue: #0891b2;
-  --dept-beauty: #c9a84c; --dept-slimming: #7c3aed;
-  --dept-laser: #0891b2; --dept-gyno: #db2777;
+  --dept-beauty: #ec4899; --dept-slimming: #0ea5e9;
+  --dept-laser: #6b7280; --dept-gyno: #d97706;
   --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.05);
   --r: 10px; --sidebar: 220px;
 }
@@ -252,10 +252,10 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 .session-notes { font-size: 11px; color: var(--text3); margin-top: 4px; font-style: italic; }
 
 /* ── Department nav items ── */
-.nav-item.dept-beauty.active  { background: rgba(201,168,76,.15);  color: var(--dept-beauty); }
-.nav-item.dept-slimming.active { background: rgba(124,58,237,.15); color: var(--dept-slimming); }
-.nav-item.dept-laser.active   { background: rgba(8,145,178,.15);   color: var(--dept-laser); }
-.nav-item.dept-gyno.active    { background: rgba(219,39,119,.15);  color: var(--dept-gyno); }
+.nav-item.dept-beauty.active  { background: rgba(236,72,153,.15);  color: var(--dept-beauty); }
+.nav-item.dept-slimming.active { background: rgba(14,165,233,.15); color: var(--dept-slimming); }
+.nav-item.dept-laser.active   { background: rgba(107,114,128,.15); color: var(--dept-laser); }
+.nav-item.dept-gyno.active    { background: rgba(217,119,6,.15);   color: var(--dept-gyno); }
 
 /* ── Department page header stripe ── */
 .dept-stripe { height: 4px; border-radius: 4px 4px 0 0; margin-bottom: 20px; }
@@ -319,10 +319,10 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 .cal-cell.is-rest { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,.02) 4px, rgba(0,0,0,.02) 8px); }
 .cal-cell.is-closed { background: #fafafa; }
 .cal-chip { border-radius: 4px; padding: 2px 5px; font-size: 11px; font-weight: 600; cursor: pointer; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.5; }
-.cal-chip.beauty    { background: rgba(201,168,76,.2);  color: #7a5c00; border-left: 3px solid var(--dept-beauty); }
-.cal-chip.slimming  { background: rgba(124,58,237,.12); color: #5b21b6; border-left: 3px solid var(--dept-slimming); }
-.cal-chip.laser     { background: rgba(8,145,178,.12);  color: #0369a1; border-left: 3px solid var(--dept-laser); }
-.cal-chip.gynecology{ background: rgba(219,39,119,.12); color: #9d174d; border-left: 3px solid var(--dept-gyno); }
+.cal-chip.beauty    { background: rgba(236,72,153,.12); color: #9d174d; border-left: 3px solid var(--dept-beauty); }
+.cal-chip.slimming  { background: rgba(14,165,233,.12); color: #0369a1; border-left: 3px solid var(--dept-slimming); }
+.cal-chip.laser     { background: rgba(107,114,128,.12);color: #374151; border-left: 3px solid var(--dept-laser); }
+.cal-chip.gynecology{ background: rgba(217,119,6,.12);  color: #92400e; border-left: 3px solid var(--dept-gyno); }
 .cal-chip:hover { filter: brightness(.93); }
 .cal-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
 .cal-leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text2); }
@@ -1280,6 +1280,9 @@ function sourceBadge(source) {
 // ─── Appointment Card ─────────────────────────────────────────────────────────
 function aptCard(a, showActions = true) {
   const sc = (a.status || '').toLowerCase();
+  const dept = getDepartment(a.service);
+  const deptColorMap = { beauty: 'var(--dept-beauty)', slimming: 'var(--dept-slimming)', laser: 'var(--dept-laser)', gynecology: 'var(--dept-gyno)' };
+  const borderColor = deptColorMap[dept] || 'var(--border)';
   const doctorBadge = a.doctor ? `<span class="badge badge-doctor">${esc(a.doctor)}</span>` : '';
   const staffBadge  = a.staff  ? `<span class="badge badge-staff">${esc(a.staff)}</span>`   : '';
   const actions = showActions && a.status !== 'Cancelled' ? `
@@ -1289,7 +1292,7 @@ function aptCard(a, showActions = true) {
       <button class="btn-sm btn-cancel" onclick="openCancelModal('${esc(a.id)}','${esc(a.name)}')">Cancel</button>
     </div>` : '';
   return `
-    <div class="apt-card s-${sc}">
+    <div class="apt-card s-${sc}" style="border-left-color:${borderColor}">
       <div class="apt-time">${esc(a.time) || '—'}</div>
       <div class="apt-divider"></div>
       <div class="apt-info">
