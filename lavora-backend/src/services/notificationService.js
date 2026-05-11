@@ -4,8 +4,16 @@
  * Defaults to Arabic if not set.
  */
 
-const axios = require('axios');
-const log   = require('./logger').child('NOTIFY');
+const axios  = require('axios');
+const log    = require('./logger').child('NOTIFY');
+const { getSettings } = require('./settingsService');
+
+function clinicLine(ar) {
+  const s = getSettings();
+  return ar
+    ? `📍 ${s.clinic?.nameAr || 'عيادة تيست'}، ${s.clinic?.addressAr || 'الغبرة، مسقط'}`
+    : `📍 ${s.clinic?.name || 'Test Clinic'}, ${s.clinic?.address || 'Al Ghubrah, Muscat'}`;
+}
 
 function getConfig() {
   return {
@@ -51,8 +59,8 @@ function isAr(apt) {
 function sendBookingConfirmation(apt) {
   const doctorLine = apt.doctor ? (isAr(apt) ? `\n👩‍⚕️ ${apt.doctor}` : `\n👩‍⚕️ ${apt.doctor}`) : '';
   const text = isAr(apt)
-    ? `✅ تم الحجز، ${apt.name}!\n\n📅 ${apt.date}\n🕐 ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 عيادة تيست، الغبرة، مسقط`
-    : `✅ Booking Confirmed, ${apt.name}!\n\n📅 ${apt.date}\n🕐 ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 Test Clinic, Al Ghubrah, Muscat`;
+    ? `✅ تم الحجز، ${apt.name}!\n\n📅 ${apt.date}\n🕐 ${apt.time}\n💆 ${apt.service}${doctorLine}\n${clinicLine(true)}`
+    : `✅ Booking Confirmed, ${apt.name}!\n\n📅 ${apt.date}\n🕐 ${apt.time}\n💆 ${apt.service}${doctorLine}\n${clinicLine(false)}`;
   safe('booking-confirmation', () => sendWA(apt.phone, text));
 }
 
@@ -76,8 +84,8 @@ function sendRescheduleConfirmation(apt) {
 function sendReminder(apt) {
   const doctorLine = apt.doctor ? `\n👩‍⚕️ ${apt.doctor}` : '';
   const text = isAr(apt)
-    ? `👋 أهلاً ${apt.name}، تذكير من عيادة تيست.\n\n📅 غداً — ${apt.date} الساعة ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 عيادة تيست، الغبرة، مسقط\n\nنتطلع لرؤيتك! 🌿`
-    : `👋 Hello ${apt.name}, a reminder from Test Clinic.\n\n📅 Tomorrow — ${apt.date} at ${apt.time}\n💆 ${apt.service}${doctorLine}\n📍 Test Clinic, Al Ghubrah, Muscat\n\nWe look forward to seeing you! 🌿`;
+    ? `👋 أهلاً ${apt.name}، تذكير من ${getSettings().clinic?.nameAr||'عيادة تيست'}.\n\n📅 غداً — ${apt.date} الساعة ${apt.time}\n💆 ${apt.service}${doctorLine}\n${clinicLine(true)}\n\nنتطلع لرؤيتك! 🌿`
+    : `👋 Hello ${apt.name}, a reminder from ${getSettings().clinic?.name||'Test Clinic'}.\n\n📅 Tomorrow — ${apt.date} at ${apt.time}\n💆 ${apt.service}${doctorLine}\n${clinicLine(false)}\n\nWe look forward to seeing you! 🌿`;
   safe('reminder', () => sendWA(apt.phone, text));
 }
 

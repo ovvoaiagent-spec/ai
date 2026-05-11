@@ -12,6 +12,7 @@ const sms            = require('../services/notificationService');
 const log            = require('../services/logger').child('TOOL');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
+const { getSettings } = require('../services/settingsService');
 
 function normalizePhone(raw) {
   if (!raw) return raw;
@@ -211,15 +212,22 @@ router.post('/reschedule-appointment', async (req, res) => {
 
 // ─── get_services ─────────────────────────────────────────────────────────────
 router.post('/get-services', (_req, res) => {
-  res.json({
-    result: 'Here are the available services at Test Clinic.',
-    services: ['Botox','Fillers','Profhilo','Thread Lifting','Endolift','PRP','Mesotherapy','Exosomes','Stem Cell','Frax Pro','Picoway','RedTouch','Chemical Peels','Laser Hair Removal','Onda Plus','Redustim','Body Wraps','Aesthetic Gynecology','Medical Skin Care','Dermatology','Consultation']
-  });
+  const s = getSettings();
+  const services = (s.services || []).map(sv => sv.name);
+  res.json({ result: `Here are the available services at ${s.clinic?.name || 'Test Clinic'}.`, services });
 });
 
 // ─── get_working_hours ────────────────────────────────────────────────────────
 router.post('/get-working-hours', (_req, res) => {
-  res.json({ result: 'Test Clinic is open Saturday through Thursday, 9:00 AM to 6:00 PM. Closed on Fridays.', hours: 'Saturday–Thursday: 9:00 AM – 6:00 PM', closed: 'Friday' });
+  const s   = getSettings();
+  const wds = (s.workDays || []).join(', ');
+  const h   = s.hours || {};
+  res.json({
+    result: `${s.clinic?.name || 'Test Clinic'} is open ${wds}, ${h.open || '08:00'} to ${h.close || '23:00'} (rest break ${h.restStart || '14:00'}–${h.restEnd || '15:00'}, no appointments during this time).`,
+    hours: `${wds}: ${h.open || '08:00'} – ${h.close || '23:00'}`,
+    rest_break: `${h.restStart || '14:00'} – ${h.restEnd || '15:00'}`,
+    closed_days: 'Days not listed in workDays'
+  });
 });
 
 module.exports = router;

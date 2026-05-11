@@ -342,6 +342,9 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <div class="nav-item" onclick="gotoPage('ceo',this)" data-page="ceo">
           <span class="nav-icon">&#9670;</span> CEO Overview
         </div>
+        <div class="nav-item" onclick="gotoPage('settings',this)" data-page="settings">
+          <span class="nav-icon">&#9881;</span> Settings
+        </div>
       </div>
     </nav>
     <div class="sidebar-bottom">
@@ -541,6 +544,122 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Page: Settings -->
+    <div class="page" id="page-settings">
+      <div id="settings-lock">
+        <div style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+          <div class="ceo-lock-card">
+            <div class="lock-icon">&#9881;</div>
+            <h3>Clinic Settings</h3>
+            <p>CEO access required to view and change clinic settings.</p>
+            <div class="field">
+              <label>CEO Password</label>
+              <input type="password" id="settings-pw-input" placeholder="CEO password" onkeydown="if(event.key==='Enter')unlockSettings()">
+            </div>
+            <div id="settings-err" style="color:var(--red);font-size:12px;margin-top:8px;display:none">Incorrect password.</div>
+            <button class="btn-primary" onclick="unlockSettings()" style="margin-top:16px">Unlock Settings</button>
+          </div>
+        </div>
+      </div>
+      <div id="settings-content" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+          <span class="page-title">Clinic Settings</span>
+          <button class="btn-gold" id="settings-save-btn" onclick="saveSettings()">Save All Changes</button>
+          <button class="ceo-lock-btn" onclick="lockSettings()">Lock</button>
+        </div>
+        <div id="settings-saved-msg" style="display:none;background:#ecfdf5;color:#065f46;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:16px">Settings saved. All AI systems will use the new values immediately.</div>
+
+        <!-- Clinic Info -->
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-title">Clinic Information</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="field"><label>Clinic Name (English)</label><input id="st-name" type="text"></div>
+            <div class="field"><label>Clinic Name (Arabic)</label><input id="st-nameAr" type="text" dir="rtl"></div>
+            <div class="field"><label>Address (English)</label><input id="st-address" type="text"></div>
+            <div class="field"><label>Address (Arabic)</label><input id="st-addressAr" type="text" dir="rtl"></div>
+            <div class="field"><label>Clinic Phone</label><input id="st-phone" type="tel"></div>
+          </div>
+        </div>
+
+        <!-- Working Hours -->
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-title">Working Hours</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <div class="field"><label>Open Time</label><input id="st-open" type="time"></div>
+            <div class="field"><label>Close Time</label><input id="st-close" type="time"></div>
+            <div class="field"><label>Rest Break Start</label><input id="st-restStart" type="time"></div>
+            <div class="field"><label>Rest Break End</label><input id="st-restEnd" type="time"></div>
+          </div>
+        </div>
+
+        <!-- Work Days & Holidays -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+          <div class="chart-card">
+            <div class="chart-title">Work Days</div>
+            <div id="st-workdays" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Holidays</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <input type="date" id="st-holiday-input" class="filter-sel" style="flex:1">
+              <button class="btn-gold" onclick="addHoliday()" style="padding:8px 14px;font-size:13px">Add</button>
+            </div>
+            <div id="st-holidays-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+        </div>
+
+        <!-- Department Settings -->
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-title">Department Settings</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--dept-beauty);margin-bottom:8px;text-transform:uppercase">Beauty</div>
+              <div class="field"><label>Max per slot</label><input id="st-cap-beauty" type="number" min="1"></div>
+              <div class="field"><label>Closes at (hour)</label><input id="st-close-beauty" type="number" min="8" max="23"></div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--dept-slimming);margin-bottom:8px;text-transform:uppercase">Slimming</div>
+              <div class="field"><label>Max per slot</label><input id="st-cap-slimming" type="number" min="1"></div>
+              <div class="field"><label>Closes at (hour)</label><input id="st-close-slimming" type="number" min="8" max="23"></div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--dept-laser);margin-bottom:8px;text-transform:uppercase">Laser</div>
+              <div class="field"><label>Max per slot</label><input id="st-cap-laser" type="number" min="1"></div>
+              <div class="field"><label>Closes at (hour)</label><input id="st-close-laser" type="number" min="8" max="23"></div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--dept-gyno);margin-bottom:8px;text-transform:uppercase">Gynecology</div>
+              <div class="field"><label>Max per slot</label><input id="st-cap-gyno" type="number" min="1"></div>
+              <div class="field"><label>Closes at (hour)</label><input id="st-close-gyno" type="number" min="8" max="23"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Doctors -->
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Doctors</span>
+            <button class="btn-gold" onclick="addDoctorRow()" style="padding:6px 14px;font-size:12px">+ Add Doctor</button>
+          </div>
+          <div id="st-doctors-list" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+        </div>
+
+        <!-- Services -->
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Services</span>
+            <button class="btn-gold" onclick="addServiceRow()" style="padding:6px 14px;font-size:12px">+ Add Service</button>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 80px 40px;gap:4px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;padding:8px 4px;border-bottom:1px solid var(--border)">
+            <span>Service Name</span><span>Department</span><span>Price (OMR)</span><span></span>
+          </div>
+          <div id="st-services-list" style="display:flex;flex-direction:column;gap:4px;margin-top:4px"></div>
+        </div>
+
+        <button class="btn-gold" onclick="saveSettings()" style="width:100%;padding:14px;font-size:15px">Save All Changes</button>
       </div>
     </div>
 
@@ -798,7 +917,7 @@ function exportDeptCSV() {
 const PAGE_TITLES = {
   today: "Today's Schedule", upcoming: 'Upcoming Appointments',
   past: 'Past Appointments', activity: 'Activity Feed', ceo: 'CEO Overview',
-  dept: 'Department View'
+  dept: 'Department View', settings: 'Clinic Settings'
 };
 
 function gotoPage(name, el) {
@@ -813,6 +932,7 @@ function gotoPage(name, el) {
   if (name === 'past')     renderPastTable();
   if (name === 'activity') loadActivity();
   if (name === 'ceo')      renderCeo();
+  if (name === 'settings') renderSettingsGoto();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1351,6 +1471,253 @@ function toast(msg, type = 'info') {
   el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => el.remove(), 4000);
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+let settingsUnlocked = false;
+let currentSettings  = null;
+
+const ALL_DAYS = ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'];
+const DEPT_NAMES = { beauty:'Beauty', slimming:'Slimming', laser:'Laser', gynecology:'Gynecology' };
+
+function unlockSettings() {
+  const input = document.getElementById('settings-pw-input').value;
+  if (input === CFG.ceoPw) {
+    settingsUnlocked = true;
+    document.getElementById('settings-lock').style.display    = 'none';
+    document.getElementById('settings-content').style.display = 'block';
+    loadAndRenderSettings();
+  } else {
+    document.getElementById('settings-err').style.display = 'block';
+    document.getElementById('settings-pw-input').value    = '';
+  }
+}
+
+function lockSettings() {
+  settingsUnlocked = false;
+  document.getElementById('settings-lock').style.display    = 'flex';
+  document.getElementById('settings-content').style.display = 'none';
+  document.getElementById('settings-pw-input').value = '';
+  document.getElementById('settings-err').style.display = 'none';
+}
+
+function renderSettingsGoto() {
+  if (!settingsUnlocked) {
+    document.getElementById('settings-lock').style.display    = '';
+    document.getElementById('settings-content').style.display = 'none';
+  } else if (currentSettings) {
+    document.getElementById('settings-lock').style.display    = 'none';
+    document.getElementById('settings-content').style.display = 'block';
+  } else {
+    loadAndRenderSettings();
+  }
+}
+
+async function loadAndRenderSettings() {
+  try {
+    currentSettings = await API.call('GET', '/api/settings');
+    renderSettingsForm(currentSettings);
+    document.getElementById('settings-lock').style.display    = 'none';
+    document.getElementById('settings-content').style.display = 'block';
+  } catch (err) {
+    toast('Could not load settings: ' + err.message, 'error');
+  }
+}
+
+function renderSettingsForm(s) {
+  // Clinic info
+  document.getElementById('st-name').value      = s.clinic?.name      || '';
+  document.getElementById('st-nameAr').value    = s.clinic?.nameAr    || '';
+  document.getElementById('st-address').value   = s.clinic?.address   || '';
+  document.getElementById('st-addressAr').value = s.clinic?.addressAr || '';
+  document.getElementById('st-phone').value     = s.clinic?.phone     || '';
+
+  // Hours
+  document.getElementById('st-open').value      = s.hours?.open      || '08:00';
+  document.getElementById('st-close').value     = s.hours?.close     || '23:00';
+  document.getElementById('st-restStart').value = s.hours?.restStart || '14:00';
+  document.getElementById('st-restEnd').value   = s.hours?.restEnd   || '15:00';
+
+  // Work days
+  const wdEl = document.getElementById('st-workdays');
+  wdEl.innerHTML = ALL_DAYS.map(d => `
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:${(s.workDays||[]).includes(d)?'var(--navy)':'var(--bg)'};color:${(s.workDays||[]).includes(d)?'white':'var(--text2)'};border-radius:8px;font-weight:500;transition:all .2s" onclick="toggleWorkDay(this,'${d}')">
+      ${d}
+    </label>`).join('');
+
+  // Holidays
+  renderHolidaysList(s.holidays || []);
+
+  // Dept settings
+  const cap   = s.departmentCapacity   || {};
+  const close = s.departmentCloseHour  || {};
+  ['beauty','slimming','laser','gynecology'].forEach(d => {
+    const defCap = { beauty:1, slimming:4, laser:3, gynecology:1 };
+    const defCls = { beauty:20, slimming:20, laser:23, gynecology:20 };
+    document.getElementById(`st-cap-${d}`).value   = cap[d]   ?? defCap[d];
+    document.getElementById(`st-close-${d}`).value = close[d] ?? defCls[d];
+  });
+
+  // Doctors
+  renderDoctorsList(s.doctors || []);
+
+  // Services
+  renderServicesList(s.services || []);
+}
+
+function toggleWorkDay(el, day) {
+  const active = el.style.background.includes('navy') || el.style.background === 'var(--navy)';
+  if (active) {
+    el.style.background = 'var(--bg)'; el.style.color = 'var(--text2)';
+  } else {
+    el.style.background = 'var(--navy)'; el.style.color = 'white';
+  }
+}
+
+function getWorkDaysFromUI() {
+  const days = [];
+  document.querySelectorAll('#st-workdays label').forEach(el => {
+    if (el.style.background === 'var(--navy)' || el.style.background.includes('navy') || el.style.backgroundColor === 'rgb(26, 39, 68)') {
+      days.push(el.textContent.trim());
+    }
+  });
+  return days;
+}
+
+function renderHolidaysList(holidays) {
+  const el = document.getElementById('st-holidays-list');
+  el.innerHTML = holidays.map(h => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:#fef2f2;color:#991b1b;padding:3px 10px;border-radius:16px;font-size:12px;font-weight:500">
+      ${h}
+      <button onclick="removeHoliday('${h}')" style="background:none;border:none;color:#991b1b;cursor:pointer;font-size:14px;padding:0 2px;line-height:1">&#10005;</button>
+    </span>`).join('');
+}
+
+function addHoliday() {
+  const val = document.getElementById('st-holiday-input').value;
+  if (!val) return;
+  const existing = (currentSettings.holidays || []);
+  if (!existing.includes(val)) {
+    currentSettings.holidays = [...existing, val].sort();
+    renderHolidaysList(currentSettings.holidays);
+  }
+  document.getElementById('st-holiday-input').value = '';
+}
+
+function removeHoliday(date) {
+  currentSettings.holidays = (currentSettings.holidays || []).filter(h => h !== date);
+  renderHolidaysList(currentSettings.holidays);
+}
+
+function renderDoctorsList(doctors) {
+  const el = document.getElementById('st-doctors-list');
+  el.innerHTML = doctors.map((d, i) => `
+    <div style="display:grid;grid-template-columns:1fr 2fr 1fr 40px;gap:8px;align-items:center" data-doctor-idx="${i}">
+      <input class="search-box" value="${esc(d.name)}" placeholder="Dr. Name" data-field="name" style="font-size:13px;padding:7px 10px">
+      <input class="search-box" value="${esc(d.specialty||'')}" placeholder="Specialty" data-field="specialty" style="font-size:13px;padding:7px 10px">
+      <select class="filter-sel" data-field="department" style="font-size:12px">
+        ${['beauty','slimming','laser','gynecology'].map(dep=>`<option value="${dep}"${d.department===dep?' selected':''}>${DEPT_NAMES[dep]}</option>`).join('')}
+      </select>
+      <button class="btn-sm btn-cancel" onclick="removeDoctorRow(${i})" style="height:34px">&#10005;</button>
+    </div>`).join('');
+}
+
+function addDoctorRow() {
+  currentSettings.doctors = [...(currentSettings.doctors||[]), { name:'', specialty:'', department:'beauty' }];
+  renderDoctorsList(currentSettings.doctors);
+}
+
+function removeDoctorRow(i) {
+  currentSettings.doctors = (currentSettings.doctors||[]).filter((_,idx) => idx !== i);
+  renderDoctorsList(currentSettings.doctors);
+}
+
+function renderServicesList(services) {
+  const el = document.getElementById('st-services-list');
+  el.innerHTML = services.map((s, i) => `
+    <div style="display:grid;grid-template-columns:2fr 1fr 80px 40px;gap:4px;align-items:center" data-svc-idx="${i}">
+      <input class="search-box" value="${esc(s.name)}" placeholder="Service name" data-field="name" style="font-size:13px;padding:6px 10px">
+      <select class="filter-sel" data-field="department" style="font-size:12px">
+        ${['beauty','slimming','laser','gynecology'].map(d=>`<option value="${d}"${s.department===d?' selected':''}>${DEPT_NAMES[d]}</option>`).join('')}
+      </select>
+      <input class="search-box" value="${s.priceOMR||0}" type="number" min="0" data-field="priceOMR" style="font-size:13px;padding:6px 8px">
+      <button class="btn-sm btn-cancel" onclick="removeServiceRow(${i})" style="height:32px">&#10005;</button>
+    </div>`).join('');
+}
+
+function addServiceRow() {
+  currentSettings.services = [...(currentSettings.services||[]), { name:'', department:'beauty', priceOMR:0 }];
+  renderServicesList(currentSettings.services);
+}
+
+function removeServiceRow(i) {
+  currentSettings.services = (currentSettings.services||[]).filter((_,idx) => idx !== i);
+  renderServicesList(currentSettings.services);
+}
+
+function collectSettingsFromUI() {
+  // Clinic
+  const clinic = {
+    name:      document.getElementById('st-name').value.trim(),
+    nameAr:    document.getElementById('st-nameAr').value.trim(),
+    address:   document.getElementById('st-address').value.trim(),
+    addressAr: document.getElementById('st-addressAr').value.trim(),
+    phone:     document.getElementById('st-phone').value.trim()
+  };
+  // Hours
+  const hours = {
+    open:      document.getElementById('st-open').value,
+    close:     document.getElementById('st-close').value,
+    restStart: document.getElementById('st-restStart').value,
+    restEnd:   document.getElementById('st-restEnd').value
+  };
+  // Work days
+  const workDays = getWorkDaysFromUI();
+  // Dept capacity/close
+  const departmentCapacity  = {};
+  const departmentCloseHour = {};
+  ['beauty','slimming','laser','gynecology'].forEach(d => {
+    departmentCapacity[d]  = parseInt(document.getElementById(`st-cap-${d}`).value)   || 1;
+    departmentCloseHour[d] = parseInt(document.getElementById(`st-close-${d}`).value) || 20;
+  });
+  // Doctors
+  const doctors = [];
+  document.querySelectorAll('#st-doctors-list > div[data-doctor-idx]').forEach(row => {
+    const name      = row.querySelector('[data-field="name"]').value.trim();
+    const specialty = row.querySelector('[data-field="specialty"]').value.trim();
+    const department= row.querySelector('[data-field="department"]').value;
+    if (name) doctors.push({ name, specialty, department });
+  });
+  // Services
+  const services = [];
+  document.querySelectorAll('#st-services-list > div[data-svc-idx]').forEach(row => {
+    const name       = row.querySelector('[data-field="name"]').value.trim();
+    const department = row.querySelector('[data-field="department"]').value;
+    const priceOMR   = parseFloat(row.querySelector('[data-field="priceOMR"]').value) || 0;
+    if (name) services.push({ name, department, priceOMR });
+  });
+
+  return { clinic, hours, workDays, holidays: currentSettings.holidays || [], departmentCapacity, departmentCloseHour, doctors, services };
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('settings-save-btn');
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+  try {
+    const data = collectSettingsFromUI();
+    await API.call('PUT', '/api/settings', data);
+    currentSettings = data;
+    const msg = document.getElementById('settings-saved-msg');
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 4000);
+    toast('Settings saved. All systems updated.', 'success');
+  } catch (err) {
+    toast('Save failed: ' + err.message, 'error');
+  } finally {
+    btn.innerHTML = 'Save All Changes';
+    btn.disabled = false;
+  }
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────

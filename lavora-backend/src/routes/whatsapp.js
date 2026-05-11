@@ -14,6 +14,7 @@ const notify          = require('../services/notificationService');
 const log             = require('../services/logger').child('WHATSAPP');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService }         = require('../services/extractionService');
+const { getSettings }          = require('../services/settingsService');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -167,12 +168,14 @@ function getDepartment(service) {
   return 'beauty';
 }
 
-const DEPT_CAPACITY  = { laser: 3, slimming: 4, beauty: 1, gynecology: 1 };
-const DEPT_CLOSE_HH  = { laser: 23, slimming: 20, beauty: 20, gynecology: 20 };
 const DEPT_SLOT_MINS = { gynecology: 30 };
-const OPEN_HH        = 8;
-const REST_START_HH  = 14;
-const REST_END_HH    = 15;
+
+// Read live from settings (cached)
+function deptCapacity(dept) { return (getSettings().departmentCapacity || {})[dept] ?? { beauty:1, slimming:4, laser:3, gynecology:1 }[dept] ?? 1; }
+function deptCloseHH(dept)  { return (getSettings().departmentCloseHour || {})[dept] ?? { beauty:20, slimming:20, laser:23, gynecology:20 }[dept] ?? 20; }
+function openHH()           { return parseInt((getSettings().hours?.open      || '08:00').split(':')[0], 10); }
+function restStartHH()      { return parseInt((getSettings().hours?.restStart || '14:00').split(':')[0], 10); }
+function restEndHH()        { return parseInt((getSettings().hours?.restEnd   || '15:00').split(':')[0], 10); }
 
 function timeToMinutes(t) {
   const [h, m] = (t || '').split(':').map(Number);
@@ -185,20 +188,24 @@ function formatCloseTime(hh) {
 }
 
 function validateSlot(dateStr, timeStr, department) {
+  const s    = getSettings();
   const date = new Date(dateStr + 'T00:00:00');
   const dow  = date.getDay();
-  if (dow === 5) return 'friday_closed';
+  const DOW_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  if (s.holidays && s.holidays.includes(dateStr)) return 'holiday';
+  if (!(s.workDays || []).includes(DOW_NAMES[dow])) return 'day_closed';
 
   const mins      = timeToMinutes(timeStr);
-  const openMins  = OPEN_HH * 60;
-  const restStart = REST_START_HH * 60;
-  const restEnd   = REST_END_HH * 60;
-  const closeHH   = DEPT_CLOSE_HH[department] || 20;
-  const closeMins = closeHH * 60;
+  const openMins  = openHH() * 60;
+  const restStart = restStartHH() * 60;
+  const restEnd   = restEndHH() * 60;
+  const closeHH_  = deptCloseHH(department);
+  const closeMins = closeHH_ * 60;
 
   if (mins < openMins)                     return 'before_open';
   if (mins >= restStart && mins < restEnd) return 'rest_time';
-  if (mins >= closeMins)                   return `after_close:${closeHH}`;
+  if (mins >= closeMins)                   return `after_close:${closeHH_}`;
   return null;
 }
 
@@ -208,8 +215,8 @@ async function countSlotBookings(date, time, department) {
   const slotWin = DEPT_SLOT_MINS[department] || 0;
 
   return all.filter(a => {
-    if (a.status === 'Cancelled') return false;
-    if (a.date !== date)          return false;
+    if (a.status === 'Cancelled')               return false;
+    if (a.date !== date)                        return false;
     if (getDepartment(a.service) !== department) return false;
     if (slotWin === 0) return a.time === time;
     return Math.abs(timeToMinutes(a.time) - reqMins) < slotWin;
@@ -219,25 +226,29 @@ async function countSlotBookings(date, time, department) {
 // Returns up to maxSlots available time strings spread across morning AND evening
 async function getAvailableSlots(dateStr, service, maxSlots = 4) {
   const dept     = getDepartment(service);
-  const closeHH  = DEPT_CLOSE_HH[dept];
+  const closeHH  = deptCloseHH(dept);
   const stepMins = dept === 'gynecology' ? 30 : 60;
+  const cap      = deptCapacity(dept);
+  const openMin  = openHH() * 60;
+  const rsHH     = restStartHH();
+  const reHH     = restEndHH();
 
-  const date = new Date(dateStr + 'T00:00:00');
-  if (date.getDay() === 5) return [];
+  if (validateSlot(dateStr, '12:00', dept) === 'day_closed') return [];
+  if (validateSlot(dateStr, '12:00', dept) === 'holiday')    return [];
 
   // Collect ALL available slots across the full day
-  const morning = []; // 08:00 – 13:00
-  const evening = []; // 15:00 – close
+  const morning = []; // open – rest_start
+  const evening = []; // rest_end – close
 
-  for (let totalMins = OPEN_HH * 60; totalMins < closeHH * 60; totalMins += stepMins) {
+  for (let totalMins = openMin; totalMins < closeHH * 60; totalMins += stepMins) {
     const h = Math.floor(totalMins / 60);
     const m = totalMins % 60;
-    if (h >= REST_START_HH && h < REST_END_HH) continue;
+    if (h >= rsHH && h < reHH) continue;
     const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     const booked  = await countSlotBookings(dateStr, timeStr, dept);
-    if (booked < DEPT_CAPACITY[dept]) {
-      if (h < REST_START_HH) morning.push(timeStr);
-      else                   evening.push(timeStr);
+    if (booked < cap) {
+      if (h < rsHH) morning.push(timeStr);
+      else          evening.push(timeStr);
     }
   }
 
@@ -426,13 +437,14 @@ async function executeTool(name, input, callerPhone) {
         const t    = parseTime(input.time) || input.time;
         const svc  = input.service || '';
         const dept = getDepartment(svc);
-        const cap  = DEPT_CAPACITY[dept];
+        const cap  = deptCapacity(dept);
 
         const err = validateSlot(d, t, dept);
-        if (err === 'friday_closed') return { available: false, result: 'Clinic is closed on Fridays.' };
-        if (err === 'before_open')   return { available: false, result: 'Clinic opens at 8:00 AM.' };
-        if (err === 'rest_time')     return { available: false, result: 'No appointments 2:00 PM–3:00 PM (rest break). Next available: 1:00 PM or 3:00 PM onward.' };
-        if (err?.startsWith('after_close')) return { available: false, result: `${dept} department closes at ${formatCloseTime(DEPT_CLOSE_HH[dept])}. Please suggest an earlier time.` };
+        if (err === 'day_closed' || err === 'friday_closed') return { available: false, result: 'Clinic is closed that day.' };
+        if (err === 'holiday')     return { available: false, result: 'Clinic is closed on that date (holiday).' };
+        if (err === 'before_open') return { available: false, result: `Clinic opens at ${getSettings().hours?.open || '08:00'}.` };
+        if (err === 'rest_time')   return { available: false, result: `No appointments during rest break (${getSettings().hours?.restStart}–${getSettings().hours?.restEnd}).` };
+        if (err?.startsWith('after_close')) return { available: false, result: `${dept} department closes at ${formatCloseTime(deptCloseHH(dept))}. Please suggest an earlier time.` };
 
         const booked = await countSlotBookings(d, t, dept);
         if (booked >= cap) return { available: false, result: `That slot is fully booked (${dept}). Please suggest a different time.`, slots_taken: booked, capacity: cap };
@@ -450,10 +462,11 @@ async function executeTool(name, input, callerPhone) {
         const cap     = DEPT_CAPACITY[dept];
 
         const err = validateSlot(d, t, dept);
-        if (err === 'friday_closed') return { success: false, result: 'Clinic is closed on Fridays.' };
-        if (err === 'rest_time')     return { success: false, result: 'No appointments 2:00 PM–3:00 PM (rest break).' };
-        if (err === 'before_open')   return { success: false, result: 'Clinic opens at 8:00 AM.' };
-        if (err?.startsWith('after_close')) return { success: false, result: `${dept} department closes at ${formatCloseTime(DEPT_CLOSE_HH[dept])}.` };
+        if (err === 'day_closed' || err === 'friday_closed') return { success: false, result: 'Clinic is closed that day.' };
+        if (err === 'holiday')     return { success: false, result: 'Clinic is closed on that date (holiday).' };
+        if (err === 'rest_time')   return { success: false, result: `No appointments during rest break (${getSettings().hours?.restStart}–${getSettings().hours?.restEnd}).` };
+        if (err === 'before_open') return { success: false, result: `Clinic opens at ${getSettings().hours?.open || '08:00'}.` };
+        if (err?.startsWith('after_close')) return { success: false, result: `${dept} department closes at ${formatCloseTime(deptCloseHH(dept))}.` };
 
         const booked = await countSlotBookings(d, t, dept);
         if (booked >= cap) return { success: false, result: `That slot is fully booked for ${dept}. Please suggest a different time.` };
@@ -563,17 +576,23 @@ async function executeTool(name, input, callerPhone) {
         return { available: true, slots, department: dept, date: d, result: `Available slots on ${d}: ${slots.join(', ')}` };
       }
 
-      case 'get_services':
-        return {
-          result: 'Test Clinic services by department.',
-          beauty: ['Botox & Dermal Fillers','Skinboosters (Profhilo, Polynucleotides)','Thread Lifting','Facial Lifting (Endolift, Fotona D)','PRP, Mesotherapy, Exosome Therapy','Skin Resurfacing & Chemical Peels','Scar & Stretch Mark Treatments','Vascular Laser'],
-          slimming: ['Onda Plus','Redustim','Body Wraps'],
-          laser: ['Full Body Laser Hair Removal','Partial Areas Laser Hair Removal'],
-          gynecology: ['Vaginal Rejuvenation','Pelvic Floor Strengthening','Non-surgical Intimate Rejuvenation','Vaginoplasty & Labiaplasty']
-        };
+      case 'get_services': {
+        const s = getSettings();
+        const byDept = { beauty: [], slimming: [], laser: [], gynecology: [] };
+        (s.services || []).forEach(svc => { if (byDept[svc.department]) byDept[svc.department].push(svc.name); });
+        return { result: `${s.clinic?.name || 'Test Clinic'} services by department.`, ...byDept };
+      }
 
-      case 'get_working_hours':
-        return { result: 'Saturday–Thursday 8:00 AM–11:00 PM (rest break 2–3 PM, no appointments). Beauty/Slimming/Gynecology close at 8:00 PM. Laser closes at 11:00 PM. Closed Fridays.' };
+      case 'get_working_hours': {
+        const s   = getSettings();
+        const wds = (s.workDays || []).join(', ');
+        const h   = s.hours || {};
+        const dch = s.departmentCloseHour || {};
+        return {
+          result: `${wds}: ${h.open || '08:00'}–${h.close || '23:00'} (rest break ${h.restStart || '14:00'}–${h.restEnd || '15:00'}, no appointments). ` +
+                  `Beauty/Slimming/Gynecology close at ${dch.beauty || 20}:00. Laser closes at ${dch.laser || 23}:00. Closed on days not listed above.`
+        };
+      }
 
       default:
         return { result: 'Unknown tool.' };
@@ -586,6 +605,28 @@ async function executeTool(name, input, callerPhone) {
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 function buildSystemPrompt(callerPhone, profile) {
+  const s = getSettings();
+  const clinicName   = s.clinic?.name    || 'Test Clinic';
+  const clinicNameAr = s.clinic?.nameAr  || 'عيادة تيست';
+  const address      = s.clinic?.address || 'Al Ghubrah, Muscat';
+  const addressAr    = s.clinic?.addressAr || 'الغبرة، مسقط';
+
+  // Build doctor list for beauty department
+  const beautyDrs = (s.doctors || []).filter(d => d.department === 'beauty' || !d.department);
+  const gynoDr    = (s.doctors || []).find(d => d.department === 'gynecology');
+  const beautyDrList = beautyDrs.map((d, i) => `${i+1} ${d.name} — ${d.specialty || ''}`).join('\n');
+
+  // Build service lists by department
+  const svcByDept = { beauty: [], slimming: [], laser: [], gynecology: [] };
+  (s.services || []).forEach(svc => { if (svcByDept[svc.department]) svcByDept[svc.department].push(svc.name); });
+
+  // Working hours summary
+  const wds = (s.workDays || ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday']).join('–');
+  const openT  = s.hours?.open      || '08:00';
+  const closeT = s.hours?.close     || '23:00';
+  const rsT    = s.hours?.restStart || '14:00';
+  const reT    = s.hours?.restEnd   || '15:00';
+
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
@@ -601,12 +642,13 @@ Upcoming appointment: ${profile.upcomingAppointment ? `${profile.upcomingAppoint
     : `CRM LOOKUP — NEW CLIENT: Number not found in system.
 → Treat as new. Collect their name naturally early in the conversation.`;
 
-  return `You are Lara (لارا), the WhatsApp AI receptionist for Test Clinic — a prestigious multi-specialty aesthetic, dermatology, and regenerative medicine clinic in Muscat, Oman.
+  return `You are Lara (لارا), the WhatsApp AI receptionist for ${clinicName} — a prestigious multi-specialty aesthetic, dermatology, and regenerative medicine clinic in Muscat, Oman.
 Brand tagline: "Where Science, Beauty, and Longevity Meet."
 You are warm, brief, helpful, and professional. Every message must feel like it came from a real, thoughtful receptionist — not a chatbot.
 
 TODAY: ${today}
 PATIENT WHATSAPP NUMBER: ${callerPhone}
+CLINIC: ${clinicName} (${clinicNameAr}) — ${address} (${addressAr})
 
 ${clientContext}
 
@@ -624,15 +666,15 @@ LANGUAGE RULES
 STEP 1 — OPENING MESSAGE (always bilingual)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FOR NEW CLIENT — send exactly:
-"👋 أهلاً بك في عيادة تيست!
-Welcome to Test Clinic — where science, beauty & longevity meet. ✨
+"👋 أهلاً بك في ${clinicNameAr}!
+Welcome to ${clinicName} — where science, beauty & longevity meet. ✨
 
 How can I help you today?
 1 Learn about our services
 2 Book an appointment"
 
 FOR RETURNING CLIENT — send exactly (replace [Name] with their name from CRM):
-"👋 أهلاً وسهلاً [Name]! Welcome back to Test Clinic. ✨
+"👋 أهلاً وسهلاً [Name]! Welcome back to ${clinicName}. ✨
 
 How can I help you today?
 1 Check upcoming appointment
@@ -675,42 +717,28 @@ STEP 3 — SHOW SERVICES FOR SELECTED DEPARTMENT
 IF BEAUTY (1):
 "Our Beauty & Aesthetics services: ✨
 
-1 Botox & Dermal Fillers
-2 Skinboosters (Profhilo, Polynucleotides)
-3 Thread Lifting
-4 Facial Lifting (Endolift, Fotona D)
-5 PRP & Mesotherapy
-6 Exosome Therapy
-7 Skin Resurfacing & Chemical Peels
-8 Scar & Stretch Mark Treatment
-9 Vascular Laser
+${svcByDept.beauty.map((s,i)=>`${i+1} ${s}`).join('\n')}
 
 Which service are you interested in?"
 
 IF SLIMMING (2):
 "Our Body Slimming services: 🌿
 
-1 Onda Plus
-2 Redustim
-3 Body Wraps
+${svcByDept.slimming.map((s,i)=>`${i+1} ${s}`).join('\n')}
 
 Which would you like to book?"
 
 IF LASER HAIR REMOVAL (3):
-"Our Laser Hair Removal is available for both men and women. 🌿
+"Our Laser Hair Removal services: 🌿
 
-1 Full body
-2 Specific area
+${svcByDept.laser.map((s,i)=>`${i+1} ${s}`).join('\n')}
 
 Which would you prefer?"
 
 IF GYNECOLOGY (4):
 "Our Gynecology services: 🌿
 
-1 Vaginal Rejuvenation
-2 Pelvic Floor Strengthening
-3 Non-surgical Intimate Rejuvenation
-4 Vaginoplasty & Labiaplasty
+${svcByDept.gynecology.map((s,i)=>`${i+1} ${s}`).join('\n')}
 
 Which service are you interested in?"
 
@@ -720,16 +748,14 @@ STEP 4 — DOCTOR SELECTION (BEAUTY ONLY — MANDATORY, NEVER SKIP)
 After Beauty service is selected, ALWAYS ask:
 "Which doctor would you like to book with? 👩‍⚕️
 
-1 Dr. Neda — Dermatology & Cosmetic Specialist
-2 Dr. Hussein — Dermatology, Cosmetic & Laser Specialist
-3 Dr. Amani — Dermatology & Cosmetic Specialist
+${beautyDrList}
 
 If you have no preference, I can check who has the earliest availability."
 
 → Client selects OR says no preference → if no preference, assign earliest available → proceed to STEP 5.
 
 NOTES:
-- Gynecology: always Dr. Leila — do NOT ask the client to choose.
+- Gynecology: always ${gynoDr ? gynoDr.name : 'the gynecology doctor'} — do NOT ask the client to choose.
 - Slimming and Laser: device-based — no doctor needed, skip to STEP 5.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -768,13 +794,12 @@ OR: "Would you like me to check what's available for you?"
 If client says "check for me" → call get_available_slots again and offer a new list.
 
 SLOT RULES (enforced automatically by tools — never explain to client):
-- No slots 2:00 PM–3:00 PM (rest time).
-- Beauty & Gynecology: max 1 client per slot.
-- Slimming: max 4 clients per slot.
-- Laser: max 3 clients per slot.
-- Beauty, Slimming, Gynecology: last slot by 8:00 PM.
-- Laser: last slot by 11:00 PM.
-- Friday: no slots.
+- No slots ${rsT}–${reT} (rest time).
+- Beauty & Gynecology: max ${(s.departmentCapacity||{}).beauty||1} client per slot.
+- Slimming: max ${(s.departmentCapacity||{}).slimming||4} clients per slot.
+- Laser: max ${(s.departmentCapacity||{}).laser||3} clients per slot.
+- Open days: ${wds} ${openT}–${closeT}.
+- Closed days not listed above.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 7 — CONFIRM BOOKING PHONE NUMBER
@@ -798,7 +823,7 @@ English:
 🕐 [Time]
 💆 [Service]
 👩‍⚕️ [Doctor — only if applicable]
-📍 Test Clinic, Al Ghubrah, Muscat
+📍 ${clinicName}, ${address}
 
 We look forward to seeing you! 🌿
 We'll send you a reminder 24 hours before your appointment."
@@ -810,7 +835,7 @@ Arabic:
 🕐 [الوقت]
 💆 [الخدمة]
 👩‍⚕️ [الطبيب — إن وجد فقط]
-📍 عيادة تيست، الغبرة، مسقط
+📍 ${clinicNameAr}، ${addressAr}
 
 نتطلع لرؤيتك! 🌿
 سنرسل لك تذكيراً قبل ٢٤ ساعة من موعدك."

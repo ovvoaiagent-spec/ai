@@ -10,6 +10,7 @@ const sms = require('../services/smsService');
 const log = require('../services/logger').child('API');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
+const settingsService = require('../services/settingsService');
 
 router.use(requireApiKey);
 
@@ -587,6 +588,26 @@ router.get('/test-register-call', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ─── GET /api/settings ───────────────────────────────────────────────────────
+router.get('/settings', (req, res) => {
+  try {
+    res.json(settingsService.getSettings());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PUT /api/settings ───────────────────────────────────────────────────────
+router.put('/settings', (req, res) => {
+  try {
+    const saved = settingsService.saveSettings(req.body);
+    log.info('Settings updated via API');
+    res.json({ ok: true, settings: saved });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
