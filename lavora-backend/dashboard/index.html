@@ -826,12 +826,13 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         </div>
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
         <button class="cal-dept-btn active" data-dept="" onclick="setCalDept('',this)">All</button>
         <button class="cal-dept-btn" data-dept="beauty"     onclick="setCalDept('beauty',this)"     style="--dc:var(--dept-beauty)">Beauty</button>
         <button class="cal-dept-btn" data-dept="slimming"   onclick="setCalDept('slimming',this)"   style="--dc:var(--dept-slimming)">Slimming</button>
         <button class="cal-dept-btn" data-dept="laser"      onclick="setCalDept('laser',this)"      style="--dc:var(--dept-laser)">Laser</button>
         <button class="cal-dept-btn" data-dept="gynecology" onclick="setCalDept('gynecology',this)" style="--dc:var(--dept-gyno)">Gynecology</button>
+        <input class="search-box" id="cal-search" placeholder="Search name or service..." oninput="calSearchInput()" style="margin-left:auto;max-width:240px;padding:6px 12px;font-size:12px">
       </div>
       <div class="cal-outer">
         <div class="cal-grid" id="cal-grid"></div>
@@ -844,6 +845,7 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <div class="page-header">
           <span class="page-title">Patient Portfolio</span>
           <span id="patients-count-label" style="font-size:13px;color:var(--text3);margin-left:4px"></span>
+          <button class="btn-outline" onclick="exportPatientListCSV()">Export CSV</button>
         </div>
         <div class="toolbar">
           <input class="search-box" id="patients-search" placeholder="Search by name or phone..." oninput="renderPatients()">
@@ -1636,6 +1638,26 @@ function downloadCSV(rows, filename) {
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }
 
+function exportPatientListCSV() {
+  const byPhone = {};
+  allAppointments.forEach(a => {
+    if (!a.phone) return;
+    (byPhone[a.phone] = byPhone[a.phone] || []).push(a);
+  });
+  const rows = Object.entries(byPhone).map(([phone, apts]) => {
+    apts.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+    const latest    = apts[apts.length - 1];
+    const confirmed = apts.filter(a => a.status === 'Confirmed').length;
+    const depts     = [...new Set(apts.map(a => getDepartment(a.service)))].join(', ');
+    return { name: latest.name || phone, phone, visits: apts.length, confirmed, departments: depts, lastService: latest.service, lastDate: latest.date };
+  });
+  rows.sort((a,b) => a.name.localeCompare(b.name));
+  const h = ['Name','Phone','Total Visits','Confirmed','Departments','Last Service','Last Visit Date'];
+  const lines = rows.map(r => [r.name, r.phone, r.visits, r.confirmed, r.departments, r.lastService, r.lastDate].map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(','));
+  const url = URL.createObjectURL(new Blob([[h.join(','), ...lines].join('\n')], {type:'text/csv'}));
+  const a = document.createElement('a'); a.href = url; a.download = `patients-${todayStr()}.csv`; a.click(); URL.revokeObjectURL(url);
+}
+
 // ─── Patient History ──────────────────────────────────────────────────────────
 function openPatientHistory(phone) {
   const apts = allAppointments.filter(a => a.phone === phone).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
@@ -2225,6 +2247,12 @@ function backToPatients() {
 // ─── Calendar ────────────────────────────────────────────────────────────────
 let calWeekOffset  = 0;
 let calDeptFilter  = '';
+let calSearch      = '';
+
+function calSearchInput() {
+  calSearch = (document.getElementById('cal-search')?.value || '').toLowerCase();
+  renderCalendar();
+}
 
 function calWeekDates(offset) {
   const today = new Date();
@@ -2262,7 +2290,8 @@ function renderCalendar() {
   const aptMap  = {};
   allAppointments
     .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time &&
-      (!calDeptFilter || getDepartment(a.service) === calDeptFilter))
+      (!calDeptFilter || getDepartment(a.service) === calDeptFilter) &&
+      (!calSearch || (a.name||'').toLowerCase().includes(calSearch) || (a.service||'').toLowerCase().includes(calSearch)))
     .forEach(a => {
       const h   = parseInt(a.time.split(':')[0]);
       const key = `${a.date}_${h}`;
