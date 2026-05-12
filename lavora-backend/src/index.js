@@ -141,6 +141,35 @@ async function start() {
     log.info(`WhatsApp  : ${process.env.WHATSAPP_PHONE_NUMBER_ID ? 'Configured ✅' : 'Not configured'}`);
     log.info(`Pipeline  : ElevenLabs ConvAI (voice) + WhatsApp AI (chat)`);
   });
+
+  // ── Graceful shutdown ─────────────────────────────────────────────────────
+  // Railway sends SIGTERM before killing the container. We stop accepting new
+  // connections, wait for in-flight requests to drain, then stop the job queue
+  // and close the DB pool cleanly. This prevents dropped bookings on every deploy.
+  async function shutdown(signal) {
+    log.info(`${signal} received — shutting down gracefully`);
+
+    server.close(async () => {
+      log.info('HTTP server closed (no new connections)');
+      try {
+        await jobQueue.stop();
+        if (db.pool) await db.pool.end();
+        log.info('Shutdown complete');
+      } catch (e) {
+        log.warn(`Shutdown error: ${e.message}`);
+      }
+      process.exit(0);
+    });
+
+    // Force exit after 15 seconds if drain takes too long
+    setTimeout(() => {
+      log.warn('Shutdown timeout — forcing exit');
+      process.exit(1);
+    }, 15000);
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
 }
 
 start();
