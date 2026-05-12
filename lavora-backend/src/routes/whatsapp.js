@@ -169,13 +169,15 @@ function getDepartment(service) {
 }
 
 const DEPT_SLOT_MINS = { gynecology: 30 };
+const DEPT_CAPACITY  = { beauty: 1, slimming: 4, laser: 3, gynecology: 1 };
 
 // Read live from settings (cached)
-function deptCapacity(dept) { return (getSettings().departmentCapacity || {})[dept] ?? { beauty:1, slimming:4, laser:3, gynecology:1 }[dept] ?? 1; }
+function deptCapacity(dept) { return (getSettings().departmentCapacity || {})[dept] ?? DEPT_CAPACITY[dept] ?? 1; }
 function deptCloseHH(dept)  { return (getSettings().departmentCloseHour || {})[dept] ?? { beauty:20, slimming:20, laser:23, gynecology:20 }[dept] ?? 20; }
 function openHH()           { return parseInt((getSettings().hours?.open      || '08:00').split(':')[0], 10); }
 function restStartHH()      { return parseInt((getSettings().hours?.restStart || '14:00').split(':')[0], 10); }
 function restEndHH()        { return parseInt((getSettings().hours?.restEnd   || '15:00').split(':')[0], 10); }
+const REST_END_HH = 15; // fallback constant used in getAvailableSlots distribution
 
 function timeToMinutes(t) {
   const [h, m] = (t || '').split(':').map(Number);
@@ -459,7 +461,7 @@ async function executeTool(name, input, callerPhone) {
         const service = matchService(input.service) || input.service;
         const doctor  = input.doctor || '';
         const dept    = getDepartment(service);
-        const cap     = DEPT_CAPACITY[dept];
+        const cap     = deptCapacity(dept);
 
         const err = validateSlot(d, t, dept);
         if (err === 'day_closed' || err === 'friday_closed') return { success: false, result: 'Clinic is closed that day.' };
@@ -546,10 +548,10 @@ async function executeTool(name, input, callerPhone) {
         const err = validateSlot(newDate, newTime, dept);
         if (err === 'friday_closed') return { success: false, result: 'Clinic is closed on Fridays.' };
         if (err === 'rest_time')     return { success: false, result: 'No appointments 2:00 PM–3:00 PM (rest break).' };
-        if (err?.startsWith('after_close')) return { success: false, result: `${dept} closes at ${formatCloseTime(DEPT_CLOSE_HH[dept])}.` };
+        if (err?.startsWith('after_close')) return { success: false, result: `${dept} closes at ${formatCloseTime(deptCloseHH(dept))}.` };
 
         const booked = await countSlotBookings(newDate, newTime, dept);
-        if (booked >= DEPT_CAPACITY[dept]) return { success: false, result: `That slot is fully booked. Please suggest another time.` };
+        if (booked >= deptCapacity(dept)) return { success: false, result: `That slot is fully booked. Please suggest another time.` };
 
         await db.updateAppointment(apt.id, { date: newDate, time: newTime, status: 'Confirmed', reminderSent: false });
         const updated = { ...apt, date: newDate, time: newTime };
