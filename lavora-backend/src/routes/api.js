@@ -3,6 +3,7 @@ const dayjs = require('dayjs');
 const router = express.Router();
 
 const { requireApiKey } = require('../middleware/auth');
+const { tenantContext } = require('../middleware/tenantContext');
 const { validate, schemas } = require('../middleware/validate');
 const nurseSessionStore  = require('../services/nurseSessionStore');
 const db = require('../services/localDbService');
@@ -35,11 +36,12 @@ router.post('/nurse-login', validate(schemas.nurseLogin), (req, res) => {
 });
 
 router.use(requireApiKey);
+router.use(tenantContext(db.pool));
 
 // ─── GET /api/appointments ────────────────────────────────────────────────────
 router.get('/appointments', validate(schemas.appointmentQuery, 'query'), async (req, res) => {
   try {
-    let appointments = await db.getAllAppointments();
+    let appointments = await db.getAllAppointments(req.clinicId);
 
     const { date, status, source } = req.validated;
     if (date) appointments = appointments.filter(a => a.date === date);
@@ -57,7 +59,7 @@ router.get('/appointments', validate(schemas.appointmentQuery, 'query'), async (
 router.get('/appointments/today', async (req, res) => {
   try {
     const today = dayjs().format('YYYY-MM-DD');
-    const all = await db.getAllAppointments();
+    const all = await db.getAllAppointments(req.clinicId);
     const todayApts = all.filter(a => a.date === today && a.status !== 'Cancelled');
     res.json({ date: today, count: todayApts.length, appointments: todayApts });
   } catch (err) {
@@ -75,7 +77,7 @@ router.post('/appointments', validate(schemas.appointment), async (req, res) => 
     const normalizedTime = parseTime(time) || time;
     const normalizedService = matchService(service) || service;
 
-    const conflict = await db.checkConflict(normalizedDate, normalizedTime, doctor);
+    const conflict = await db.checkConflict(normalizedDate, normalizedTime, doctor, req.clinicId);
     if (conflict) {
       return res.status(409).json({
         error: 'Conflict: the requested date/time slot is already booked',
@@ -101,7 +103,7 @@ router.post('/appointments', validate(schemas.appointment), async (req, res) => 
       timestamp: new Date().toISOString()
     };
 
-    await db.appendAppointment(apt);
+    await db.appendAppointment(apt, req.clinicId);
     googleSync.book(apt);
     sms.sendBookingConfirmation(apt);
 
@@ -109,7 +111,8 @@ router.post('/appointments', validate(schemas.appointment), async (req, res) => 
       actor: 'Human',
       actionType: activityService.ACTION_TYPES.BOOKED,
       patientName: name,
-      details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | ID: ${aptId}`
+      details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | ID: ${aptId}`,
+      clinicId: req.clinicId
     });
 
     log.info(`Manual appointment created: ${aptId}`);
@@ -127,7 +130,7 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
     const { id } = req.params;
     const { name, phone, service, doctor, staff, date, time, status, notes } = req.validated;
 
-    const existing = await db.getAppointmentById(id);
+    const existing = await db.getAppointmentById(id, req.clinicId);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
     // Nurses may only update staff + status (Confirmed/Pending)
@@ -136,12 +139,13 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
       if (staff  !== undefined) updates.staff  = staff;
       if (status !== undefined && ['Confirmed','Pending'].includes(status)) updates.status = status;
       if (!Object.keys(updates).length) return res.status(403).json({ error: 'Nurses may only update staff and status fields' });
-      const updated = await db.updateAppointment(id, updates);
+      const updated = await db.updateAppointment(id, updates, req.clinicId);
       await activityService.addActivity({
         actor: req.nurseSession.name,
         actionType: activityService.ACTION_TYPES.UPDATED,
         patientName: updated.name,
-        details: `Session completed by ${req.nurseSession.name} | ID: ${id}`
+        details: `Session completed by ${req.nurseSession.name} | ID: ${id}`,
+        clinicId: req.clinicId
       });
       return res.json({ success: true, appointment: updated });
     }
@@ -160,7 +164,7 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
     const newDate = updates.date || existing.date;
     const newTime = updates.time || existing.time;
     if (updates.date || updates.time) {
-      const others = (await db.getAllAppointments()).filter(a => a.id !== id && a.status !== 'Cancelled');
+      const others = (await db.getAllAppointments(req.clinicId)).filter(a => a.id !== id && a.status !== 'Cancelled');
       const conflict = others.some(a => a.date === newDate && a.time === newTime);
       if (conflict) {
         return res.status(409).json({
@@ -170,7 +174,7 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
       }
     }
 
-    const updated = await db.updateAppointment(id, updates);
+    const updated = await db.updateAppointment(id, updates, req.clinicId);
     if (updates.date || updates.time) {
       googleSync.reschedule(updated);
       sms.sendRescheduleConfirmation(updated);
@@ -183,7 +187,8 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
         ? activityService.ACTION_TYPES.RESCHEDULED
         : activityService.ACTION_TYPES.UPDATED,
       patientName: updated.name,
-      details: `ID: ${id} | Changes: ${Object.keys(updates).join(', ')}`
+      details: `ID: ${id} | Changes: ${Object.keys(updates).join(', ')}`,
+      clinicId: req.clinicId
     });
 
     res.json({ success: true, appointment: updated });
@@ -200,10 +205,10 @@ router.delete('/appointments/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = await db.getAppointmentById(id);
+    const existing = await db.getAppointmentById(id, req.clinicId);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
 
-    await db.hardDeleteAppointment(id);
+    await db.hardDeleteAppointment(id, req.clinicId);
     googleSync.cancel(existing);
     sms.sendCancellationConfirmation(existing);
 
@@ -211,7 +216,8 @@ router.delete('/appointments/:id', async (req, res) => {
       actor: 'Human',
       actionType: activityService.ACTION_TYPES.CANCELLED,
       patientName: existing.name,
-      details: `ID: ${id} | Service: ${existing.service} | Date: ${existing.date} ${existing.time}`
+      details: `ID: ${id} | Service: ${existing.service} | Date: ${existing.date} ${existing.time}`,
+      clinicId: req.clinicId
     });
 
     res.json({ success: true, message: `Appointment ${id} deleted` });
@@ -225,7 +231,7 @@ router.delete('/appointments/:id', async (req, res) => {
 // ─── GET /api/activity ────────────────────────────────────────────────────────
 router.get('/activity', async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
-  res.json({ activities: await activityService.getActivities(limit) });
+  res.json({ activities: await activityService.getActivities(limit, req.clinicId) });
 });
 
 // ─── POST /api/setup-agent ────────────────────────────────────────────────────
@@ -475,9 +481,10 @@ router.get('/test-stt', async (req, res) => {
 // ─── GET /api/debug ───────────────────────────────────────────────────────────
 router.get('/debug', async (req, res) => {
   try {
-    const all = await db.getAllAppointments();
+    const all = await db.getAllAppointments(req.clinicId);
     res.json({
       storage: process.env.DATABASE_URL ? 'postgresql' : 'local-json',
+      clinicId: req.clinicId,
       appointmentCount: all.length,
       sample: all.slice(-3)
     });
@@ -557,7 +564,7 @@ router.get('/test-tts', async (req, res) => {
 // ─── GET /api/stats ───────────────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
-    res.json(await db.getStats());
+    res.json(await db.getStats(req.clinicId));
   } catch (err) {
     console.error('[API] GET /stats error:', err.message);
     res.status(500).json({ error: err.message });
@@ -685,11 +692,39 @@ router.get('/test-whatsapp', async (req, res) => {
 // ─── GET /api/packages ────────────────────────────────────────────────────────
 router.get('/packages', async (req, res) => {
   try {
-    const all = await laserPkgSvc.getAllPackages();
+    const all = await db.getAllPackages(req.clinicId);
     const { status } = req.query;
     const filtered = status ? all.filter(p => p.status === status) : all;
     res.json({ count: filtered.length, packages: filtered });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/clinics ─────────────────────────────────────────────────────────
+router.get('/clinics', async (req, res) => {
+  try {
+    const clinics = await db.getAllClinics();
+    res.json({ count: clinics.length, clinics });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/clinics ────────────────────────────────────────────────────────
+router.post('/clinics', async (req, res) => {
+  try {
+    const { id, name, api_key } = req.body;
+    if (!id || !name || !api_key) {
+      return res.status(400).json({ error: 'id, name, and api_key are required' });
+    }
+    const clinic = await db.createClinic({ id, name, api_key });
+    log.info(`Clinic created: ${id}`);
+    res.status(201).json({ success: true, clinic });
+  } catch (err) {
+    if (err.message?.includes('unique') || err.code === '23505') {
+      return res.status(409).json({ error: 'Clinic ID or API key already exists' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

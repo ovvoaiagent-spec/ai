@@ -10,7 +10,7 @@ const ACTION_TYPES = {
   CALL_RECEIVED: 'CALL_RECEIVED'
 };
 
-async function addActivity({ actor, actionType, patientName = '', details = '' }) {
+async function addActivity({ actor, actionType, patientName = '', details = '', clinicId } = {}) {
   const entry = {
     id: uuidv4(),
     actor,
@@ -20,13 +20,13 @@ async function addActivity({ actor, actionType, patientName = '', details = '' }
     timestamp: new Date().toISOString()
   };
   console.log(`[ACTIVITY] ${actor} | ${actionType} | ${patientName} | ${details}`);
-  await db.appendActivity(entry);
+  await db.appendActivity(entry, clinicId);
   return entry;
 }
 
-async function getActivities(limit = 50) {
+async function getActivities(limit = 50, clinicId) {
   try {
-    const all = await db.getAllActivities();
+    const all = await db.getAllActivities(clinicId);
     return all.slice(0, limit);
   } catch {
     return [];
