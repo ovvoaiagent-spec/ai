@@ -262,6 +262,12 @@ router.post('/setup-agent', async (req, res) => {
     });
   }
 
+  const s = settingsService.getSettings();
+  const beautyDoctors = (s.doctors || [])
+    .filter(d => d.department === 'beauty')
+    .map(d => d.name);
+  const beautyDoctorList = beautyDoctors.join(', ');
+
   const SYSTEM_PROMPT = `You are the AI voice receptionist for Lavora Clinic in Muscat, Oman.
 Your name is Lavora Assistant. You are professional, warm, and refined.
 The caller's phone number is {{caller_id}}.
@@ -287,6 +293,10 @@ BOOKING FLOW — one step at a time
 2. Ask what service or treatment they want.
 3. Ask for their preferred appointment day.
 4. Ask for their preferred appointment time.
+4b. BEAUTY SERVICES ONLY (Botox, Fillers, Profhilo, Thread Lifting, Endolift, PRP, Mesotherapy, Exosomes, Stem Cell, Frax Pro, Picoway, RedTouch, Chemical Peels, Medical Skin Care, Dermatology, Consultation):
+    Ask: "Which doctor would you prefer? We have ${beautyDoctorList}."
+    — Wait for their choice. Use the exact doctor name when calling book_appointment.
+    — If they have no preference, suggest the first available doctor.
 5. NAME STEP:
    NEW CALLER: Ask for their full name.
    RETURNING CALLER: Skip — use {{patient_name}} as the name. Do NOT ask.
@@ -725,6 +735,38 @@ router.get('/packages', async (req, res) => {
     const { status } = req.query;
     const filtered = status ? all.filter(p => p.status === status) : all;
     res.json({ count: filtered.length, packages: filtered });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/packages ───────────────────────────────────────────────────────
+router.post('/packages', async (req, res) => {
+  try {
+    const { clientName, phone, service = 'Laser Hair Removal', type, notes } = req.body;
+    if (!clientName || !phone || !type) {
+      return res.status(400).json({ error: 'clientName, phone, and type (1/3/6) are required' });
+    }
+    if (![1, 3, 6].includes(Number(type))) {
+      return res.status(400).json({ error: 'type must be 1, 3, or 6' });
+    }
+    const pkg = {
+      id: `PKG-${Date.now()}`,
+      clientName,
+      phone,
+      service,
+      language: 'en',
+      type: Number(type),
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      followUpSent: false,
+      sessions: [],
+      pendingOffer: null,
+      notes: notes || ''
+    };
+    await db.savePackage(pkg, req.clinicId);
+    log.info(`Package created manually: ${pkg.id} for ${clientName}`);
+    res.status(201).json({ success: true, package: pkg });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

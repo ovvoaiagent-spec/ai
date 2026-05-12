@@ -954,9 +954,34 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
+          <button class="btn-primary" onclick="openAddPackageModal()" style="padding:7px 16px;font-size:13px">+ Add Package</button>
         </div>
       </div>
       <div id="packages-list"></div>
+    </div>
+
+    <!-- Add Package Modal -->
+    <div id="modal-add-package" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:none;align-items:center;justify-content:center">
+      <div style="background:var(--surface);border-radius:14px;padding:28px 28px 24px;width:400px;max-width:94vw;box-shadow:0 8px 40px rgba(0,0,0,.4)">
+        <div style="font-size:16px;font-weight:700;margin-bottom:20px">Add Laser Package</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="field"><label>Client Name *</label><input id="pkg-new-name" type="text" placeholder="Full name"></div>
+          <div class="field"><label>Phone *</label><input id="pkg-new-phone" type="text" placeholder="+968XXXXXXXX"></div>
+          <div class="field">
+            <label>Package Type *</label>
+            <select id="pkg-new-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text1);font-size:14px">
+              <option value="1">1 Session</option>
+              <option value="3">3 Sessions Package</option>
+              <option value="6" selected>6 Sessions Package</option>
+            </select>
+          </div>
+          <div class="field"><label>Notes (optional)</label><input id="pkg-new-notes" type="text" placeholder="e.g. paid in full, referred by..."></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:22px">
+          <button class="btn-primary" onclick="submitAddPackage()" style="flex:1">Save Package</button>
+          <button onclick="closeAddPackageModal()" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:none;color:var(--text1);cursor:pointer;font-size:14px">Cancel</button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -2639,6 +2664,38 @@ function deptCalToday() { deptCalWeekOffset = 0; renderDeptCalendar(); }
 
 // ─── Nurse Station ───────────────────────────────────────────────────────────
 // ─── Laser Packages ───────────────────────────────────────────────────────────
+function openAddPackageModal() {
+  document.getElementById('pkg-new-name').value = '';
+  document.getElementById('pkg-new-phone').value = '';
+  document.getElementById('pkg-new-type').value = '6';
+  document.getElementById('pkg-new-notes').value = '';
+  const m = document.getElementById('modal-add-package');
+  m.style.display = 'flex';
+}
+function closeAddPackageModal() {
+  document.getElementById('modal-add-package').style.display = 'none';
+}
+async function submitAddPackage() {
+  const clientName = document.getElementById('pkg-new-name').value.trim();
+  const phone      = document.getElementById('pkg-new-phone').value.trim();
+  const type       = document.getElementById('pkg-new-type').value;
+  const notes      = document.getElementById('pkg-new-notes').value.trim();
+  if (!clientName || !phone) { alert('Client name and phone are required.'); return; }
+  try {
+    const r = await fetch(`${CFG.url}/api/packages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': CFG.key },
+      body: JSON.stringify({ clientName, phone, type: Number(type), notes })
+    });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || 'Failed to create package'); return; }
+    closeAddPackageModal();
+    renderPackages();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 async function renderPackages() {
   const el = document.getElementById('packages-list');
   if (!el) return;
