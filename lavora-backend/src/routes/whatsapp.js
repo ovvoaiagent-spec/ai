@@ -115,7 +115,7 @@ async function lookupPatientProfile(whatsappPhone) {
 
     mine.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
     const latest   = mine[0];
-    const upcoming = mine.filter(a => a.status !== 'Cancelled' && a.date >= new Date().toISOString().split('T')[0]);
+    const upcoming = mine.filter(a => a.status !== 'Cancelled' && a.date >= new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10));
     upcoming.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
     return {
@@ -586,7 +586,7 @@ async function findActiveAppointment(phone) {
 
 async function findAllUpcomingAppointments(phone) {
   const norm  = normalizePhone(phone);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
   const all   = await db.getAllAppointments();
   const hits  = all.filter(a =>
     a.status !== 'Cancelled' &&
@@ -723,8 +723,10 @@ async function executeTool(name, input, callerPhone) {
         const dept    = getDepartment(apt.service);
 
         const err = validateSlot(newDate, newTime, dept);
-        if (err === 'friday_closed') return { success: false, result: 'Clinic is closed on Fridays.' };
+        if (err === 'day_closed')    return { success: false, result: 'Clinic is closed that day. Please choose a working day (Saturday–Thursday).' };
+        if (err === 'holiday')       return { success: false, result: 'Clinic is closed on that date (holiday).' };
         if (err === 'rest_time')     return { success: false, result: 'No appointments 2:00 PM–3:00 PM (rest break).' };
+        if (err === 'before_open')   return { success: false, result: `Clinic opens at ${getSettings().hours?.open || '08:00'}.` };
         if (err?.startsWith('after_close')) return { success: false, result: `${dept} closes at ${formatCloseTime(deptCloseHH(dept))}.` };
 
         const booked = await countSlotBookings(newDate, newTime, dept);
@@ -806,9 +808,10 @@ function buildSystemPrompt(callerPhone, profile) {
   const rsT    = s.hours?.restStart || '14:00';
   const reT    = s.hours?.restEnd   || '15:00';
 
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
+  const today = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    timeZone: 'Asia/Dubai'
+  }).format(new Date());
 
   const isReturning = !!profile;
   const clientContext = isReturning

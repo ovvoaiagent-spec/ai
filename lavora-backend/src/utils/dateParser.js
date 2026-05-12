@@ -3,6 +3,12 @@ const dayjs = require('dayjs');
 const customParseFormat = require('dayjs/plugin/customParseFormat');
 dayjs.extend(customParseFormat);
 
+// Clinic is in Asia/Dubai (UTC+4). On a UTC server, new Date() returns UTC time which
+// can be one calendar day behind Dubai — causing "after tomorrow" to parse as the wrong day.
+// dubaiNow() returns a Date whose local-date components reflect Dubai wall-clock time.
+const DUBAI_OFFSET_MS = 4 * 60 * 60 * 1000;
+function dubaiNow() { return new Date(Date.now() + DUBAI_OFFSET_MS); }
+
 const WORD_TO_NUM = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
   six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -116,8 +122,8 @@ function parseDate(text) {
   // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
-  // chrono-node handles most natural language dates
-  const parsed = chrono.parseDate(t, new Date(), { forwardDate: true });
+  // chrono-node handles most natural language dates — use Dubai time as reference
+  const parsed = chrono.parseDate(t, dubaiNow(), { forwardDate: true });
   if (parsed) return dayjs(parsed).format('YYYY-MM-DD');
 
   // Manual month name fallback
@@ -136,7 +142,7 @@ function parseDate(text) {
     const m = lower.match(rx);
     if (m) {
       const day = m[1] || m[2];
-      const year = new Date().getFullYear();
+      const year = dubaiNow().getFullYear();
       return `${year}-${num}-${String(parseInt(day)).padStart(2, '0')}`;
     }
   }
