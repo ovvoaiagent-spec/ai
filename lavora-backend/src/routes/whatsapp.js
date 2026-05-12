@@ -77,6 +77,13 @@ router.post('/whatsapp', async (req, res) => {
     session.lastActivity = Date.now();
     session.messages.push({ role: 'user', content: userText });
 
+    // Lock conversation language once the client replies to the bilingual greeting.
+    // Arabic Unicode block: U+0600–U+06FF. Once set, never re-detect.
+    if (!session.language && session.messages.some(m => m.role === 'assistant')) {
+      session.language = /[؀-ۿ]/.test(userText) ? 'ar' : 'en';
+      log.info(`[${from}] Language locked: ${session.language}`);
+    }
+
     // Laser package flow intercepts "1"/"2"/"3" replies before AI sees them
     const pkgReply = await handlePackageMessage(from, userText);
     if (pkgReply !== null) {
@@ -480,7 +487,7 @@ const TOOLS = [
 
 // ─── Agentic conversation loop ────────────────────────────────────────────────
 async function runConversation(callerPhone, session) {
-  const system   = buildSystemPrompt(callerPhone, session.profile);
+  const system   = buildSystemPrompt(callerPhone, session.profile, session.language);
   let   messages = [...session.messages];
 
   for (let turn = 0; turn < 8; turn++) {
@@ -520,7 +527,7 @@ async function runConversation(callerPhone, session) {
           const cnA  = s.clinic?.nameAr   || 'عيادة تيست';
           const adr  = s.clinic?.address  || 'Al Ghubrah, Muscat';
           const adrA = s.clinic?.addressAr || 'الغبرة، مسقط';
-          const lang = (block.input.language === 'ar') ? 'ar' : 'en';
+          const lang = block.input.language === 'ar' ? 'ar' : (block.input.language === 'en' ? 'en' : (session.language || 'en'));
           const isAr = lang === 'ar';
           const d = result.date, t = result.time, svc = result.service, dr = result.doctor || '';
           const dayLabel = new Date(d + 'T00:00:00').toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -785,7 +792,7 @@ async function executeTool(name, input, callerPhone) {
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────
-function buildSystemPrompt(callerPhone, profile) {
+function buildSystemPrompt(callerPhone, profile, detectedLanguage) {
   const s = getSettings();
   const clinicName   = s.clinic?.name    || 'Test Clinic';
   const clinicNameAr = s.clinic?.nameAr  || 'عيادة تيست';
@@ -837,8 +844,12 @@ ${clientContext}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LANGUAGE RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${detectedLanguage
+  ? `LOCKED LANGUAGE: ${detectedLanguage === 'ar'
+      ? 'ARABIC — every single message MUST be in Arabic only. No English words at all.'
+      : 'ENGLISH — every single message MUST be in English only. No Arabic words at all.'}`
+  : '- Detect the client\'s language from their FIRST reply after the greeting.'}
 - Always open with a bilingual greeting (Arabic + English together).
-- Detect the client's language from their FIRST reply after the greeting.
 - From that point: reply 100% in their chosen language for the whole conversation.
 - Arabic: use warm natural Omani dialect. Never stiff formal Arabic (فصحى).
 - English: clear, warm, professional.
