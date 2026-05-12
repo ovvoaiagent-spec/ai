@@ -817,12 +817,15 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
     <!-- Page: Calendar -->
     <div class="page" id="page-calendar">
       <div class="page-header">
-        <span class="page-title">Weekly Calendar</span>
-        <div style="display:flex;gap:6px;align-items:center">
+        <span class="page-title">Calendar</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <button class="btn-outline" onclick="calPrevWeek()">&#8592; Prev</button>
           <button class="btn-outline" onclick="calToday()">Today</button>
           <button class="btn-outline" onclick="calNextWeek()">Next &#8594;</button>
           <span id="cal-week-label" style="font-size:13px;font-weight:600;color:var(--text2);margin-left:4px"></span>
+          <input type="date" id="cal-date-picker" onchange="calJumpToDate(this.value)"
+            style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;cursor:pointer;color:var(--text2)">
+          <button class="btn-outline" id="cal-weeks-btn" onclick="calToggleWeeks(this)" style="white-space:nowrap">2 Weeks</button>
         </div>
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
@@ -1660,7 +1663,8 @@ function exportPatientListCSV() {
 
 // ─── Patient History ──────────────────────────────────────────────────────────
 function openPatientHistory(phone) {
-  const apts = allAppointments.filter(a => a.phone === phone).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
+  const norm = normPhone(phone);
+  const apts = allAppointments.filter(a => normPhone(a.phone) === norm).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
   if (!apts.length) return;
   document.getElementById('history-body').innerHTML = `
     <div style="padding:16px 24px;background:var(--bg);border-bottom:1px solid var(--border)">
@@ -2120,6 +2124,8 @@ function updateStaffDropdown() {
 const PT_COLORS = ['#c9a84c','#0891b2','#7c3aed','#db2777','#10b981','#f59e0b','#ef4444','#6366f1'];
 function ptColor(phone) { return PT_COLORS[phone.charCodeAt(phone.length-1) % PT_COLORS.length]; }
 function ptInitials(name) { return (name||'?').split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2) || '?'; }
+// Normalise phone to last 8 digits so +96812345678 and 96812345678 are treated as the same patient
+function normPhone(p) { return String(p||'').replace(/\D/g,'').slice(-8); }
 
 function renderPatients() {
   const search = (document.getElementById('patients-search')?.value || '').toLowerCase();
@@ -2128,14 +2134,17 @@ function renderPatients() {
   const byPhone = {};
   allAppointments.forEach(a => {
     if (!a.phone) return;
-    (byPhone[a.phone] = byPhone[a.phone] || []).push(a);
+    const key = normPhone(a.phone);
+    (byPhone[key] = byPhone[key] || []).push(a);
   });
 
-  let patients = Object.entries(byPhone).map(([phone, apts]) => {
+  let patients = Object.entries(byPhone).map(([key, apts]) => {
     apts.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
-    const name  = apts[apts.length-1].name || phone;
-    const depts = [...new Set(apts.map(a => getDepartment(a.service)))];
-    return { phone, name, apts, depts };
+    const latest = apts[apts.length-1];
+    const name   = latest.name || latest.phone;
+    const phone  = latest.phone; // display the most recent phone format
+    const depts  = [...new Set(apts.map(a => getDepartment(a.service)))];
+    return { phone, normKey: key, name, apts, depts };
   });
 
   if (search) patients = patients.filter(p =>
@@ -2159,7 +2168,7 @@ function renderPatients() {
     const col       = ptColor(p.phone);
     const initials  = ptInitials(p.name);
     return `
-      <div class="patient-card" onclick="showPatientDetail('${esc(p.phone)}')">
+      <div class="patient-card" onclick="showPatientDetail('${esc(p.normKey)}')">
         <div class="patient-card-head">
           <div class="patient-avatar" style="background:${col}">${initials}</div>
           <div>
@@ -2179,8 +2188,8 @@ function renderPatients() {
   }).join('');
 }
 
-function showPatientDetail(phone) {
-  const apts = allAppointments.filter(a => a.phone === phone);
+function showPatientDetail(normKey) {
+  const apts = allAppointments.filter(a => normPhone(a.phone) === normKey);
   if (!apts.length) return;
   apts.sort((a,b) => (b.date+b.time).localeCompare(a.date+a.time));
   const name = apts[0].name;
@@ -2248,21 +2257,43 @@ function backToPatients() {
 let calWeekOffset  = 0;
 let calDeptFilter  = '';
 let calSearch      = '';
+let calWeekCount   = 1; // 1 or 2 weeks
 
 function calSearchInput() {
   calSearch = (document.getElementById('cal-search')?.value || '').toLowerCase();
   renderCalendar();
 }
 
+function calToggleWeeks(btn) {
+  calWeekCount = calWeekCount === 1 ? 2 : 1;
+  btn.textContent = calWeekCount === 1 ? '2 Weeks' : '1 Week';
+  renderCalendar();
+}
+
+function calJumpToDate(dateStr) {
+  if (!dateStr) return;
+  const picked = new Date(dateStr + 'T00:00:00');
+  const today  = new Date();
+  // Saturday of today's week
+  const baseSat = new Date(today);
+  baseSat.setDate(today.getDate() - (today.getDay() + 1) % 7);
+  baseSat.setHours(0, 0, 0, 0);
+  // Saturday of picked date's week
+  const pickedSat = new Date(picked);
+  pickedSat.setDate(picked.getDate() - (picked.getDay() + 1) % 7);
+  pickedSat.setHours(0, 0, 0, 0);
+  calWeekOffset = Math.round((pickedSat - baseSat) / (7 * 24 * 3600 * 1000));
+  renderCalendar();
+}
+
 function calWeekDates(offset) {
   const today = new Date();
-  const day   = today.getDay(); // 0=Sun … 6=Sat
-  // Week starts Saturday: days since last Sat = (day + 1) % 7
+  const day   = today.getDay();
   const sincesat = (day + 1) % 7;
   const sat = new Date(today);
   sat.setDate(today.getDate() - sincesat + offset * 7);
   sat.setHours(0, 0, 0, 0);
-  return Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: 7 * calWeekCount }, (_, i) => {
     const d = new Date(sat);
     d.setDate(sat.getDate() + i);
     return d;
@@ -2280,10 +2311,15 @@ function renderCalendar() {
   const workDays = s.workDays || ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
   const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-  // Week label
+  // Dynamic grid columns (7 or 14 days)
+  document.getElementById('cal-grid').style.gridTemplateColumns = `54px repeat(${days.length}, 1fr)`;
+
+  // Week label & sync date picker
   const fmt = d => d.toLocaleDateString('en-OM', { month: 'short', day: 'numeric' });
   document.getElementById('cal-week-label').textContent =
-    `${fmt(days[0])} – ${fmt(days[6])}`;
+    `${fmt(days[0])} – ${fmt(days[days.length - 1])}`;
+  const picker = document.getElementById('cal-date-picker');
+  if (picker) picker.value = days[0].toISOString().split('T')[0];
 
   // Index appointments by date+hour
   const dayStrs = days.map(d => d.toISOString().split('T')[0]);
@@ -2349,8 +2385,8 @@ function renderCalendar() {
   document.getElementById('cal-grid').innerHTML = html;
 }
 
-function calPrevWeek() { calWeekOffset--; renderCalendar(); }
-function calNextWeek() { calWeekOffset++; renderCalendar(); }
+function calPrevWeek() { calWeekOffset -= calWeekCount; renderCalendar(); }
+function calNextWeek() { calWeekOffset += calWeekCount; renderCalendar(); }
 function calToday()    { calWeekOffset = 0; renderCalendar(); }
 
 function setCalDept(dept, btn) {
