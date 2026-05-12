@@ -374,7 +374,7 @@ async function runConversation(callerPhone, session) {
     let response;
     try {
       response = await anthropic.messages.create({
-        model:      'claude-haiku-4-5-20251001',
+        model:      'claude-sonnet-4-6',
         max_tokens: 800,
         system,
         tools:      TOOLS,
@@ -398,6 +398,24 @@ async function runConversation(callerPhone, session) {
         const result = await executeTool(block.name, block.input, callerPhone);
         log.info(`Tool ${block.name} → ${JSON.stringify(result).substring(0, 140)}`);
         toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+
+        // Intercept successful booking — return confirmation directly so the AI
+        // cannot skip book_appointment and generate a fake confirmation.
+        if (block.name === 'book_appointment' && result.success) {
+          const s   = getSettings();
+          const cn  = s.clinic?.name    || 'Test Clinic';
+          const cnA = s.clinic?.nameAr  || 'عيادة تيست';
+          const adr = s.clinic?.address || 'Al Ghubrah, Muscat';
+          const adrA = s.clinic?.addressAr || 'الغبرة، مسقط';
+          const lang = (block.input.language === 'ar') ? 'ar' : 'en';
+          const d = result.date, t = result.time, svc = result.service, dr = result.doctor || '';
+          const dayLabel = new Date(d + 'T00:00:00').toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long' });
+          const timeFmt  = new Date(`2000-01-01T${t}:00`).toLocaleTimeString('en-OM', { hour: 'numeric', minute: '2-digit', hour12: true });
+          if (lang === 'ar') {
+            return `✅ تم الحجز، ${result.name}!\n\n📅 ${d}\n🕐 ${t}\n💆 ${svc}${dr ? '\n👩‍⚕️ ' + dr : ''}\n📍 ${cnA}، ${adrA}\n\nنتطلع لرؤيتك! 🌿\nسنرسل لك تذكيراً قبل ٢٤ ساعة من موعدك.`;
+          }
+          return `✅ You're all set, ${result.name}!\n\n📅 ${dayLabel}\n🕐 ${timeFmt}\n💆 ${svc}${dr ? '\n👩‍⚕️ ' + dr : ''}\n📍 ${cn}, ${adr}\n\nWe look forward to seeing you! 🌿\nWe'll send you a reminder 24 hours before your appointment.`;
+        }
       }
       messages.push({ role: 'user', content: toolResults });
       continue;
@@ -816,7 +834,12 @@ Arabic: "أسجل موعدك على الرقم اللي تراسلنا منه، 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 8 — FINAL BOOKING CONFIRMATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Call check_availability → then book_appointment (include language: "ar" or "en" based on what the client is using) → then send this ONCE. Never repeat details again.
+MANDATORY sequence — never skip any step:
+1. Call check_availability first.
+2. If available → IMMEDIATELY call book_appointment as your very next action. Do NOT send any text. Do NOT say "let me book that for you". Just call the tool.
+3. The system handles the confirmation automatically after book_appointment succeeds. Do NOT write a confirmation message yourself.
+4. If book_appointment returns success: false → tell the client why and offer alternatives.
+NEVER send a confirmation message unless book_appointment returned success: true.
 
 English:
 "✅ You're all set, [Name]!
