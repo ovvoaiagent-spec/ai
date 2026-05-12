@@ -8,6 +8,7 @@ const db = require('../services/localDbService');
 const googleSync = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const sms = require('../services/notificationService');
+const laserPkgSvc = require('../services/laserPackageService');
 const log = require('../services/logger').child('API');
 const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
@@ -688,6 +689,18 @@ router.get('/test-whatsapp', async (req, res) => {
     res.json({ ok: true, config, whatsapp_response: result.data });
   } catch (err) {
     res.status(500).json({ ok: false, config, error: err.response?.data || err.message });
+  }
+});
+
+// ─── GET /api/packages ────────────────────────────────────────────────────────
+router.get('/packages', async (req, res) => {
+  try {
+    const all = await laserPkgSvc.getAllPackages();
+    const { status } = req.query;
+    const filtered = status ? all.filter(p => p.status === status) : all;
+    res.json({ count: filtered.length, packages: filtered });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

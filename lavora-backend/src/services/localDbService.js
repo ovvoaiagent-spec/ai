@@ -27,10 +27,11 @@ const DATA_DIR = path.join(__dirname, '../../data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const FILES = {
-  appointments : path.join(DATA_DIR, 'appointments.json'),
-  missed       : path.join(DATA_DIR, 'missed-captures.json'),
-  callLog      : path.join(DATA_DIR, 'call-log.json'),
-  activity     : path.join(DATA_DIR, 'activity-log.json')
+  appointments  : path.join(DATA_DIR, 'appointments.json'),
+  missed        : path.join(DATA_DIR, 'missed-captures.json'),
+  callLog       : path.join(DATA_DIR, 'call-log.json'),
+  activity      : path.join(DATA_DIR, 'activity-log.json'),
+  laserPackages : path.join(DATA_DIR, 'laser-packages.json')
 };
 
 function readFile(file) {
@@ -63,6 +64,11 @@ async function initDb() {
     );
     CREATE TABLE IF NOT EXISTS activity_log (
       id         SERIAL PRIMARY KEY,
+      data       JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS laser_packages (
+      id         TEXT PRIMARY KEY,
       data       JSONB NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -238,11 +244,60 @@ async function getStats() {
   };
 }
 
+// ── Laser Packages ────────────────────────────────────────────────────────────
+async function getAllPackages() {
+  if (pool) {
+    const res = await pool.query('SELECT data FROM laser_packages ORDER BY created_at ASC');
+    return res.rows.map(r => r.data);
+  }
+  return readFile(FILES.laserPackages);
+}
+
+async function getPackageById(id) {
+  if (pool) {
+    const res = await pool.query('SELECT data FROM laser_packages WHERE id = $1', [id]);
+    return res.rows[0]?.data || null;
+  }
+  return readFile(FILES.laserPackages).find(p => p.id === id) || null;
+}
+
+async function savePackage(pkg) {
+  if (pool) {
+    await pool.query(
+      'INSERT INTO laser_packages (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2',
+      [pkg.id, JSON.stringify(pkg)]
+    );
+  } else {
+    const all = readFile(FILES.laserPackages);
+    const idx = all.findIndex(p => p.id === pkg.id);
+    if (idx === -1) all.push(pkg);
+    else all[idx] = pkg;
+    writeFile(FILES.laserPackages, all);
+  }
+}
+
+async function updatePackageData(id, updates) {
+  if (pool) {
+    const res = await pool.query('SELECT data FROM laser_packages WHERE id = $1', [id]);
+    if (!res.rows.length) throw new Error(`Package ${id} not found`);
+    const updated = { ...res.rows[0].data, ...updates };
+    await pool.query('UPDATE laser_packages SET data = $1 WHERE id = $2', [JSON.stringify(updated), id]);
+    return updated;
+  }
+  const all = readFile(FILES.laserPackages);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) throw new Error(`Package ${id} not found`);
+  all[idx] = { ...all[idx], ...updates };
+  writeFile(FILES.laserPackages, all);
+  return all[idx];
+}
+
 module.exports = {
   initDb,
   getAllAppointments, getAppointmentById,
   appendAppointment, updateAppointment,
   cancelAppointment, hardDeleteAppointment, checkConflict,
   appendMissedCapture, appendCallLog,
-  getAllActivities, appendActivity, getStats
+  getAllActivities, appendActivity, getStats,
+  getAllPackages, getPackageById, savePackage, updatePackageData
 };

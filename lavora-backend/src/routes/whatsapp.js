@@ -11,6 +11,7 @@ const db              = require('../services/localDbService');
 const googleSync      = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const notify          = require('../services/notificationService');
+const laserPkgSvc     = require('../services/laserPackageService');
 const log             = require('../services/logger').child('WHATSAPP');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService }         = require('../services/extractionService');
@@ -33,6 +34,34 @@ setInterval(() => {
     if (now - session.lastActivity > SESSION_TTL_MS) sessions.delete(phone);
   }
 }, 5 * 60 * 1000);
+
+// ─── Laser package 24h follow-up scheduler ───────────────────────────────────
+setInterval(async () => {
+  try {
+    const pending = await laserPkgSvc.getPendingFollowUps();
+    for (const pkg of pending) {
+      const isAr = (pkg.language || 'ar') !== 'en';
+      let msg;
+      if (pkg.status === 'offer_sent') {
+        msg = buildPkgSelectionMsg(pkg, isAr);
+      } else if (pkg.pendingOffer) {
+        const prevSession = pkg.sessions[pkg.sessions.length - 1];
+        msg = buildNextSessionOffer(
+          pkg.pendingOffer.sessionNum, pkg.type,
+          pkg.pendingOffer.slots, isAr,
+          prevSession?.date || ''
+        );
+      }
+      if (msg) {
+        await sendWA(pkg.phone, msg);
+        await laserPkgSvc.markFollowUpSent(pkg.id);
+        log.info(`[PKG] 24h follow-up sent → ${pkg.phone} (${pkg.id})`);
+      }
+    }
+  } catch (e) {
+    log.warn(`[PKG] Follow-up scheduler error: ${e.message}`);
+  }
+}, 60 * 60 * 1000); // check every hour
 
 // ─── Webhook verification (GET) ───────────────────────────────────────────────
 router.get('/whatsapp', (req, res) => {
@@ -81,6 +110,15 @@ router.post('/whatsapp', async (req, res) => {
     }
     session.lastActivity = Date.now();
     session.messages.push({ role: 'user', content: userText });
+
+    // Laser package flow intercepts "1"/"2"/"3" replies before AI sees them
+    const pkgReply = await handlePackageMessage(from, userText);
+    if (pkgReply !== null) {
+      await sendWA(from, pkgReply);
+      session.messages.push({ role: 'assistant', content: pkgReply });
+      if (session.messages.length > 24) session.messages = session.messages.slice(-24);
+      return;
+    }
 
     const reply = await runConversation(from, session);
 
@@ -275,6 +313,135 @@ async function getAvailableSlots(dateStr, service, maxSlots = 4) {
   return result.sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
 }
 
+// ─── Laser package helpers ────────────────────────────────────────────────────
+
+// Find up to maxResults available slots in the 28-30 day window after prevDate.
+async function getPackageWindowSlots(prevDate, service, maxResults = 2) {
+  const base = new Date(prevDate + 'T00:00:00');
+  const results = [];
+  for (let offset = 28; offset <= 30 && results.length < maxResults; offset++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + offset);
+    const dateStr = d.toISOString().slice(0, 10);
+    const slots = await getAvailableSlots(dateStr, service, 4);
+    for (const t of slots) {
+      if (results.length < maxResults) results.push({ date: dateStr, time: t });
+    }
+  }
+  return results;
+}
+
+function buildPkgSelectionMsg(pkg, isAr) {
+  if (isAr) {
+    return `🌟 موعدك الأول في ${pkg.service} مؤكد!\n\nهل تودين حجز باقة؟\n1 جلسة واحدة فقط\n2 باقة 3 جلسات\n3 باقة 6 جلسات\n\nاردّي بالرقم للاختيار.`;
+  }
+  return `🌟 Your first ${pkg.service} session is confirmed!\n\nWould you like a package?\n1 Single session only\n2 3-session package\n3 6-session package\n\nReply with a number to choose.`;
+}
+
+function buildNextSessionOffer(sessionNum, totalSessions, slots, isAr, prevDate) {
+  if (isAr) {
+    const lines = slots.map((s, i) => `${i + 1} ${s.date} — الساعة ${s.time}`).join('\n');
+    return `✅ الجلسة ${sessionNum - 1} محجوزة!\n\nالجلسة ${sessionNum}/${totalSessions} — أوقات متاحة (28-30 يوم من ${prevDate}):\n\n${lines}\n\nاردّي بـ 1 أو 2 للتأكيد.`;
+  }
+  const lines = slots.map((s, i) => `${i + 1} ${s.date} at ${s.time}`).join('\n');
+  return `✅ Session ${sessionNum - 1} confirmed!\n\nSession ${sessionNum}/${totalSessions} — available times (28–30 days from ${prevDate}):\n\n${lines}\n\nReply 1 or 2 to confirm.`;
+}
+
+function buildFinalSummary(pkg, isAr) {
+  if (isAr) {
+    const lines = pkg.sessions.map(s => `جلسة ${s.num}: ${s.date} — ${s.time}`).join('\n');
+    return `🎉 جميع جلساتك محجوزة!\n\n${pkg.service} — باقة ${pkg.type} جلسات:\n${lines}\n\nسنرسل تذكيراً قبل 24 ساعة من كل جلسة. نتطلع لرؤيتك! 🌿`;
+  }
+  const lines = pkg.sessions.map(s => `Session ${s.num}: ${s.date} at ${s.time}`).join('\n');
+  return `🎉 All sessions booked!\n\n${pkg.service} — ${pkg.type}-session package:\n${lines}\n\nYou'll get a reminder 24 hours before each session. See you soon! 🌿`;
+}
+
+// Main package reply handler. Returns a string if the message was handled by the
+// package flow, or null to fall through to the normal AI conversation.
+async function handlePackageMessage(from, userText) {
+  const pkg = await laserPkgSvc.getPackageByPhone(from);
+  if (!pkg) return null;
+
+  const trimmed = userText.trim();
+  const isAr = (pkg.language || 'ar') !== 'en';
+
+  // ── Phase 1: waiting for package type selection (1 / 2 / 3) ─────────────────
+  if (pkg.status === 'offer_sent') {
+    if (trimmed === '1') {
+      await laserPkgSvc.cancelPackage(pkg.id);
+      return isAr
+        ? '✅ حسناً! موعدك الأول مؤكد. نتطلع لرؤيتك! 🌿'
+        : '✅ Got it! Your appointment is confirmed. See you soon! 🌿';
+    }
+    if (trimmed === '2' || trimmed === '3') {
+      const type = trimmed === '2' ? 3 : 6;
+      await laserPkgSvc.confirmPackageSelection(pkg.id, type);
+      const prevDate = pkg.sessions[0].date;
+      const slots = await getPackageWindowSlots(prevDate, pkg.service);
+      if (!slots.length) {
+        return isAr
+          ? `🎉 تم إنشاء باقة ${type} جلسات!\nسنتواصل معك لجدولة الجلسة الثانية. 🌿`
+          : `🎉 Your ${type}-session package is created!\nWe'll reach out to schedule Session 2. 🌿`;
+      }
+      await laserPkgSvc.setPendingOffer(pkg.id, 2, slots);
+      return buildNextSessionOffer(2, type, slots, isAr, prevDate);
+    }
+    return isAr
+      ? 'من فضلك اختاري 1، 2، أو 3 للرد على العرض أعلاه.'
+      : 'Please reply with 1, 2, or 3 to choose a package option.';
+  }
+
+  // ── Phase 2: waiting for slot selection (1 / 2) ───────────────────────────
+  if (pkg.status === 'active' && pkg.pendingOffer) {
+    const offer = pkg.pendingOffer;
+    if (trimmed === '1' || trimmed === '2') {
+      const slot = offer.slots[parseInt(trimmed) - 1];
+      if (!slot) return null;
+
+      const sessionNum = offer.sessionNum;
+      const aptId = `APT-${Date.now()}`;
+      const apt = {
+        id: aptId,
+        name: pkg.clientName,
+        phone: pkg.phone,
+        service: pkg.service,
+        doctor: '',
+        date: slot.date,
+        time: slot.time,
+        status: 'Confirmed',
+        source: 'WhatsApp Package',
+        language: pkg.language,
+        callDuration: '',
+        notes: `Package ${pkg.id} — Session ${sessionNum}`,
+        timestamp: new Date().toISOString(),
+        calendarEventId: ''
+      };
+      await db.appendAppointment(apt);
+      googleSync.book(apt);
+
+      const updatedPkg = await laserPkgSvc.addSession(pkg.id, sessionNum, aptId, slot.date, slot.time);
+
+      if (updatedPkg.status === 'completed') {
+        return buildFinalSummary(updatedPkg, isAr);
+      }
+
+      const nextSlots = await getPackageWindowSlots(slot.date, pkg.service);
+      if (!nextSlots.length) {
+        return isAr
+          ? `✅ الجلسة ${sessionNum} محجوزة: ${slot.date} — ${slot.time}\n\nسنتواصل معك لجدولة الجلسة التالية. 🌿`
+          : `✅ Session ${sessionNum} booked: ${slot.date} at ${slot.time}\n\nWe'll contact you to schedule the next session. 🌿`;
+      }
+      await laserPkgSvc.setPendingOffer(pkg.id, sessionNum + 1, nextSlots);
+      return buildNextSessionOffer(sessionNum + 1, pkg.type, nextSlots, isAr, slot.date);
+    }
+    return isAr
+      ? 'اردّي بـ 1 أو 2 لاختيار الوقت المناسب.'
+      : 'Please reply with 1 or 2 to choose a time slot.';
+  }
+
+  return null;
+}
+
 // ─── Claude tool definitions ──────────────────────────────────────────────────
 const TOOLS = [
   {
@@ -402,19 +569,42 @@ async function runConversation(callerPhone, session) {
         // Intercept successful booking — return confirmation directly so the AI
         // cannot skip book_appointment and generate a fake confirmation.
         if (block.name === 'book_appointment' && result.success) {
-          const s   = getSettings();
-          const cn  = s.clinic?.name    || 'Test Clinic';
-          const cnA = s.clinic?.nameAr  || 'عيادة تيست';
-          const adr = s.clinic?.address || 'Al Ghubrah, Muscat';
+          const s    = getSettings();
+          const cn   = s.clinic?.name     || 'Test Clinic';
+          const cnA  = s.clinic?.nameAr   || 'عيادة تيست';
+          const adr  = s.clinic?.address  || 'Al Ghubrah, Muscat';
           const adrA = s.clinic?.addressAr || 'الغبرة، مسقط';
           const lang = (block.input.language === 'ar') ? 'ar' : 'en';
+          const isAr = lang === 'ar';
           const d = result.date, t = result.time, svc = result.service, dr = result.doctor || '';
           const dayLabel = new Date(d + 'T00:00:00').toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long' });
           const timeFmt  = new Date(`2000-01-01T${t}:00`).toLocaleTimeString('en-OM', { hour: 'numeric', minute: '2-digit', hour12: true });
-          if (lang === 'ar') {
-            return `✅ تم الحجز، ${result.name}!\n\n📅 ${d}\n🕐 ${t}\n💆 ${svc}${dr ? '\n👩‍⚕️ ' + dr : ''}\n📍 ${cnA}، ${adrA}\n\nنتطلع لرؤيتك! 🌿\nسنرسل لك تذكيراً قبل ٢٤ ساعة من موعدك.`;
+
+          const confirmPart = isAr
+            ? `✅ تم الحجز، ${result.name}!\n\n📅 ${d}\n🕐 ${t}\n💆 ${svc}${dr ? '\n👩‍⚕️ ' + dr : ''}\n📍 ${cnA}، ${adrA}`
+            : `✅ You're all set, ${result.name}!\n\n📅 ${dayLabel}\n🕐 ${timeFmt}\n💆 ${svc}${dr ? '\n👩‍⚕️ ' + dr : ''}\n📍 ${cn}, ${adr}`;
+
+          // Laser bookings → create a package offer record and append selection prompt
+          if (getDepartment(svc) === 'laser') {
+            const phone = normalizePhone(block.input.phone || callerPhone);
+            try {
+              await laserPkgSvc.createPackageOffer({
+                phone, name: result.name, service: svc, language: lang,
+                aptId: result.appointment_id, date: d, time: t
+              });
+            } catch (e) {
+              log.warn(`[PKG] createPackageOffer failed: ${e.message}`);
+            }
+            const pkgPart = isAr
+              ? `\n\nهل تودين حجز باقة؟ 🌿\n1 جلسة واحدة فقط\n2 باقة 3 جلسات\n3 باقة 6 جلسات\n\nاردّي بالرقم للاختيار.`
+              : `\n\nWould you like a package? 🌿\n1 Single session only\n2 3-session package\n3 6-session package\n\nReply with a number to choose.`;
+            return confirmPart + pkgPart;
           }
-          return `✅ You're all set, ${result.name}!\n\n📅 ${dayLabel}\n🕐 ${timeFmt}\n💆 ${svc}${dr ? '\n👩‍⚕️ ' + dr : ''}\n📍 ${cn}, ${adr}\n\nWe look forward to seeing you! 🌿\nWe'll send you a reminder 24 hours before your appointment.`;
+
+          // Non-laser: normal confirmation with reminder note
+          return confirmPart + (isAr
+            ? '\n\nنتطلع لرؤيتك! 🌿\nسنرسل لك تذكيراً قبل ٢٤ ساعة من موعدك.'
+            : '\n\nWe look forward to seeing you! 🌿\nWe\'ll send you a reminder 24 hours before your appointment.');
         }
       }
       messages.push({ role: 'user', content: toolResults });
@@ -901,6 +1091,14 @@ ESCALATION — HUMAN HANDOFF
 Trigger when: client asks to speak with a human, expresses frustration/urgency, mentions medical emergency, or you cannot resolve the request after 2 attempts.
 English: "I'm connecting you with our team right away. 🌿 Please hold on for a moment."
 Arabic: "سأوصلك بفريقنا الحين. 🌿 تفضل بالانتظار لحظة."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LASER HAIR REMOVAL — PACKAGE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- For any Laser Hair Removal booking: ONLY book Session 1.
+- After Session 1 is confirmed, the system automatically sends a package offer (1/3/6 sessions). Do NOT offer packages yourself.
+- If the client asks about laser packages, say: "After your first session is confirmed, you'll receive a package offer automatically."
+- Sessions 2 and beyond are handled entirely by the automated follow-up. NEVER attempt to book multiple laser sessions in one conversation.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ABSOLUTE RULES — NEVER VIOLATE

@@ -9,6 +9,7 @@ const dayjs       = require('dayjs');
 const db          = require('../services/localDbService');
 const googleSync  = require('../services/googleSync');
 const sms         = require('../services/notificationService');
+const laserPkgSvc = require('../services/laserPackageService');
 const activityService = require('../services/activityService');
 const log         = require('../services/logger').child('LLM');
 const { matchService }    = require('../services/extractionService');
@@ -148,6 +149,21 @@ async function executeTool(name, input, context) {
         details: `${service} on ${date} at ${time} | ID: ${aptId}`
       });
 
+      // Laser voice bookings → send WhatsApp package offer asynchronously
+      if ((service || '').toLowerCase().includes('laser')) {
+        const lang = context.language || 'en';
+        const isAr = lang === 'ar';
+        laserPkgSvc.createPackageOffer({
+          phone, name: input.name, service, language: lang,
+          aptId, date, time
+        }).then(pkg => {
+          const msg = isAr
+            ? `🌟 موعدك الأول في ${service} مؤكد!\n\nهل تودين حجز باقة؟\n1 جلسة واحدة فقط\n2 باقة 3 جلسات\n3 باقة 6 جلسات\n\nاردّي بالرقم للاختيار.`
+            : `🌟 Your first ${service} session is confirmed!\n\nWould you like a package?\n1 Single session only\n2 3-session package\n3 6-session package\n\nReply with a number to choose.`;
+          return sms.sendMessage(phone, msg);
+        }).catch(e => log.warn(`[PKG] Voice package offer failed: ${e.message}`));
+      }
+
       return { success: true, appointment_id: aptId, date, time, service, name: input.name, phone };
     }
 
@@ -224,10 +240,13 @@ function buildBookingConfirmation(booking, lang) {
   const { service, date, time, phone } = booking;
   const d = require('dayjs')(date);
   const t = require('dayjs')(`2000-01-01T${time}:00`);
+  const isLaser = (service || '').toLowerCase().includes('laser');
   if (lang === 'ar') {
-    return `تم تأكيد موعدك لـ ${service} بتاريخ ${d.format('D/M/YYYY')} الساعة ${time}. سنتواصل معك على ${phone}. شكراً على اتصالك بعيادة لافورا. مع السلامة.`;
+    const laserNote = isLaser ? ' ستصلك رسالة واتساب بخيارات الباقة.' : '';
+    return `تم تأكيد موعدك لـ ${service} بتاريخ ${d.format('D/M/YYYY')} الساعة ${time}.${laserNote} شكراً على اتصالك بعيادة لافورا. مع السلامة.`;
   }
-  return `Your ${service} appointment is confirmed for ${d.format('MMMM D')} at ${t.format('h:mm A')}. We will reach you at ${phone}. Thank you for calling Lavora Clinic. Goodbye.`;
+  const laserNote = isLaser ? ' You\'ll receive a WhatsApp message with package options.' : '';
+  return `Your ${service} appointment is confirmed for ${d.format('MMMM D')} at ${t.format('h:mm A')}.${laserNote} Thank you for calling Lavora Clinic. Goodbye.`;
 }
 
 function buildCancelConfirmation(result, lang) {

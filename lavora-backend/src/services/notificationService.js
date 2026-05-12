@@ -89,9 +89,15 @@ function sendReminder(apt) {
   safe('reminder', () => sendWA(apt.phone, text));
 }
 
+// ── Raw message (for package follow-ups from voice agent / scheduler) ─────────
+async function sendMessage(to, text) {
+  return sendWA(to, text);
+}
+
 module.exports = {
   sendBookingConfirmation,
   sendCancellationConfirmation,
   sendRescheduleConfirmation,
-  sendReminder
+  sendReminder,
+  sendMessage
 };
