@@ -3,6 +3,7 @@ const dayjs = require('dayjs');
 const router = express.Router();
 
 const { requireApiKey } = require('../middleware/auth');
+const { validate, schemas } = require('../middleware/validate');
 const nurseSessionStore  = require('../services/nurseSessionStore');
 const db = require('../services/localDbService');
 const googleSync = require('../services/googleSync');
@@ -15,9 +16,8 @@ const { parseDate, parseTime } = require('../utils/dateParser');
 const settingsService = require('../services/settingsService');
 
 // ─── POST /api/nurse-login (no auth required) ─────────────────────────────────
-router.post('/nurse-login', (req, res) => {
-  const { name, phone } = req.body || {};
-  if (!name || !phone) return res.status(400).json({ error: 'name and phone required' });
+router.post('/nurse-login', validate(schemas.nurseLogin), (req, res) => {
+  const { name, phone } = req.validated;
 
   const s = settingsService.getSettings();
   const normalizePhone = p => String(p).replace(/\D/g, '').slice(-8);
@@ -37,11 +37,11 @@ router.post('/nurse-login', (req, res) => {
 router.use(requireApiKey);
 
 // ─── GET /api/appointments ────────────────────────────────────────────────────
-router.get('/appointments', async (req, res) => {
+router.get('/appointments', validate(schemas.appointmentQuery, 'query'), async (req, res) => {
   try {
     let appointments = await db.getAllAppointments();
 
-    const { date, status, source } = req.query;
+    const { date, status, source } = req.validated;
     if (date) appointments = appointments.filter(a => a.date === date);
     if (status) appointments = appointments.filter(a => a.status.toLowerCase() === status.toLowerCase());
     if (source) appointments = appointments.filter(a => a.source.toLowerCase() === source.toLowerCase());
@@ -67,19 +67,9 @@ router.get('/appointments/today', async (req, res) => {
 });
 
 // ─── POST /api/appointments ───────────────────────────────────────────────────
-router.post('/appointments', async (req, res) => {
+router.post('/appointments', validate(schemas.appointment), async (req, res) => {
   try {
-    const { name, phone, service, doctor, staff, date, time, notes } = req.body;
-
-    const missing = [];
-    if (!name) missing.push('name');
-    if (!phone) missing.push('phone');
-    if (!service) missing.push('service');
-    if (!date) missing.push('date');
-    if (!time) missing.push('time');
-    if (missing.length) {
-      return res.status(400).json({ error: 'Missing required fields', missing });
-    }
+    const { name, phone, service, doctor, staff, date, time, notes } = req.validated;
 
     const normalizedDate = parseDate(date) || date;
     const normalizedTime = parseTime(time) || time;
@@ -132,10 +122,10 @@ router.post('/appointments', async (req, res) => {
 });
 
 // ─── PUT /api/appointments/:id ────────────────────────────────────────────────
-router.put('/appointments/:id', async (req, res) => {
+router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, service, doctor, staff, date, time, status, notes } = req.body;
+    const { name, phone, service, doctor, staff, date, time, status, notes } = req.validated;
 
     const existing = await db.getAppointmentById(id);
     if (!existing) return res.status(404).json({ error: `Appointment ${id} not found` });
