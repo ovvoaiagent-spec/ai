@@ -48,9 +48,7 @@ async function init() {
     ssl: process.env.DATABASE_URL.includes('localhost')
       ? false
       : { rejectUnauthorized: false },
-    max: 3,
-    archiveCompletedAfterSeconds: 86400,  // keep completed jobs 24h for audit
-    deleteAfterSeconds: 7 * 86400         // delete old jobs after 7 days
+    max: 3
   });
 
   boss.on('error', err => log.error(`pg-boss error: ${err.message}`));
@@ -117,7 +115,7 @@ async function registerOnce(name, handler) {
 async function stop() {
   localTimers.forEach(clearInterval);
   if (boss) {
-    await boss.stop({ graceful: true, timeout: 10000 });
+    await boss.stop();
     log.info('Job queue stopped');
   }
 }
