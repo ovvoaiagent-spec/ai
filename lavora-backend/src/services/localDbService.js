@@ -43,42 +43,10 @@ function writeFile(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-// ── Init: create tables on startup ───────────────────────────────────────────
+// ── Init: run migrations ──────────────────────────────────────────────────────
 async function initDb() {
-  if (!pool) return;
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS appointments (
-      id         TEXT PRIMARY KEY,
-      data       JSONB NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS missed_captures (
-      id         TEXT PRIMARY KEY,
-      data       JSONB NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS call_log (
-      id         SERIAL PRIMARY KEY,
-      data       JSONB NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS activity_log (
-      id         SERIAL PRIMARY KEY,
-      data       JSONB NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS laser_packages (
-      id         TEXT PRIMARY KEY,
-      data       JSONB NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS whatsapp_sessions (
-      phone       TEXT PRIMARY KEY,
-      data        JSONB NOT NULL,
-      updated_at  TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-  console.log('[DB] Tables ready');
+  const { runMigrations } = require('./migrationRunner');
+  await runMigrations(pool); // pool is null in local dev — migrationRunner handles it gracefully
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
@@ -336,6 +304,7 @@ async function deleteExpiredSessions(ttlMs) {
 }
 
 module.exports = {
+  pool,  // exposed so migrationRunner can receive it directly
   initDb,
   getAllAppointments, getAppointmentById,
   appendAppointment, updateAppointment,
