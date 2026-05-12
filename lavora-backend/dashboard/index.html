@@ -259,6 +259,10 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
 
 /* ── Department page header stripe ── */
 .dept-stripe { height: 4px; border-radius: 4px 4px 0 0; margin-bottom: 20px; }
+.dept-view-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.dept-view-btn { padding: 7px 18px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; background: white; color: var(--text2); font-family: inherit; transition: all .15s; }
+.dept-view-btn:hover { border-color: var(--dept-color, var(--navy)); color: var(--dept-color, var(--navy)); }
+.dept-view-btn.active { background: var(--dept-color, var(--navy)); border-color: var(--dept-color, var(--navy)); color: white; }
 .dept-beauty-stripe  { background: var(--dept-beauty); }
 .dept-slimming-stripe { background: var(--dept-slimming); }
 .dept-laser-stripe   { background: var(--dept-laser); }
@@ -576,20 +580,37 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
         <button class="btn-gold" onclick="openNewModal()">+ New Appointment</button>
       </div>
       <div class="stats-row" id="dept-stats-row"></div>
-      <div class="toolbar">
-        <input class="search-box" id="dept-search" placeholder="Search name, phone, service..." oninput="renderDeptPage()">
-        <select class="filter-sel" id="dept-f-status" onchange="renderDeptPage()">
-          <option value="">All Statuses</option>
-          <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
-        </select>
-        <select class="filter-sel" id="dept-f-time" onchange="renderDeptPage()">
-          <option value="upcoming">Upcoming</option>
-          <option value="today">Today Only</option>
-          <option value="all">All Time</option>
-        </select>
-        <button class="btn-outline" onclick="exportDeptCSV()">Export CSV</button>
+      <div class="dept-view-tabs" id="dept-view-tabs">
+        <button class="dept-view-btn active" onclick="setDeptView('list',this)">&#9776; List</button>
+        <button class="dept-view-btn" onclick="setDeptView('calendar',this)">&#9635; Calendar</button>
       </div>
-      <div id="dept-content"></div>
+      <div id="dept-view-list">
+        <div class="toolbar">
+          <input class="search-box" id="dept-search" placeholder="Search name, phone, service..." oninput="renderDeptPage()">
+          <select class="filter-sel" id="dept-f-status" onchange="renderDeptPage()">
+            <option value="">All Statuses</option>
+            <option>Pending</option><option>Confirmed</option><option>Cancelled</option>
+          </select>
+          <select class="filter-sel" id="dept-f-time" onchange="renderDeptPage()">
+            <option value="upcoming">Upcoming</option>
+            <option value="today">Today Only</option>
+            <option value="all">All Time</option>
+          </select>
+          <button class="btn-outline" onclick="exportDeptCSV()">Export CSV</button>
+        </div>
+        <div id="dept-content"></div>
+      </div>
+      <div id="dept-view-calendar" style="display:none">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+          <button class="btn-outline" onclick="deptCalPrev()">&#8592; Prev</button>
+          <button class="btn-outline" onclick="deptCalToday()">Today</button>
+          <button class="btn-outline" onclick="deptCalNext()">Next &#8594;</button>
+          <span id="dept-cal-week-label" style="font-size:13px;font-weight:600;color:var(--text2);margin-left:4px"></span>
+        </div>
+        <div class="cal-outer">
+          <div class="cal-grid" id="dept-cal-grid"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Page: CEO -->
@@ -1144,6 +1165,13 @@ function gotoDept(dept, el) {
   document.getElementById('dept-page-title').textContent = cfg.label + ' Department';
   const stripe = document.getElementById('dept-stripe');
   stripe.className = `dept-stripe ${cfg.stripe}`;
+  // Reset to list view and apply dept color to tab buttons
+  const tabs = document.getElementById('dept-view-tabs');
+  if (tabs) tabs.style.setProperty('--dept-color', cfg.color);
+  document.getElementById('dept-view-list').style.display     = '';
+  document.getElementById('dept-view-calendar').style.display = 'none';
+  document.querySelectorAll('.dept-view-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  deptCalWeekOffset = 0;
   renderDeptPage();
 }
 
@@ -2302,6 +2330,91 @@ function setCalDept(dept, btn) {
   btn.classList.add('active');
   renderCalendar();
 }
+
+// ─── Dept Calendar ────────────────────────────────────────────────────────────
+let deptCalWeekOffset = 0;
+
+function setDeptView(view, btn) {
+  document.querySelectorAll('.dept-view-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dept-view-list').style.display     = view === 'list'     ? '' : 'none';
+  document.getElementById('dept-view-calendar').style.display = view === 'calendar' ? '' : 'none';
+  if (view === 'calendar') renderDeptCalendar();
+}
+
+function renderDeptCalendar() {
+  const days    = calWeekDates(deptCalWeekOffset);
+  const today   = todayStr();
+  const s       = currentSettings || {};
+  const openH   = parseInt((s.hours?.open      || '08:00').split(':')[0]);
+  const closeH  = parseInt((s.hours?.close     || '23:00').split(':')[0]);
+  const restS   = parseInt((s.hours?.restStart || '14:00').split(':')[0]);
+  const restE   = parseInt((s.hours?.restEnd   || '15:00').split(':')[0]);
+  const workDays = s.workDays || ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
+  const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  const fmt = d => d.toLocaleDateString('en-OM', { month: 'short', day: 'numeric' });
+  const lbl = document.getElementById('dept-cal-week-label');
+  if (lbl) lbl.textContent = `${fmt(days[0])} – ${fmt(days[6])}`;
+
+  const dayStrs = days.map(d => d.toISOString().split('T')[0]);
+  const aptMap  = {};
+  allAppointments
+    .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time &&
+      getDepartment(a.service) === activeDept)
+    .forEach(a => {
+      const h   = parseInt(a.time.split(':')[0]);
+      const key = `${a.date}_${h}`;
+      (aptMap[key] = aptMap[key] || []).push(a);
+    });
+
+  let html = '';
+  html += `<div class="cal-head-corner"></div>`;
+  days.forEach(d => {
+    const dStr    = d.toISOString().split('T')[0];
+    const isToday = dStr === today;
+    html += `<div class="cal-day-head${isToday ? ' is-today' : ''}">
+      <div class="cal-day-name">${d.toLocaleDateString('en-OM',{weekday:'short'})}</div>
+      <div class="cal-day-num">${d.getDate()}</div>
+      <div class="cal-day-mon">${d.toLocaleDateString('en-OM',{month:'short'})}</div>
+    </div>`;
+  });
+
+  for (let h = openH; h <= closeH; h++) {
+    const timeLabel = `${String(h).padStart(2,'0')}:00`;
+    const isRest    = h >= restS && h < restE;
+    const isLast    = h === closeH;
+    html += `<div class="cal-time" style="${isLast?'border-bottom:none':''}">${timeLabel}</div>`;
+    days.forEach(d => {
+      const dStr    = d.toISOString().split('T')[0];
+      const isToday = dStr === today;
+      const dayName = DAY_NAMES[d.getDay()];
+      const isWork  = workDays.includes(dayName);
+      const key     = `${dStr}_${h}`;
+      const chips   = aptMap[key] || [];
+      let cellClass = 'cal-cell';
+      if (isToday) cellClass += ' is-today';
+      if (isRest && isWork)  cellClass += ' is-rest';
+      if (!isWork) cellClass += ' is-closed';
+      html += `<div class="${cellClass}" style="${isLast?'border-bottom:none':''}">`;
+      chips.forEach(a => {
+        const dept = getDepartment(a.service);
+        html += `<div class="cal-chip ${dept}" onclick="openEditModal('${esc(a.id)}')"
+          title="${esc(a.name)} — ${esc(a.service)} (${esc(a.time)})">
+          ${esc(a.time)} ${esc(a.name.split(' ')[0])}
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  }
+
+  const grid = document.getElementById('dept-cal-grid');
+  if (grid) grid.innerHTML = html;
+}
+
+function deptCalPrev()  { deptCalWeekOffset--; renderDeptCalendar(); }
+function deptCalNext()  { deptCalWeekOffset++; renderDeptCalendar(); }
+function deptCalToday() { deptCalWeekOffset = 0; renderDeptCalendar(); }
 
 // ─── Nurse Station ───────────────────────────────────────────────────────────
 function populateNurseSelect() {
