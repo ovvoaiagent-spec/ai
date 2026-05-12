@@ -683,6 +683,26 @@ tbody td { padding: 12px 16px; vertical-align: middle; }
             </div>
           </div>
         </div>
+
+        <!-- Revenue by Department + Patient Retention -->
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:16px">
+          <div class="chart-card">
+            <div class="chart-title">Revenue by Department — Last 6 Months (OMR)</div>
+            <div id="chart-rev-dept"></div>
+            <div id="chart-rev-legend" style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Patient Retention</div>
+            <div id="chart-retention"></div>
+          </div>
+        </div>
+
+        <!-- Peak Hours Heatmap -->
+        <div class="chart-card" style="margin-top:16px">
+          <div class="chart-title">Peak Hours Heatmap</div>
+          <div id="chart-heatmap" style="overflow-x:auto"></div>
+        </div>
+
       </div>
     </div>
 
@@ -1835,6 +1855,112 @@ function renderCeoMetrics() {
   document.getElementById('rev-price-grid').innerHTML = Object.entries(prices).map(([s,v]) => `
     <span style="color:var(--text2)">${esc(s)}</span>
     <input class="rev-price-input" type="number" data-service="${esc(s)}" value="${v}" min="0">`).join('');
+
+  // ── Revenue by Department — last 6 months ──────────────────────────────────
+  const months6 = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months6.push({ key: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,
+                   label: d.toLocaleDateString('en-OM', { month: 'short', year: '2-digit' }) });
+  }
+  const D4      = ['beauty','slimming','laser','gynecology'];
+  const D4CLR   = { beauty:'var(--dept-beauty)', slimming:'var(--dept-slimming)', laser:'var(--dept-laser)', gynecology:'var(--dept-gyno)' };
+  const D4LBL   = { beauty:'Beauty', slimming:'Slimming', laser:'Laser', gynecology:'Gynecology' };
+  const revMons = months6.map(m => {
+    const apts  = allAppointments.filter(a => a.date?.startsWith(m.key) && a.status === 'Confirmed');
+    const byD   = { beauty:0, slimming:0, laser:0, gynecology:0 };
+    apts.forEach(a => { byD[getDepartment(a.service)] += (prices[a.service] || 0); });
+    return { label: m.label, byD, total: Object.values(byD).reduce((s,v)=>s+v,0) };
+  });
+  const maxRevM = Math.max(...revMons.map(m => m.total), 1);
+
+  document.getElementById('chart-rev-dept').innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:10px;height:110px">
+      ${revMons.map(m => {
+        const segs = D4.slice().reverse().map(d => {
+          const h = m.total > 0 ? Math.round(m.byD[d] / maxRevM * 96) : 0;
+          return h > 0 ? `<div title="${D4LBL[d]}: ${m.byD[d]} OMR" style="height:${h}px;background:${D4CLR[d]}"></div>` : '';
+        }).join('');
+        const totalH = Math.max(Math.round(m.total / maxRevM * 96), m.total > 0 ? 4 : 0);
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+            <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:96px;border-radius:4px 4px 0 0;overflow:hidden">${segs}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;white-space:nowrap">${m.label}</div>
+            <div style="font-size:10px;font-weight:600;color:var(--text2)">${m.total > 0 ? m.total : ''}</div>
+          </div>`;
+      }).join('')}
+    </div>`;
+  document.getElementById('chart-rev-legend').innerHTML = D4.map(d =>
+    `<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)">
+      <div style="width:10px;height:10px;border-radius:2px;background:${D4CLR[d]}"></div>${D4LBL[d]}
+    </div>`).join('');
+
+  // ── Patient Retention ──────────────────────────────────────────────────────
+  const retMap = {};
+  allAppointments.forEach(a => {
+    if (!a.phone || a.status === 'Cancelled') return;
+    const k = normPhone(a.phone);
+    retMap[k] = (retMap[k] || 0) + 1;
+  });
+  const retTotal     = Object.keys(retMap).length;
+  const retReturning = Object.values(retMap).filter(n => n > 1).length;
+  const retOnetime   = retTotal - retReturning;
+  const retRate      = retTotal ? Math.round(retReturning / retTotal * 100) : 0;
+  document.getElementById('chart-retention').innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0">
+      <div style="position:relative;width:110px;height:110px">
+        <svg viewBox="0 0 36 36" style="width:110px;height:110px;transform:rotate(-90deg)">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--border)" stroke-width="3.2"/>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--green)" stroke-width="3.2"
+            stroke-dasharray="${retRate} ${100-retRate}" stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-size:22px;font-weight:700;color:var(--navy)">${retRate}%</div>
+          <div style="font-size:10px;color:var(--text3)">returned</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;text-align:center">
+        <div><div style="font-size:18px;font-weight:700;color:var(--green)">${retReturning}</div><div style="font-size:11px;color:var(--text3)">Returning</div></div>
+        <div style="border-left:1px solid var(--border)"></div>
+        <div><div style="font-size:18px;font-weight:700;color:var(--amber)">${retOnetime}</div><div style="font-size:11px;color:var(--text3)">One-time</div></div>
+        <div style="border-left:1px solid var(--border)"></div>
+        <div><div style="font-size:18px;font-weight:700;color:var(--text2)">${retTotal}</div><div style="font-size:11px;color:var(--text3)">Total</div></div>
+      </div>
+    </div>`;
+
+  // ── Peak Hours Heatmap ─────────────────────────────────────────────────────
+  const HM_DAYS  = ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday'];
+  const HM_SHORT = ['Sat','Sun','Mon','Tue','Wed','Thu'];
+  const hmData   = {};
+  allAppointments.forEach(a => {
+    if (!a.date || !a.time || a.status === 'Cancelled') return;
+    const dow = new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', {weekday:'long'});
+    const di  = HM_DAYS.indexOf(dow);
+    if (di < 0) return;
+    const h   = parseInt(a.time.split(':')[0]);
+    const key = `${di}_${h}`;
+    hmData[key] = (hmData[key] || 0) + 1;
+  });
+  const maxHM   = Math.max(...Object.values(hmData), 1);
+  const hmOpenH = parseInt((currentSettings?.hours?.open  || '08:00').split(':')[0]);
+  const hmClsH  = parseInt((currentSettings?.hours?.close || '23:00').split(':')[0]);
+  const hmHours = Array.from({length: hmClsH - hmOpenH + 1}, (_, i) => hmOpenH + i);
+
+  let hmHtml = `<div style="display:inline-grid;grid-template-columns:36px ${hmHours.map(()=>'minmax(28px,1fr)').join(' ')};gap:3px;min-width:520px">`;
+  hmHtml += `<div></div>` + hmHours.map(h => `<div style="text-align:center;font-size:10px;color:var(--text3);padding-bottom:3px">${String(h).padStart(2,'0')}</div>`).join('');
+  HM_DAYS.forEach((day, di) => {
+    hmHtml += `<div style="font-size:11px;font-weight:500;color:var(--text2);display:flex;align-items:center;padding-right:4px">${HM_SHORT[di]}</div>`;
+    hmHours.forEach(h => {
+      const n = hmData[`${di}_${h}`] || 0;
+      const op = n === 0 ? 0 : 0.1 + (n / maxHM) * 0.85;
+      const textClr = op > 0.5 ? 'color:white' : 'color:var(--text2)';
+      hmHtml += `<div title="${day} ${String(h).padStart(2,'0')}:00 — ${n} appt${n!==1?'s':''}"
+        style="height:26px;border-radius:4px;background:rgba(26,39,68,${op.toFixed(2)});display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;${textClr}">${n > 0 ? n : ''}</div>`;
+    });
+  });
+  hmHtml += `</div><div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text3)">
+    <span>Fewer</span>${[0.1,0.28,0.46,0.64,0.82].map(op=>`<div style="width:18px;height:12px;border-radius:3px;background:rgba(26,39,68,${op})"></div>`).join('')}<span>More</span></div>`;
+  document.getElementById('chart-heatmap').innerHTML = hmHtml;
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
