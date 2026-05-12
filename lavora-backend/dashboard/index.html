@@ -2109,11 +2109,13 @@ function renderSettingsForm(s) {
   // Dept settings
   const cap   = s.departmentCapacity   || {};
   const close = s.departmentCloseHour  || {};
+  const defCap = { beauty:1, slimming:4, laser:3, gynecology:1 };
+  const defCls = { beauty:20, slimming:20, laser:23, gynecology:20 };
   ['beauty','slimming','laser','gynecology'].forEach(d => {
-    const defCap = { beauty:1, slimming:4, laser:3, gynecology:1 };
-    const defCls = { beauty:20, slimming:20, laser:23, gynecology:20 };
-    document.getElementById(`st-cap-${d}`).value   = cap[d]   ?? defCap[d];
-    document.getElementById(`st-close-${d}`).value = close[d] ?? defCls[d];
+    const capEl = document.getElementById(`st-cap-${d}`);
+    const clsEl = document.getElementById(`st-close-${d}`);
+    if (capEl) capEl.value = cap[d] ?? defCap[d];
+    if (clsEl) clsEl.value = close[d] ?? defCls[d];
   });
 
   // Doctors
