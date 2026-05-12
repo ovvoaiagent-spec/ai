@@ -3,6 +3,9 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
+// Validate env vars before loading anything else so failures are instant + clear
+const { validateEnv } = require('./config/env');
+
 const db             = require('./services/localDbService');
 const sheetsService  = require('./services/sheetsService');
 const pollingService = require('./services/pollingService');
@@ -10,6 +13,8 @@ const jobQueue       = require('./services/jobQueue');
 const laserPkgSvc   = require('./services/laserPackageService');
 const sessionStore   = require('./services/sessionStore');
 const log            = require('./services/logger').child('SERVER');
+
+validateEnv(log);
 
 const { toolsLimiter, apiLimiter, webhookLimiter } = require('./middleware/rateLimiter');
 const webhookRoutes  = require('./routes/webhooks');
@@ -60,6 +65,9 @@ app.get('/status', (_req, res) => {
   res.json({
     server: true,
     database: !!process.env.DATABASE_URL,
+    job_queue: !!process.env.DATABASE_URL ? 'pg-boss' : 'setInterval',
+    validation: 'zod',
+    sessions: !!process.env.DATABASE_URL ? 'postgresql' : 'memory',
     sheets: sheetsService.googleConfigured(),
     calendar: !!process.env.GOOGLE_CALENDAR_ID,
     elevenlabs_api: !!process.env.ELEVENLABS_API_KEY,
