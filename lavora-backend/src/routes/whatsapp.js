@@ -12,6 +12,7 @@ const googleSync      = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const notify          = require('../services/notificationService');
 const laserPkgSvc     = require('../services/laserPackageService');
+const sessionStore    = require('../services/sessionStore');
 const { buildPkgSelectionMsg, buildNextSessionOffer, buildFinalSummary } = laserPkgSvc;
 const log             = require('../services/logger').child('WHATSAPP');
 const { parseDate, parseTime } = require('../utils/dateParser');
@@ -25,18 +26,8 @@ const ACCESS_TOKEN    = process.env.WHATSAPP_ACCESS_TOKEN;
 const VERIFY_TOKEN    = process.env.WHATSAPP_VERIFY_TOKEN || 'testclinic_verify_2024';
 const WA_API          = () => `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
-// ─── In-memory conversation sessions ─────────────────────────────────────────
-const sessions = new Map();
-const SESSION_TTL_MS = 30 * 60 * 1000;
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [phone, session] of sessions.entries()) {
-    if (now - session.lastActivity > SESSION_TTL_MS) sessions.delete(phone);
-  }
-}, 5 * 60 * 1000);
-
-// Laser package follow-up scheduling is handled by jobQueue in index.js.
+// Sessions are persisted via sessionStore (PostgreSQL-backed, in-memory cache).
+// TTL cleanup is scheduled via jobQueue in index.js.
 
 // ─── Webhook verification (GET) ───────────────────────────────────────────────
 router.get('/whatsapp', (req, res) => {
@@ -76,12 +67,12 @@ router.post('/whatsapp', async (req, res) => {
 
     log.info(`[${from}] → "${userText.substring(0, 100)}"`);
 
-    let session = sessions.get(from);
+    // Load session from persistent store (cache hit on warm requests, DB on first
+    // message after restart)
+    let session = await sessionStore.get(from);
     if (!session) {
-      // New session: silently look up patient in CRM
       const profile = await lookupPatientProfile(from);
       session = { messages: [], lastActivity: Date.now(), profile };
-      sessions.set(from, session);
     }
     session.lastActivity = Date.now();
     session.messages.push({ role: 'user', content: userText });
@@ -92,6 +83,7 @@ router.post('/whatsapp', async (req, res) => {
       await sendWA(from, pkgReply);
       session.messages.push({ role: 'assistant', content: pkgReply });
       if (session.messages.length > 24) session.messages = session.messages.slice(-24);
+      await sessionStore.set(from, session);
       return;
     }
 
@@ -102,6 +94,9 @@ router.post('/whatsapp', async (req, res) => {
     session.messages.push({ role: 'assistant', content: reply });
 
     if (session.messages.length > 24) session.messages = session.messages.slice(-24);
+
+    // Persist session after every exchange
+    await sessionStore.set(from, session);
 
   } catch (err) {
     log.error(`WhatsApp handler error: ${err.message}`, { stack: err.stack });

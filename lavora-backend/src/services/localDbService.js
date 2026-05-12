@@ -72,6 +72,11 @@ async function initDb() {
       data       JSONB NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS whatsapp_sessions (
+      phone       TEXT PRIMARY KEY,
+      data        JSONB NOT NULL,
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
   console.log('[DB] Tables ready');
 }
@@ -292,6 +297,44 @@ async function updatePackageData(id, updates) {
   return all[idx];
 }
 
+// ── WhatsApp Sessions ─────────────────────────────────────────────────────────
+async function getSession(phone) {
+  if (pool) {
+    const res = await pool.query('SELECT data FROM whatsapp_sessions WHERE phone = $1', [phone]);
+    return res.rows[0]?.data || null;
+  }
+  return null; // local dev uses in-memory Map in sessionStore.js
+}
+
+async function saveSession(phone, data) {
+  if (pool) {
+    await pool.query(
+      `INSERT INTO whatsapp_sessions (phone, data, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (phone) DO UPDATE SET data = $2, updated_at = NOW()`,
+      [phone, JSON.stringify(data)]
+    );
+  }
+}
+
+async function deleteSession(phone) {
+  if (pool) {
+    await pool.query('DELETE FROM whatsapp_sessions WHERE phone = $1', [phone]);
+  }
+}
+
+async function deleteExpiredSessions(ttlMs) {
+  if (pool) {
+    const cutoff = new Date(Date.now() - ttlMs).toISOString();
+    const res = await pool.query(
+      'DELETE FROM whatsapp_sessions WHERE updated_at < $1 RETURNING phone',
+      [cutoff]
+    );
+    return res.rows.length;
+  }
+  return 0;
+}
+
 module.exports = {
   initDb,
   getAllAppointments, getAppointmentById,
@@ -299,5 +342,6 @@ module.exports = {
   cancelAppointment, hardDeleteAppointment, checkConflict,
   appendMissedCapture, appendCallLog,
   getAllActivities, appendActivity, getStats,
-  getAllPackages, getPackageById, savePackage, updatePackageData
+  getAllPackages, getPackageById, savePackage, updatePackageData,
+  getSession, saveSession, deleteSession, deleteExpiredSessions
 };

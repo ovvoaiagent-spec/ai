@@ -8,6 +8,7 @@ const sheetsService  = require('./services/sheetsService');
 const pollingService = require('./services/pollingService');
 const jobQueue       = require('./services/jobQueue');
 const laserPkgSvc   = require('./services/laserPackageService');
+const sessionStore   = require('./services/sessionStore');
 const log            = require('./services/logger').child('SERVER');
 
 const { toolsLimiter, apiLimiter, webhookLimiter } = require('./middleware/rateLimiter');
@@ -87,6 +88,15 @@ async function start() {
 
   // ── Job queue (pg-boss in prod, setInterval fallback in local dev) ──────────
   await jobQueue.init();
+  await sessionStore.hydrate();
+
+  // Session TTL cleanup — every 5 minutes
+  await jobQueue.registerRecurring(
+    'session-cleanup',
+    '*/5 * * * *',
+    () => sessionStore.purgeExpired(),
+    5 * 60 * 1000
+  );
 
   // Appointment 24h reminders — every hour at :00
   await jobQueue.registerRecurring(
