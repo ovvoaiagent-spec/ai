@@ -815,10 +815,19 @@ function buildSystemPrompt(callerPhone, profile, detectedLanguage) {
   const rsT    = s.hours?.restStart || '14:00';
   const reT    = s.hours?.restEnd   || '15:00';
 
+  const todayDateStr = dubaiTodayStr();
   const today = new Intl.DateTimeFormat('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     timeZone: 'Asia/Dubai'
   }).format(new Date());
+  // Pre-compute next dates so AI never miscalculates by hand
+  const _tmr = new Date(todayDateStr + 'T12:00:00Z');
+  _tmr.setUTCDate(_tmr.getUTCDate() + 1);
+  const tomorrowDateStr = _tmr.toISOString().slice(0, 10);
+  const tomorrow = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    timeZone: 'Asia/Dubai'
+  }).format(_tmr);
 
   const isReturning = !!profile;
   const clientContext = isReturning
@@ -835,7 +844,8 @@ Upcoming appointment: ${profile.upcomingAppointment ? `${profile.upcomingAppoint
 Brand tagline: "Where Science, Beauty, and Longevity Meet."
 You are warm, brief, helpful, and professional. Every message must feel like it came from a real, thoughtful receptionist — not a chatbot.
 
-TODAY: ${today}
+TODAY: ${today} [${todayDateStr}]
+TOMORROW: ${tomorrow} [${tomorrowDateStr}]
 PATIENT WHATSAPP NUMBER: ${callerPhone}
 CLINIC: ${clinicName} (${clinicNameAr}) — ${address} (${addressAr})
 
