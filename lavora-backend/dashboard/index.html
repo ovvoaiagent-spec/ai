@@ -1331,7 +1331,10 @@ function gotoPage(name, el) {
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function todayStr() { return new Date().toISOString().split('T')[0]; }
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
 
 function formatDate(d) {
   if (!d) return '—';
@@ -1341,7 +1344,8 @@ function formatDate(d) {
 
 function dayLabel(dateStr) {
   const today    = todayStr();
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const _tmr = new Date(); _tmr.setDate(_tmr.getDate() + 1);
+  const tomorrow = _tmr.getFullYear() + '-' + String(_tmr.getMonth()+1).padStart(2,'0') + '-' + String(_tmr.getDate()).padStart(2,'0');
   const d = new Date(dateStr + 'T12:00:00');
   const full = d.toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
   let chip = '';

@@ -15,7 +15,7 @@ const laserPkgSvc     = require('../services/laserPackageService');
 const sessionStore    = require('../services/sessionStore');
 const { buildPkgSelectionMsg, buildNextSessionOffer, buildFinalSummary } = laserPkgSvc;
 const log             = require('../services/logger').child('WHATSAPP');
-const { parseDate, parseTime } = require('../utils/dateParser');
+const { parseDate, parseTime, dubaiTodayStr } = require('../utils/dateParser');
 const { matchService }         = require('../services/extractionService');
 const { getSettings }          = require('../services/settingsService');
 
@@ -122,7 +122,7 @@ async function lookupPatientProfile(whatsappPhone) {
 
     mine.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
     const latest   = mine[0];
-    const upcoming = mine.filter(a => a.status !== 'Cancelled' && a.date >= new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10));
+    const upcoming = mine.filter(a => a.status !== 'Cancelled' && a.date >= dubaiTodayStr());
     upcoming.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
     return {
@@ -593,7 +593,7 @@ async function findActiveAppointment(phone) {
 
 async function findAllUpcomingAppointments(phone) {
   const norm  = normalizePhone(phone);
-  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10);
+  const today = dubaiTodayStr();
   const all   = await db.getAllAppointments();
   const hits  = all.filter(a =>
     a.status !== 'Cancelled' &&

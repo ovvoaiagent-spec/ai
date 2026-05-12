@@ -3,11 +3,24 @@ const dayjs = require('dayjs');
 const customParseFormat = require('dayjs/plugin/customParseFormat');
 dayjs.extend(customParseFormat);
 
-// Clinic is in Asia/Dubai (UTC+4). On a UTC server, new Date() returns UTC time which
-// can be one calendar day behind Dubai — causing "after tomorrow" to parse as the wrong day.
-// dubaiNow() returns a Date whose local-date components reflect Dubai wall-clock time.
-const DUBAI_OFFSET_MS = 4 * 60 * 60 * 1000;
-function dubaiNow() { return new Date(Date.now() + DUBAI_OFFSET_MS); }
+// Returns today's date in Asia/Dubai as 'YYYY-MM-DD'.
+// Uses Intl.DateTimeFormat so it works regardless of the server's TZ setting.
+function dubaiTodayStr() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Dubai',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${d}`;
+}
+
+// Returns a Date whose getDate()/getMonth()/getFullYear() reflect Dubai's current calendar
+// day on any server timezone. Noon UTC is used so the date is stable across all UTC-12..UTC+14.
+function dubaiRefDate() {
+  return new Date(dubaiTodayStr() + 'T12:00:00Z');
+}
 
 const WORD_TO_NUM = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
@@ -117,13 +130,24 @@ function parseTime(text) {
 
 function parseDate(text) {
   if (!text) return null;
-  const t = text.trim();
+  let t = text.trim();
 
   // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
+  // Normalise "day after tomorrow" / "after tomorrow" / Arabic equivalents
+  // Chrono-node parses "after tomorrow" as "tomorrow" (+1), not +2 days.
+  const dayAfterPattern = /\b(day\s+after\s+tomorrow|after\s+tomorrow)\b/i;
+  const arabicDayAfter  = /بعد\s*بكرة|بعد\s*بكره|بعد\s*الغد/;
+  const needsPlus2 = dayAfterPattern.test(t) || arabicDayAfter.test(t);
+  if (needsPlus2) {
+    const base = new Date(dubaiTodayStr() + 'T12:00:00Z');
+    base.setUTCDate(base.getUTCDate() + 2);
+    return dayjs(base).format('YYYY-MM-DD');
+  }
+
   // chrono-node handles most natural language dates — use Dubai time as reference
-  const parsed = chrono.parseDate(t, dubaiNow(), { forwardDate: true });
+  const parsed = chrono.parseDate(t, dubaiRefDate(), { forwardDate: true });
   if (parsed) return dayjs(parsed).format('YYYY-MM-DD');
 
   // Manual month name fallback
@@ -142,7 +166,7 @@ function parseDate(text) {
     const m = lower.match(rx);
     if (m) {
       const day = m[1] || m[2];
-      const year = dubaiNow().getFullYear();
+      const year = dubaiRefDate().getFullYear();
       return `${year}-${num}-${String(parseInt(day)).padStart(2, '0')}`;
     }
   }
@@ -150,4 +174,4 @@ function parseDate(text) {
   return null;
 }
 
-module.exports = { parseDate, parseTime };
+module.exports = { parseDate, parseTime, dubaiTodayStr };
