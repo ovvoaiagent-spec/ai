@@ -584,6 +584,19 @@ async function findActiveAppointment(phone) {
   return hits[hits.length - 1] || null;
 }
 
+async function findAllUpcomingAppointments(phone) {
+  const norm  = normalizePhone(phone);
+  const today = new Date().toISOString().slice(0, 10);
+  const all   = await db.getAllAppointments();
+  const hits  = all.filter(a =>
+    a.status !== 'Cancelled' &&
+    a.date >= today &&
+    (normalizePhone(a.phone) === norm || a.phone === phone || a.phone === '+' + norm)
+  );
+  hits.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return hits;
+}
+
 async function executeTool(name, input, callerPhone) {
   try {
     switch (name) {
@@ -663,9 +676,19 @@ async function executeTool(name, input, callerPhone) {
 
       case 'find_appointment': {
         const phone = input.phone || callerPhone;
-        const apt   = await findActiveAppointment(phone);
-        if (!apt) return { found: false, result: 'No upcoming appointment found for this number.' };
-        return { found: true, result: `Appointment found: ${apt.service}${apt.doctor ? ' with ' + apt.doctor : ''} on ${apt.date} at ${apt.time}.`, appointment_id: apt.id, service: apt.service, doctor: apt.doctor || '', date: apt.date, time: apt.time, status: apt.status, name: apt.name };
+        const apts  = await findAllUpcomingAppointments(phone);
+        if (!apts.length) return { found: false, result: 'No upcoming appointment found for this number.' };
+        if (apts.length === 1) {
+          const apt = apts[0];
+          return { found: true, count: 1, result: `Appointment found: ${apt.service}${apt.doctor ? ' with ' + apt.doctor : ''} on ${apt.date} at ${apt.time}.`, appointment_id: apt.id, service: apt.service, doctor: apt.doctor || '', date: apt.date, time: apt.time, status: apt.status, name: apt.name };
+        }
+        const list = apts.map((a, i) => `${i + 1}. ${a.service}${a.doctor ? ' with ' + a.doctor : ''} — ${a.date} at ${a.time} (ID: ${a.id})`).join('\n');
+        return {
+          found: true,
+          count: apts.length,
+          result: `Multiple appointments found. Ask the client which one:\n${list}`,
+          appointments: apts.map(a => ({ appointment_id: a.id, service: a.service, doctor: a.doctor || '', date: a.date, time: a.time, status: a.status }))
+        };
       }
 
       case 'cancel_appointment': {
@@ -1004,8 +1027,16 @@ Arabic:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RETURNING CLIENT FLOWS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MULTIPLE APPOINTMENTS RULE (applies to Options 1, 2, and 3):
+→ If find_appointment returns count > 1, the result field says "Multiple appointments found."
+→ List every appointment numbered (1, 2, 3…) with service, date, and time.
+→ Ask: "Which appointment would you like to [check/reschedule/cancel]? Reply with 1, 2, or 3."
+→ Wait for the client's reply, then use ONLY the appointment_id of the chosen appointment in the next tool call.
+→ NEVER assume, guess, or proceed without confirmation when multiple are found.
+
 OPTION 1 — CHECK UPCOMING APPOINTMENT:
-→ Call find_appointment(phone) → display:
+→ Call find_appointment(phone).
+→ If count = 1, display:
 "Your upcoming appointment: 📅
 
 📅 [Day], [Date] at [Time]
@@ -1014,13 +1045,18 @@ OPTION 1 — CHECK UPCOMING APPOINTMENT:
 📍 Test Clinic, Al Ghubrah, Muscat
 
 Is there anything else I can help you with?"
+→ If count > 1, apply MULTIPLE APPOINTMENTS RULE above.
 
 OPTION 2 — RESCHEDULE:
-"No problem! 📅 What day works better for you?"
+→ Call find_appointment(phone) first.
+→ If count > 1, apply MULTIPLE APPOINTMENTS RULE — ask which appointment, wait for reply, then proceed with that appointment_id.
+→ If count = 1: "No problem! 📅 What day works better for you?"
 → Ask day → call get_available_slots → offer times → confirm → call reschedule_appointment → send new confirmation (STEP 8 format).
 
 OPTION 3 — CANCEL:
-→ Call cancel_appointment → send:
+→ Call find_appointment(phone) first.
+→ If count > 1, apply MULTIPLE APPOINTMENTS RULE — ask which appointment, wait for reply, then call cancel_appointment with that appointment_id.
+→ If count = 1: call cancel_appointment → send:
 "Your appointment has been cancelled. ✅
 We hope to see you again soon! Is there anything else I can help you with?"
 → Do NOT ask why they are cancelling.
