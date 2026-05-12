@@ -12,6 +12,7 @@ const googleSync      = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const notify          = require('../services/notificationService');
 const laserPkgSvc     = require('../services/laserPackageService');
+const { buildPkgSelectionMsg, buildNextSessionOffer, buildFinalSummary } = laserPkgSvc;
 const log             = require('../services/logger').child('WHATSAPP');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService }         = require('../services/extractionService');
@@ -35,33 +36,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// ─── Laser package 24h follow-up scheduler ───────────────────────────────────
-setInterval(async () => {
-  try {
-    const pending = await laserPkgSvc.getPendingFollowUps();
-    for (const pkg of pending) {
-      const isAr = (pkg.language || 'ar') !== 'en';
-      let msg;
-      if (pkg.status === 'offer_sent') {
-        msg = buildPkgSelectionMsg(pkg, isAr);
-      } else if (pkg.pendingOffer) {
-        const prevSession = pkg.sessions[pkg.sessions.length - 1];
-        msg = buildNextSessionOffer(
-          pkg.pendingOffer.sessionNum, pkg.type,
-          pkg.pendingOffer.slots, isAr,
-          prevSession?.date || ''
-        );
-      }
-      if (msg) {
-        await sendWA(pkg.phone, msg);
-        await laserPkgSvc.markFollowUpSent(pkg.id);
-        log.info(`[PKG] 24h follow-up sent → ${pkg.phone} (${pkg.id})`);
-      }
-    }
-  } catch (e) {
-    log.warn(`[PKG] Follow-up scheduler error: ${e.message}`);
-  }
-}, 60 * 60 * 1000); // check every hour
+// Laser package follow-up scheduling is handled by jobQueue in index.js.
 
 // ─── Webhook verification (GET) ───────────────────────────────────────────────
 router.get('/whatsapp', (req, res) => {
@@ -331,30 +306,6 @@ async function getPackageWindowSlots(prevDate, service, maxResults = 2) {
   return results;
 }
 
-function buildPkgSelectionMsg(pkg, isAr) {
-  if (isAr) {
-    return `🌟 موعدك الأول في ${pkg.service} مؤكد!\n\nهل تودين حجز باقة؟\n1 جلسة واحدة فقط\n2 باقة 3 جلسات\n3 باقة 6 جلسات\n\nاردّي بالرقم للاختيار.`;
-  }
-  return `🌟 Your first ${pkg.service} session is confirmed!\n\nWould you like a package?\n1 Single session only\n2 3-session package\n3 6-session package\n\nReply with a number to choose.`;
-}
-
-function buildNextSessionOffer(sessionNum, totalSessions, slots, isAr, prevDate) {
-  if (isAr) {
-    const lines = slots.map((s, i) => `${i + 1} ${s.date} — الساعة ${s.time}`).join('\n');
-    return `✅ الجلسة ${sessionNum - 1} محجوزة!\n\nالجلسة ${sessionNum}/${totalSessions} — أوقات متاحة (28-30 يوم من ${prevDate}):\n\n${lines}\n\nاردّي بـ 1 أو 2 للتأكيد.`;
-  }
-  const lines = slots.map((s, i) => `${i + 1} ${s.date} at ${s.time}`).join('\n');
-  return `✅ Session ${sessionNum - 1} confirmed!\n\nSession ${sessionNum}/${totalSessions} — available times (28–30 days from ${prevDate}):\n\n${lines}\n\nReply 1 or 2 to confirm.`;
-}
-
-function buildFinalSummary(pkg, isAr) {
-  if (isAr) {
-    const lines = pkg.sessions.map(s => `جلسة ${s.num}: ${s.date} — ${s.time}`).join('\n');
-    return `🎉 جميع جلساتك محجوزة!\n\n${pkg.service} — باقة ${pkg.type} جلسات:\n${lines}\n\nسنرسل تذكيراً قبل 24 ساعة من كل جلسة. نتطلع لرؤيتك! 🌿`;
-  }
-  const lines = pkg.sessions.map(s => `Session ${s.num}: ${s.date} at ${s.time}`).join('\n');
-  return `🎉 All sessions booked!\n\n${pkg.service} — ${pkg.type}-session package:\n${lines}\n\nYou'll get a reminder 24 hours before each session. See you soon! 🌿`;
-}
 
 // Main package reply handler. Returns a string if the message was handled by the
 // package flow, or null to fall through to the normal AI conversation.

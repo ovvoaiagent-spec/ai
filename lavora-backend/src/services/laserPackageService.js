@@ -11,7 +11,9 @@
  * waiting for the client to reply "1" or "2".
  */
 
-const db = require('./localDbService');
+const db     = require('./localDbService');
+const notify = require('./notificationService');
+const log    = require('./logger').child('LASER-PKG');
 
 function normPhone(p) {
   if (!p) return '';
@@ -128,6 +130,72 @@ async function getAllPackages() {
   return db.getAllPackages();
 }
 
+// ─── Message builders (used by whatsapp.js and the follow-up job) ─────────────
+
+function buildPkgSelectionMsg(pkg, isAr) {
+  if (isAr) {
+    return `🌟 موعدك الأول في ${pkg.service} مؤكد!\n\nهل تودين حجز باقة؟\n1 جلسة واحدة فقط\n2 باقة 3 جلسات\n3 باقة 6 جلسات\n\nاردّي بالرقم للاختيار.`;
+  }
+  return `🌟 Your first ${pkg.service} session is confirmed!\n\nWould you like a package?\n1 Single session only\n2 3-session package\n3 6-session package\n\nReply with a number to choose.`;
+}
+
+function buildNextSessionOffer(sessionNum, totalSessions, slots, isAr, prevDate) {
+  if (isAr) {
+    const lines = slots.map((s, i) => `${i + 1} ${s.date} — الساعة ${s.time}`).join('\n');
+    return `✅ الجلسة ${sessionNum - 1} محجوزة!\n\nالجلسة ${sessionNum}/${totalSessions} — أوقات متاحة (28-30 يوم من ${prevDate}):\n\n${lines}\n\nاردّي بـ 1 أو 2 للتأكيد.`;
+  }
+  const lines = slots.map((s, i) => `${i + 1} ${s.date} at ${s.time}`).join('\n');
+  return `✅ Session ${sessionNum - 1} confirmed!\n\nSession ${sessionNum}/${totalSessions} — available times (28–30 days from ${prevDate}):\n\n${lines}\n\nReply 1 or 2 to confirm.`;
+}
+
+function buildFinalSummary(pkg, isAr) {
+  if (isAr) {
+    const lines = pkg.sessions.map(s => `جلسة ${s.num}: ${s.date} — ${s.time}`).join('\n');
+    return `🎉 جميع جلساتك محجوزة!\n\n${pkg.service} — باقة ${pkg.type} جلسات:\n${lines}\n\nسنرسل تذكيراً قبل 24 ساعة من كل جلسة. نتطلع لرؤيتك! 🌿`;
+  }
+  const lines = pkg.sessions.map(s => `Session ${s.num}: ${s.date} at ${s.time}`).join('\n');
+  return `🎉 All sessions booked!\n\n${pkg.service} — ${pkg.type}-session package:\n${lines}\n\nYou'll get a reminder 24 hours before each session. See you soon! 🌿`;
+}
+
+// ─── 24-hour follow-up job handler ───────────────────────────────────────────
+// Called by the job queue every hour. Finds packages with unanswered offers
+// and sends a reminder. Safe to call multiple times — followUpSent flag prevents
+// duplicate sends.
+async function runFollowUpCheck() {
+  const pending = await getPendingFollowUps();
+  if (!pending.length) return;
+
+  log.info(`[FOLLOW-UP] ${pending.length} package(s) need a follow-up`);
+
+  for (const pkg of pending) {
+    const isAr = (pkg.language || 'ar') !== 'en';
+    let msg;
+
+    if (pkg.status === 'offer_sent') {
+      msg = buildPkgSelectionMsg(pkg, isAr);
+    } else if (pkg.pendingOffer) {
+      const prevSession = pkg.sessions[pkg.sessions.length - 1];
+      msg = buildNextSessionOffer(
+        pkg.pendingOffer.sessionNum,
+        pkg.type,
+        pkg.pendingOffer.slots,
+        isAr,
+        prevSession?.date || ''
+      );
+    }
+
+    if (msg) {
+      try {
+        await notify.sendMessage(pkg.phone, msg);
+        await markFollowUpSent(pkg.id);
+        log.info(`[FOLLOW-UP] Sent to ${pkg.phone} (${pkg.id})`);
+      } catch (e) {
+        log.warn(`[FOLLOW-UP] Failed for ${pkg.id}: ${e.message}`);
+      }
+    }
+  }
+}
+
 module.exports = {
   createPackageOffer,
   getPackageByPhone,
@@ -139,5 +207,9 @@ module.exports = {
   clearPendingOffer,
   getPendingFollowUps,
   markFollowUpSent,
-  getAllPackages
+  getAllPackages,
+  runFollowUpCheck,
+  buildPkgSelectionMsg,
+  buildNextSessionOffer,
+  buildFinalSummary
 };

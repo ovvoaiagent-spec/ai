@@ -175,18 +175,8 @@ async function sendReminders() {
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-function start() {
-  if (!AGENT_ID || !API_KEY) {
-    log.warn('ElevenLabs not configured — conversation polling disabled');
-  } else {
-    log.info('Starting conversation polling (every 30s)');
-    poll();
-    setInterval(poll, POLL_INTERVAL_MS);
-  }
+// Scheduling is owned by jobQueue (index.js). This function is kept for
+// backwards-compatibility but does nothing — job registration happens in index.js.
+function start() {}
 
-  log.info('Starting appointment reminder job (every hour)');
-  sendReminders();
-  setInterval(sendReminders, REMINDER_INTERVAL_MS);
-}
-
-module.exports = { start, poll, sendReminders };
+module.exports = { start, poll, sendReminders, POLL_INTERVAL_MS, REMINDER_INTERVAL_MS };

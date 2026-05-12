@@ -3,10 +3,12 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
-const db = require('./services/localDbService');
-const sheetsService = require('./services/sheetsService');
+const db             = require('./services/localDbService');
+const sheetsService  = require('./services/sheetsService');
 const pollingService = require('./services/pollingService');
-const log = require('./services/logger').child('SERVER');
+const jobQueue       = require('./services/jobQueue');
+const laserPkgSvc   = require('./services/laserPackageService');
+const log            = require('./services/logger').child('SERVER');
 
 const { toolsLimiter, apiLimiter, webhookLimiter } = require('./middleware/rateLimiter');
 const webhookRoutes  = require('./routes/webhooks');
@@ -82,8 +84,38 @@ const PORT = process.env.PORT || 3000;
 
 async function start() {
   await db.initDb();
+
+  // ── Job queue (pg-boss in prod, setInterval fallback in local dev) ──────────
+  await jobQueue.init();
+
+  // Appointment 24h reminders — every hour at :00
+  await jobQueue.registerRecurring(
+    'appointment-reminders',
+    '0 * * * *',
+    () => pollingService.sendReminders(),
+    pollingService.REMINDER_INTERVAL_MS
+  );
+
+  // Laser package 24h follow-ups — every hour at :30 (staggered from reminders)
+  await jobQueue.registerRecurring(
+    'laser-followups',
+    '30 * * * *',
+    () => laserPkgSvc.runFollowUpCheck(),
+    pollingService.REMINDER_INTERVAL_MS
+  );
+
+  // ElevenLabs conversation polling — every 30 seconds
+  // Kept as local timer even in production since pg-boss doesn't support sub-minute
+  // cron without a custom workaround, and missed polls are not critical.
+  if (process.env.ELEVENLABS_AGENT_ID && process.env.ELEVENLABS_API_KEY) {
+    pollingService.poll();
+    setInterval(() => pollingService.poll(), pollingService.POLL_INTERVAL_MS);
+    log.info('ElevenLabs polling started (every 30s)');
+  } else {
+    log.warn('ElevenLabs not configured — conversation polling disabled');
+  }
+
   try { await sheetsService.initializeSheets(); } catch {}
-  pollingService.start();
 
   const server = app.listen(PORT, () => {
     log.info('═══════════════════════════════════════════════════');
@@ -91,6 +123,7 @@ async function start() {
     log.info('═══════════════════════════════════════════════════');
     log.info(`Port      : ${PORT}`);
     log.info(`Database  : ${process.env.DATABASE_URL ? 'PostgreSQL ✅' : 'Local JSON'}`);
+    log.info(`Job Queue : ${process.env.DATABASE_URL ? 'pg-boss (PostgreSQL) ✅' : 'setInterval (local fallback)'}`);
     log.info(`Sheets    : ${sheetsService.googleConfigured() ? 'Connected ✅' : 'Not configured'}`);
     log.info(`Calendar  : ${process.env.GOOGLE_CALENDAR_ID ? 'Configured ✅' : 'Not configured'}`);
     log.info(`Twilio    : ${process.env.TWILIO_ACCOUNT_SID ? 'Configured ✅' : 'Missing SID'}`);
