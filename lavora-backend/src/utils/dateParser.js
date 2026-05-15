@@ -128,6 +128,18 @@ function parseTime(text) {
   return null;
 }
 
+// Arabic day-name → English for chrono-node
+const ARABIC_TO_EN = {
+  'الأحد': 'Sunday',    'الاحد': 'Sunday',    'احد': 'Sunday',
+  'الإثنين': 'Monday',  'الاثنين': 'Monday',  'اثنين': 'Monday',  'إثنين': 'Monday',
+  'الثلاثاء': 'Tuesday','ثلاثاء': 'Tuesday',
+  'الأربعاء': 'Wednesday','الاربعاء': 'Wednesday','أربعاء': 'Wednesday','اربعاء': 'Wednesday',
+  'الخميس': 'Thursday', 'خميس': 'Thursday',
+  'الجمعة': 'Friday',   'الجمعه': 'Friday',   'جمعة': 'Friday',   'جمعه': 'Friday',
+  'السبت': 'Saturday',  'سبت': 'Saturday',
+  'اليوم': 'today',     'النهار': 'today',
+};
+
 function parseDate(text) {
   if (!text) return null;
   let t = text.trim();
@@ -135,15 +147,26 @@ function parseDate(text) {
   // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
 
-  // Normalise "day after tomorrow" / "after tomorrow" / Arabic equivalents
-  // Chrono-node parses "after tomorrow" as "tomorrow" (+1), not +2 days.
+  // Arabic "after tomorrow" → +2 days
   const dayAfterPattern = /\b(day\s+after\s+tomorrow|after\s+tomorrow)\b/i;
-  const arabicDayAfter  = /بعد\s*بكرة|بعد\s*بكره|بعد\s*الغد/;
+  const arabicDayAfter  = /بعد\s*بكرة|بعد\s*بكره|بعد\s*الغد|بعد\s*بكرا/;
   const needsPlus2 = dayAfterPattern.test(t) || arabicDayAfter.test(t);
   if (needsPlus2) {
     const base = new Date(dubaiTodayStr() + 'T12:00:00Z');
     base.setUTCDate(base.getUTCDate() + 2);
     return dayjs(base).format('YYYY-MM-DD');
+  }
+
+  // Arabic "tomorrow" → +1 day
+  if (/^(بكرا|بكره|بكرة|بكره)$/.test(t)) {
+    const base = new Date(dubaiTodayStr() + 'T12:00:00Z');
+    base.setUTCDate(base.getUTCDate() + 1);
+    return dayjs(base).format('YYYY-MM-DD');
+  }
+
+  // Translate Arabic day names / "today" to English for chrono-node
+  for (const [ar, en] of Object.entries(ARABIC_TO_EN)) {
+    if (t.includes(ar)) { t = t.replace(ar, en); break; }
   }
 
   // chrono-node handles most natural language dates — use Dubai time as reference
