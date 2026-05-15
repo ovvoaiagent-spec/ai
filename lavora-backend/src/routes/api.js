@@ -532,7 +532,7 @@ RULES:
       name: 'Lavora Receptionist',
       conversation_config: {
         tts: {
-          model_id: 'eleven_turbo_v2_5',
+          model_id: 'eleven_flash_v2',
           voice_id: VOICE_ID,
           optimize_streaming_latency: 4,
           stability: 0.5,
@@ -546,7 +546,7 @@ RULES:
         agent: {
           prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
           first_message: 'أهلاً بك في لافورا كلينيك — Welcome to Lavora Clinic. Do you prefer Arabic or English?',
-          language: 'ar'
+          language: 'en'
         }
       }
     };
