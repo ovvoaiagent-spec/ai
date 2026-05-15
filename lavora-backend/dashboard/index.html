@@ -58,27 +58,27 @@ body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); colo
 #app { display: flex; min-height: 100vh; }
 
 /* ── Sidebar ── */
-.sidebar { width: var(--sidebar); min-width: var(--sidebar); background: linear-gradient(180deg, var(--navy) 0%, #0a1e3a 100%); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; border-right: 1px solid rgba(255,255,255,.04); }
-.sidebar-logo { padding: 26px 22px 20px; border-bottom: 1px solid rgba(255,255,255,.07); }
-.sidebar-logo .name { font-size: 18px; font-weight: 800; color: var(--sky2); letter-spacing: 3px; }
-.sidebar-logo .sub { font-size: 9.5px; color: rgba(255,255,255,.28); letter-spacing: 1.5px; margin-top: 3px; text-transform: uppercase; }
+.sidebar { width: var(--sidebar); min-width: var(--sidebar); background: var(--sky); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; border-right: 1px solid rgba(0,0,0,.08); }
+.sidebar-logo { padding: 26px 22px 20px; border-bottom: 1px solid rgba(0,0,0,.1); }
+.sidebar-logo .name { font-size: 18px; font-weight: 800; color: #000; letter-spacing: 3px; }
+.sidebar-logo .sub { font-size: 9.5px; color: rgba(0,0,0,.45); letter-spacing: 1.5px; margin-top: 3px; text-transform: uppercase; }
 .sidebar-nav { flex: 1; padding: 14px 0; overflow-y: auto; }
 .nav-section { padding: 0 12px; margin-bottom: 6px; }
-.nav-label { font-size: 9.5px; font-weight: 700; color: rgba(255,255,255,.2); letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 10px 4px; }
-.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.5); cursor: pointer; transition: all .18s; user-select: none; margin-bottom: 2px; }
-.nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
-.nav-item.active { background: rgba(14,165,233,.18); color: var(--sky2); font-weight: 600; }
+.nav-label { font-size: 9.5px; font-weight: 700; color: rgba(0,0,0,.35); letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 10px 4px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 500; color: rgba(0,0,0,.6); cursor: pointer; transition: all .18s; user-select: none; margin-bottom: 2px; }
+.nav-item:hover { background: rgba(0,0,0,.08); color: #000; }
+.nav-item.active { background: rgba(0,0,0,.14); color: #000; font-weight: 700; }
 .nav-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
-.nav-badge { margin-left: auto; background: var(--sky); color: white; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; min-width: 20px; text-align: center; }
-.sidebar-bottom { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.07); }
+.nav-badge { margin-left: auto; background: var(--navy); color: white; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; min-width: 20px; text-align: center; }
+.sidebar-bottom { padding: 14px 16px; border-top: 1px solid rgba(0,0,0,.1); }
 .int-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-.int-dot-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: rgba(255,255,255,.3); font-weight: 500; }
+.int-dot-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: rgba(0,0,0,.4); font-weight: 500; }
 .int-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.int-dot.ok { background: var(--green); }
-.int-dot.err { background: #666; }
+.int-dot.ok { background: #065f46; }
+.int-dot.err { background: #555; }
 .sidebar-actions { display: flex; gap: 4px; }
-.icon-btn { background: none; border: none; color: rgba(255,255,255,.28); cursor: pointer; font-size: 15px; padding: 6px 8px; border-radius: 7px; transition: all .2s; }
-.icon-btn:hover { background: rgba(255,255,255,.08); color: rgba(255,255,255,.75); }
+.icon-btn { background: none; border: none; color: rgba(0,0,0,.4); cursor: pointer; font-size: 15px; padding: 6px 8px; border-radius: 7px; transition: all .2s; }
+.icon-btn:hover { background: rgba(0,0,0,.1); color: #000; }
 
 /* ── Main Area ── */
 .main-area { margin-left: var(--sidebar); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
@@ -254,10 +254,10 @@ tbody td { padding: 13px 18px; vertical-align: middle; }
 .session-notes { font-size: 11px; color: var(--text3); margin-top: 4px; font-style: italic; }
 
 /* ── Department nav items ── */
-.nav-item.dept-beauty.active  { background: rgba(236,72,153,.15);  color: var(--dept-beauty); }
-.nav-item.dept-slimming.active { background: rgba(14,165,233,.18); color: var(--sky2); }
-.nav-item.dept-laser.active   { background: rgba(107,114,128,.15); color: #d1d5db; }
-.nav-item.dept-gyno.active    { background: rgba(217,119,6,.15);   color: var(--dept-gyno); }
+.nav-item.dept-beauty.active  { background: rgba(0,0,0,.14); color: #000; }
+.nav-item.dept-slimming.active { background: rgba(0,0,0,.14); color: #000; }
+.nav-item.dept-laser.active   { background: rgba(0,0,0,.14); color: #000; }
+.nav-item.dept-gyno.active    { background: rgba(0,0,0,.14); color: #000; }
 
 /* ── Department page header stripe ── */
 .dept-stripe { height: 4px; border-radius: 4px 4px 0 0; margin-bottom: 20px; }
