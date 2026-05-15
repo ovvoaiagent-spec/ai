@@ -268,7 +268,7 @@ router.post('/reschedule-appointment', async (req, res) => {
 router.post('/get-services', (_req, res) => {
   const s = getSettings();
   const services = (s.services || []).map(sv => sv.name);
-  res.json({ result: `Here are the available services at ${s.clinic?.name || 'Test Clinic'}.`, services });
+  res.json({ result: `Here are the available services at ${s.clinic?.name || 'Lavora Clinic'}.`, services });
 });
 
 // ─── get_working_hours ────────────────────────────────────────────────────────
@@ -277,7 +277,7 @@ router.post('/get-working-hours', (_req, res) => {
   const wds = (s.workDays || []).join(', ');
   const h   = s.hours || {};
   res.json({
-    result: `${s.clinic?.name || 'Test Clinic'} is open ${wds}, ${h.open || '08:00'} to ${h.close || '23:00'} (rest break ${h.restStart || '14:00'}–${h.restEnd || '15:00'}, no appointments during this time).`,
+    result: `${s.clinic?.name || 'Lavora Clinic'} is open ${wds}, ${h.open || '08:00'} to ${h.close || '23:00'} (rest break ${h.restStart || '14:00'}–${h.restEnd || '15:00'}, no appointments during this time).`,
     hours: `${wds}: ${h.open || '08:00'} – ${h.close || '23:00'}`,
     rest_break: `${h.restStart || '14:00'} – ${h.restEnd || '15:00'}`,
     closed_days: 'Days not listed in workDays'
