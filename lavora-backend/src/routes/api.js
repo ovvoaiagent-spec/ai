@@ -493,20 +493,20 @@ RULES:
   const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
 
   try {
-    // GET current agent to retrieve existing tool IDs — avoids stale-ID rejection on PATCH
-    const current = await elevenlabsRequest('GET', null);
-    const existingTools = current.body?.conversation_config?.agent?.prompt?.tools || [];
-    const idByName = {};
-    for (const t of existingTools) { if (t.id && t.name) idByName[t.name] = t.id; }
+    // Step 1: clear all existing tools (removes stale IDs that cause document_not_found)
+    const clear = await elevenlabsRequest('PATCH', {
+      conversation_config: { agent: { prompt: { tools: [] } } }
+    });
+    if (clear.status !== 200) {
+      return res.status(502).json({ error: 'ElevenLabs clear-tools failed', detail: clear.body });
+    }
 
-    // Merge our tool definitions with any existing IDs ElevenLabs already assigned
-    const toolsWithIds = TOOLS.map(t => idByName[t.name] ? { ...t, id: idByName[t.name] } : t);
-
+    // Step 2: push full config with fresh tools
     const result = await elevenlabsRequest('PATCH', {
       conversation_config: {
         tts: { voice_id: VOICE_ID },
         agent: {
-          prompt: { prompt: SYSTEM_PROMPT, tools: toolsWithIds },
+          prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
           first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant.',
           language: 'en',
           language_presets: {
