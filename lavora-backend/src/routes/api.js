@@ -540,6 +540,7 @@ RULES:
           similarity_boost: 0.8
         },
         turn: {
+          turn_timeout: 2.5,
           turn_eagerness: 'eager',
           speculative_turn: true
         },
@@ -576,6 +577,9 @@ RULES:
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── GET /api/ping ───────────────────────────────────────────────────────────
+router.get('/ping', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ─── POST /api/poll-now ───────────────────────────────────────────────────────
 router.post('/poll-now', async (req, res) => {

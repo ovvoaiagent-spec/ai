@@ -133,6 +133,13 @@ async function start() {
     log.warn('ElevenLabs not configured — conversation polling disabled');
   }
 
+  // Self-ping every 4 minutes to prevent Railway from sleeping (keeps tool calls fast)
+  const selfUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
+  setInterval(() => {
+    const http = selfUrl.startsWith('https') ? require('https') : require('http');
+    http.get(`${selfUrl}/status`, () => {}).on('error', () => {});
+  }, 4 * 60 * 1000);
+
   try { await sheetsService.initializeSheets(); } catch {}
 
   const server = app.listen(PORT, () => {
