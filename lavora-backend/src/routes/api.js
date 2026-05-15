@@ -493,21 +493,13 @@ RULES:
   const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
 
   try {
-    // Step 1: GET current agent to find stale tool IDs, delete each individually
-    const current = await elevenlabsRequest('GET', null);
-    const existingTools = current.body?.conversation_config?.agent?.prompt?.tools || [];
-    for (const t of existingTools) {
-      if (t.id) {
-        await elevenlabsRequest('DELETE', null, `/v1/convai/agents/${AGENT_ID}/tools/${t.id}`);
-      }
-    }
-
-    // Step 2: push full config with fresh tools (no stale IDs in system now)
+    // Update prompt only — tools are managed separately in ElevenLabs UI
+    // (Sending tools in the PATCH causes document_not_found on stale ElevenLabs tool IDs)
     const result = await elevenlabsRequest('PATCH', {
       conversation_config: {
         tts: { voice_id: VOICE_ID },
         agent: {
-          prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
+          prompt: { prompt: SYSTEM_PROMPT },
           first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant.',
           language: 'en',
           language_presets: {
@@ -524,7 +516,7 @@ RULES:
     if (result.status !== 200) {
       return res.status(502).json({ error: 'ElevenLabs rejected update', detail: result.body });
     }
-    res.json({ success: true, message: 'Agent updated', voice_id: VOICE_ID });
+    res.json({ success: true, message: 'Agent prompt updated', voice_id: VOICE_ID });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
