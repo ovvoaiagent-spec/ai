@@ -9,10 +9,16 @@ const db             = require('../services/localDbService');
 const googleSync     = require('../services/googleSync');
 const activityService = require('../services/activityService');
 const sms            = require('../services/notificationService');
+const laserPkgSvc    = require('../services/laserPackageService');
 const log            = require('../services/logger').child('TOOL');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
 const { getSettings } = require('../services/settingsService');
+
+function isLaserService(service) {
+  const s = (service || '').toLowerCase();
+  return ['laser hair removal', 'laser hair', 'full body laser', 'partial laser'].some(k => s.includes(k));
+}
 
 function normalizePhone(raw) {
   if (!raw) return raw;
@@ -103,13 +109,29 @@ router.post('/book-appointment', async (req, res) => {
 
     await db.appendAppointment(apt);
     googleSync.book(apt);
-    sms.sendBookingConfirmation(apt);   // SMS to patient
+    sms.sendBookingConfirmation(apt);
 
     await activityService.addActivity({
       actor: 'AI Voice', actionType: activityService.ACTION_TYPES.BOOKED,
       patientName: name,
       details: `${normalizedService} on ${normalizedDate} at ${normalizedTime} | ID: ${aptId}`
     });
+
+    // Laser package offer — send WhatsApp message after voice call books laser
+    if (isLaserService(normalizedService)) {
+      try {
+        const pkg = await laserPkgSvc.createPackageOffer({
+          phone: normalizedPhone, name, service: normalizedService,
+          language: 'ar', aptId, date: normalizedDate, time: normalizedTime
+        });
+        const { buildPkgSelectionMsg } = laserPkgSvc;
+        const msg = buildPkgSelectionMsg(pkg, true);
+        await sms.sendMessage(normalizedPhone, msg);
+        log.info(`Laser package offer sent to ${normalizedPhone}`);
+      } catch (e) {
+        log.warn(`Laser package offer failed: ${e.message}`);
+      }
+    }
 
     log.info(`Booked: ${aptId}`);
     res.json({ result: 'Booking saved successfully.', success: true, appointment_id: aptId, date: normalizedDate, time: normalizedTime, service: normalizedService });
@@ -190,19 +212,33 @@ router.post('/reschedule-appointment', async (req, res) => {
       return res.json({ result: `The slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different time.`, success: false, available: false });
     }
 
-    const updated = await db.updateAppointment(apt.id, { date: normalizedDate, time: normalizedTime, status: 'Confirmed' });
-    const rescheduled = { ...apt, date: normalizedDate, time: normalizedTime, status: 'Confirmed' };
-    googleSync.reschedule(rescheduled);
-    sms.sendRescheduleConfirmation(rescheduled);   // SMS to patient
+    // Cancel old appointment, create new one so both appear in history
+    await db.cancelAppointment(apt.id);
+    googleSync.cancel(apt);
+
+    const newAptId = `APT-${Date.now()}`;
+    const newApt = {
+      ...apt,
+      id: newAptId,
+      date: normalizedDate,
+      time: normalizedTime,
+      status: 'Confirmed',
+      notes: (apt.notes ? apt.notes + ' | ' : '') + `Rescheduled from ${apt.date} ${apt.time}`,
+      timestamp: new Date().toISOString(),
+      calendarEventId: ''
+    };
+    await db.appendAppointment(newApt);
+    googleSync.book(newApt);
+    sms.sendRescheduleConfirmation(newApt);
 
     await activityService.addActivity({
       actor: 'AI Voice', actionType: activityService.ACTION_TYPES.RESCHEDULED,
       patientName: apt.name,
-      details: `${apt.service} rescheduled ${apt.date} ${apt.time} → ${normalizedDate} ${normalizedTime} | ID: ${apt.id}`
+      details: `${apt.service} rescheduled ${apt.date} ${apt.time} → ${normalizedDate} ${normalizedTime} | Old: ${apt.id} New: ${newAptId}`
     });
 
-    log.info(`Rescheduled: ${apt.id}`);
-    res.json({ result: 'Appointment rescheduled successfully.', success: true, service: apt.service, date: normalizedDate, time: normalizedTime, phone: apt.phone });
+    log.info(`Rescheduled: ${apt.id} → ${newAptId}`);
+    res.json({ result: 'Appointment rescheduled successfully.', success: true, service: apt.service, date: normalizedDate, time: normalizedTime, phone: apt.phone, new_appointment_id: newAptId });
 
   } catch (err) {
     log.error(`reschedule_appointment error: ${err.message}`);

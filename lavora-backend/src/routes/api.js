@@ -163,7 +163,9 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
 
     const newDate = updates.date || existing.date;
     const newTime = updates.time || existing.time;
-    if (updates.date || updates.time) {
+    const isReschedule = !!(updates.date || updates.time);
+
+    if (isReschedule) {
       const others = (await db.getAllAppointments(req.clinicId)).filter(a => a.id !== id && a.status !== 'Cancelled');
       const conflict = others.some(a => a.date === newDate && a.time === newTime);
       if (conflict) {
@@ -172,20 +174,43 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
           date: newDate, time: newTime
         });
       }
+
+      // Cancel old appointment, create new one so history is preserved
+      await db.cancelAppointment(id, req.clinicId);
+      googleSync.cancel(existing);
+
+      const newAptId = `APT-${Date.now()}`;
+      const newApt = {
+        ...existing,
+        ...updates,
+        id: newAptId,
+        date: newDate,
+        time: newTime,
+        status: updates.status || 'Confirmed',
+        notes: (existing.notes ? existing.notes + ' | ' : '') + `Rescheduled from ${existing.date} ${existing.time}`,
+        timestamp: new Date().toISOString(),
+        calendarEventId: ''
+      };
+      await db.appendAppointment(newApt, req.clinicId);
+      googleSync.book(newApt);
+      sms.sendRescheduleConfirmation(newApt);
+
+      await activityService.addActivity({
+        actor: 'Human',
+        actionType: activityService.ACTION_TYPES.RESCHEDULED,
+        patientName: newApt.name,
+        details: `${existing.service} → ${newDate} ${newTime} | Old: ${id} New: ${newAptId}`,
+        clinicId: req.clinicId
+      });
+
+      return res.json({ success: true, appointment: newApt, cancelled_id: id });
     }
 
+    // Non-reschedule update (name, notes, status, doctor, etc.)
     const updated = await db.updateAppointment(id, updates, req.clinicId);
-    if (updates.date || updates.time) {
-      googleSync.reschedule(updated);
-      sms.sendRescheduleConfirmation(updated);
-    }
-
-    const isReschedule = updates.date || updates.time;
     await activityService.addActivity({
       actor: 'Human',
-      actionType: isReschedule
-        ? activityService.ACTION_TYPES.RESCHEDULED
-        : activityService.ACTION_TYPES.UPDATED,
+      actionType: activityService.ACTION_TYPES.UPDATED,
       patientName: updated.name,
       details: `ID: ${id} | Changes: ${Object.keys(updates).join(', ')}`,
       clinicId: req.clinicId

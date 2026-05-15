@@ -739,18 +739,33 @@ async function executeTool(name, input, callerPhone) {
         const booked = await countSlotBookings(newDate, newTime, dept);
         if (booked >= deptCapacity(dept)) return { success: false, result: `That slot is fully booked. Please suggest another time.` };
 
-        await db.updateAppointment(apt.id, { date: newDate, time: newTime, status: 'Confirmed', reminderSent: false });
-        const updated = { ...apt, date: newDate, time: newTime };
-        googleSync.reschedule(updated);
-        notify.sendRescheduleConfirmation(updated);
+        // Cancel old appointment, create new one so both appear in history
+        await db.cancelAppointment(apt.id);
+        googleSync.cancel(apt);
+
+        const newAptId = `APT-${Date.now()}`;
+        const newApt = {
+          ...apt,
+          id: newAptId,
+          date: newDate,
+          time: newTime,
+          status: 'Confirmed',
+          reminderSent: false,
+          notes: (apt.notes ? apt.notes + ' | ' : '') + `Rescheduled from ${apt.date} ${apt.time}`,
+          timestamp: new Date().toISOString(),
+          calendarEventId: ''
+        };
+        await db.appendAppointment(newApt);
+        googleSync.book(newApt);
+        notify.sendRescheduleConfirmation(newApt);
 
         await activityService.addActivity({
           actor: 'WhatsApp AI', actionType: activityService.ACTION_TYPES.RESCHEDULED,
           patientName: apt.name,
-          details: `${apt.service} → ${newDate} ${newTime} | ID: ${apt.id}`
+          details: `${apt.service} → ${newDate} ${newTime} | Old: ${apt.id} New: ${newAptId}`
         });
 
-        return { success: true, result: 'Appointment rescheduled.', service: apt.service, doctor: apt.doctor || '', date: newDate, time: newTime };
+        return { success: true, result: 'Appointment rescheduled.', service: apt.service, doctor: apt.doctor || '', date: newDate, time: newTime, new_appointment_id: newAptId };
       }
 
       case 'get_available_slots': {
