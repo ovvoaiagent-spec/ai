@@ -518,7 +518,7 @@ RULES:
     }
 
     // Create a brand-new agent (bypasses broken stale tool IDs on old agent)
-    const create = await elevenlabsRequest('POST', agentBody, '/v1/convai/agents');
+    const create = await elevenlabsRequest('POST', agentBody, '/v1/convai/agents/create');
     if (create.status !== 200 && create.status !== 201) {
       return res.status(502).json({ error: 'ElevenLabs agent creation failed', detail: create.body });
     }
