@@ -524,14 +524,30 @@ RULES:
     const agentBody = {
       name: 'Lavora Receptionist',
       conversation_config: {
-        tts: { voice_id: VOICE_ID },
+        asr: {
+          provider: 'elevenlabs',
+          quality: 'high',
+          keywords: ['بكرا', 'بعد بكرا', 'بعد الغد', 'لافورا', 'موعد', 'بوتوكس', 'فيلر', 'ليزر']
+        },
+        tts: {
+          model_id: 'eleven_flash_v2_5',
+          voice_id: VOICE_ID,
+          optimize_streaming_latency: 4,
+          stability: 0.5,
+          speed: 1.0,
+          similarity_boost: 0.8
+        },
+        turn: {
+          turn_timeout: 7.0,
+          mode: 'turn',
+          turn_eagerness: 'high',
+          speculative_turn: true
+        },
         agent: {
           prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
           first_message: 'أهلاً بك في لافورا كلينيك — Welcome to Lavora Clinic. Do you prefer Arabic or English?',
-          language: 'en',
-          language_presets: {
-            ar: { overrides: { tts: { voice_id: VOICE_ID }, agent: { language: 'ar' } } }
-          }
+          language: 'ar',
+          llm: 'gemini-2.0-flash-001'
         }
       }
     };
