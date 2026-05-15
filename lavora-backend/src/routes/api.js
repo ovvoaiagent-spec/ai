@@ -319,7 +319,7 @@ Returning caller name (if known): {{patient_name}}
 GREETING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 NEW CALLER (is_returning = 'false'):
-→ "Thank you for calling Lavora Clinic. This is Lavora Assistant. Do you prefer Arabic or English?"
+→ "أهلاً بك في لافورا كلينيك — Welcome to Lavora Clinic. Do you prefer Arabic or English?"
 
 RETURNING CALLER (is_returning = 'true'):
 → English: "Welcome back, {{patient_name}}! How can I help you today?"
@@ -494,7 +494,7 @@ RULES:
         tts: { voice_id: VOICE_ID },
         agent: {
           prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
-          first_message: 'Thank you for calling Lavora Clinic. This is Lavora Assistant.',
+          first_message: 'أهلاً بك في لافورا كلينيك — Welcome to Lavora Clinic. Do you prefer Arabic or English?',
           language: 'en',
           language_presets: {
             ar: { overrides: { tts: { voice_id: VOICE_ID }, agent: { language: 'ar' } } }
