@@ -508,19 +508,13 @@ RULES:
       }
     };
 
-    // Try PATCH on existing agent first; if it fails with document_not_found (stale tools),
-    // create a fresh agent instead and return the new ID for the user to update in Railway.
+    // Try PATCH on existing agent; if it fails for any reason, create a fresh one instead
     if (AGENT_ID) {
       const patch = await elevenlabsRequest('PATCH', agentBody);
       if (patch.status === 200) {
         return res.json({ success: true, message: 'Agent updated', agent_id: AGENT_ID, voice_id: VOICE_ID });
       }
-      // Check if this is specifically a stale-tool error; if not, surface it
-      const isStaleTools = JSON.stringify(patch.body).includes('document_not_found');
-      if (!isStaleTools) {
-        return res.status(502).json({ error: 'ElevenLabs rejected update', detail: patch.body });
-      }
-      // Fall through to create a new agent
+      // Fall through to create a new agent regardless of error type
     }
 
     // Create a brand-new agent (bypasses broken stale tool IDs on old agent)
@@ -531,10 +525,9 @@ RULES:
     const newAgentId = create.body?.agent_id || create.body?.id;
     res.json({
       success: true,
-      message: 'New agent created — update ELEVENLABS_AGENT_ID in Railway to: ' + newAgentId,
       new_agent_id: newAgentId,
       voice_id: VOICE_ID,
-      action_required: 'Set ELEVENLABS_AGENT_ID=' + newAgentId + ' in Railway environment variables'
+      action_required: 'Go to Railway → your service → Variables → set ELEVENLABS_AGENT_ID = ' + newAgentId
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
