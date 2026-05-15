@@ -15,6 +15,15 @@ const { parseDate, parseTime } = require('../utils/dateParser');
 const { matchService } = require('../services/extractionService');
 const { getSettings } = require('../services/settingsService');
 
+const DOW_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function isDayClosed(dateStr) {
+  const s = getSettings();
+  if (s.holidays && s.holidays.includes(dateStr)) return true;
+  const dow = new Date(dateStr + 'T12:00:00Z').getUTCDay();
+  return !(s.workDays || []).includes(DOW_NAMES[dow]);
+}
+
 function isLaserService(service) {
   const s = (service || '').toLowerCase();
   return ['laser hair removal', 'laser hair', 'full body laser', 'partial laser'].some(k => s.includes(k));
@@ -59,6 +68,9 @@ router.post('/check-availability', async (req, res) => {
   log.info(`check_availability → ${normalizedDate} ${normalizedTime}`);
 
   try {
+    if (isDayClosed(normalizedDate)) {
+      return res.json({ result: `The clinic is closed on that day. Please suggest a different date.`, available: false });
+    }
     const conflict = await db.checkConflict(normalizedDate, normalizedTime);
     if (conflict) {
       res.json({ result: `That slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different date or time.`, available: false });
@@ -92,6 +104,9 @@ router.post('/book-appointment', async (req, res) => {
   log.info(`book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
 
   try {
+    if (isDayClosed(normalizedDate)) {
+      return res.json({ result: 'The clinic is closed on that day. Please ask for a different date.', success: false });
+    }
     if (await db.checkConflict(normalizedDate, normalizedTime)) {
       return res.json({ result: 'That slot is no longer available. Please suggest a different time.', success: false });
     }
@@ -208,6 +223,9 @@ router.post('/reschedule-appointment', async (req, res) => {
 
     if (!apt) return res.json({ result: 'Could not find that appointment to reschedule.', success: false });
 
+    if (isDayClosed(normalizedDate)) {
+      return res.json({ result: 'The clinic is closed on that day. Please ask for a different date.', success: false });
+    }
     if (await db.checkConflict(normalizedDate, normalizedTime)) {
       return res.json({ result: `The slot on ${normalizedDate} at ${normalizedTime} is already booked. Please suggest a different time.`, success: false, available: false });
     }

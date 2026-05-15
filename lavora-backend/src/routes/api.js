@@ -16,6 +16,14 @@ const { matchService } = require('../services/extractionService');
 const { parseDate, parseTime } = require('../utils/dateParser');
 const settingsService = require('../services/settingsService');
 
+const DOW_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function isDayClosed(dateStr) {
+  const s = settingsService.getSettings();
+  if (s.holidays && s.holidays.includes(dateStr)) return true;
+  const dow = new Date(dateStr + 'T12:00:00Z').getUTCDay();
+  return !(s.workDays || []).includes(DOW_NAMES[dow]);
+}
+
 // ─── POST /api/nurse-login (no auth required) ─────────────────────────────────
 router.post('/nurse-login', validate(schemas.nurseLogin), (req, res) => {
   const { name, phone } = req.validated;
@@ -76,6 +84,10 @@ router.post('/appointments', validate(schemas.appointment), async (req, res) => 
     const normalizedDate = parseDate(date) || date;
     const normalizedTime = parseTime(time) || time;
     const normalizedService = matchService(service) || service;
+
+    if (isDayClosed(normalizedDate)) {
+      return res.status(400).json({ error: 'Clinic is closed on that day', date: normalizedDate });
+    }
 
     const conflict = await db.checkConflict(normalizedDate, normalizedTime, doctor, req.clinicId);
     if (conflict) {
@@ -166,6 +178,10 @@ router.put('/appointments/:id', validate(schemas.appointmentUpdate), async (req,
     const isReschedule = !!(updates.date || updates.time);
 
     if (isReschedule) {
+      if (isDayClosed(newDate)) {
+        return res.status(400).json({ error: 'Clinic is closed on that day', date: newDate });
+      }
+
       const others = (await db.getAllAppointments(req.clinicId)).filter(a => a.id !== id && a.status !== 'Cancelled');
       const conflict = others.some(a => a.date === newDate && a.time === newTime);
       if (conflict) {
