@@ -286,14 +286,14 @@ router.post('/setup-agent', async (req, res) => {
     return res.status(400).json({ error: 'ELEVENLABS_AGENT_ID or ELEVENLABS_API_KEY not set' });
   }
 
-  function elevenlabsRequest(method, body) {
+  function elevenlabsRequest(method, body, path) {
     return new Promise((resolve, reject) => {
       const data = body ? JSON.stringify(body) : null;
       const headers = { 'xi-api-key': API_KEY };
       if (data) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(data); }
       const req2 = https.request({
         hostname: 'api.elevenlabs.io',
-        path: `/v1/convai/agents/${AGENT_ID}`,
+        path: path || `/v1/convai/agents/${AGENT_ID}`,
         method,
         headers
       }, r => { let raw=''; r.on('data',c=>raw+=c); r.on('end',()=>{ try{resolve({status:r.statusCode,body:JSON.parse(raw)});}catch{resolve({status:r.statusCode,body:raw});} }); });
@@ -493,15 +493,16 @@ RULES:
   const VOICE_ID = 'MoRbPlz3injOLU6hNLMY';
 
   try {
-    // Step 1: clear all existing tools (removes stale IDs that cause document_not_found)
-    const clear = await elevenlabsRequest('PATCH', {
-      conversation_config: { agent: { prompt: { tools: [] } } }
-    });
-    if (clear.status !== 200) {
-      return res.status(502).json({ error: 'ElevenLabs clear-tools failed', detail: clear.body });
+    // Step 1: GET current agent to find stale tool IDs, delete each individually
+    const current = await elevenlabsRequest('GET', null);
+    const existingTools = current.body?.conversation_config?.agent?.prompt?.tools || [];
+    for (const t of existingTools) {
+      if (t.id) {
+        await elevenlabsRequest('DELETE', null, `/v1/convai/agents/${AGENT_ID}/tools/${t.id}`);
+      }
     }
 
-    // Step 2: push full config with fresh tools
+    // Step 2: push full config with fresh tools (no stale IDs in system now)
     const result = await elevenlabsRequest('PATCH', {
       conversation_config: {
         tts: { voice_id: VOICE_ID },
