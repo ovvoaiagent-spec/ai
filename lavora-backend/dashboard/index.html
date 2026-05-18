@@ -1333,8 +1333,20 @@ function gotoPage(name, el) {
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// Returns a Date whose .getFullYear()/.getMonth()/.getDate()/.getDay() all
+// reflect Asia/Dubai current local time, regardless of the browser's timezone.
+function dubaiDate() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Dubai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  return new Date(`${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`);
+}
+
 function todayStr() {
-  const d = new Date();
+  const d = dubaiDate();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
@@ -1346,7 +1358,7 @@ function formatDate(d) {
 
 function dayLabel(dateStr) {
   const today    = todayStr();
-  const _tmr = new Date(); _tmr.setDate(_tmr.getDate() + 1);
+  const _tmr = dubaiDate(); _tmr.setDate(_tmr.getDate() + 1);
   const tomorrow = _tmr.getFullYear() + '-' + String(_tmr.getMonth()+1).padStart(2,'0') + '-' + String(_tmr.getDate()).padStart(2,'0');
   const d = new Date(dateStr + 'T12:00:00');
   const full = d.toLocaleDateString('en-OM', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
@@ -1608,7 +1620,7 @@ function startCountdown() {
 
 function updateClock() {
   document.getElementById('clock').textContent = new Date().toLocaleString('en-OM', {
-    weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    timeZone: 'Asia/Dubai', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 }
 
@@ -1829,7 +1841,7 @@ function saveRevenuePrices() {
 }
 
 function renderCeoMetrics() {
-  const now  = new Date();
+  const now  = dubaiDate();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const lastMonth  = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,'0')}`;
@@ -2462,7 +2474,7 @@ function calToggleWeeks(btn) {
 function calJumpToDate(dateStr) {
   if (!dateStr) return;
   const picked = new Date(dateStr + 'T00:00:00');
-  const today  = new Date();
+  const today  = dubaiDate();
   // Saturday of today's week
   const baseSat = new Date(today);
   baseSat.setDate(today.getDate() - (today.getDay() + 1) % 7);
@@ -2476,7 +2488,7 @@ function calJumpToDate(dateStr) {
 }
 
 function calWeekDates(offset) {
-  const today = new Date();
+  const today = dubaiDate();
   const day   = today.getDay();
   const sincesat = (day + 1) % 7;
   const sat = new Date(today);
