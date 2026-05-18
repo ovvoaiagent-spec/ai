@@ -1,15 +1,10 @@
 const { parseDate, parseTime } = require('../utils/dateParser');
 
 const SERVICES = [
-  'Frax Pro', 'Picoway', 'RedTouch', 'Chemical Peels',
   'Botox', 'Fillers', 'Profhilo', 'Thread Lifting', 'Endolift',
   'PRP', 'Mesotherapy', 'Exosomes', 'Stem Cell',
-  'Onda Plus', 'Redustim', 'Body Wraps', 'Body Slimming',
-  'Vaginoplasty', 'Labiaplasty', 'Aesthetic Gynecology',
-  'Laser Hair Removal',
-  'Dermatology', 'Medical Skin Care', 'Skin Care',
-  'Non-Surgical Aesthetics', 'Regenerative Therapy',
-  'Consultation'
+  'Frax Pro', 'Picoway', 'RedTouch', 'Chemical Peels',
+  'Laser Hair Removal'
 ];
 
 const SERVICE_KEYWORDS = {
@@ -20,30 +15,17 @@ const SERVICE_KEYWORDS = {
   'fillers': 'Fillers',
   'profhilo': 'Profhilo',
   'thread': 'Thread Lifting',
-  'lift': 'Thread Lifting',
   'endolift': 'Endolift',
   'prp': 'PRP',
   'meso': 'Mesotherapy',
   'mesotherapy': 'Mesotherapy',
   'exosome': 'Exosomes',
   'stem cell': 'Stem Cell',
-  'slimming': 'Body Slimming',
-  'onda': 'Onda Plus',
-  'redustim': 'Redustim',
-  'wrap': 'Body Wraps',
-  'gynec': 'Aesthetic Gynecology',
-  'vagino': 'Vaginoplasty',
-  'labia': 'Labiaplasty',
   'peel': 'Chemical Peels',
   'chemical': 'Chemical Peels',
   'frax': 'Frax Pro',
   'pico': 'Picoway',
   'redtouch': 'RedTouch',
-  'skin': 'Medical Skin Care',
-  'derma': 'Dermatology',
-  'consult': 'Consultation',
-  'consultation': 'Consultation',
-  'appointment': 'Consultation',
   // Arabic keywords
   'إزالة الشعر': 'Laser Hair Removal',
   'ليزر': 'Laser Hair Removal',
@@ -59,14 +41,7 @@ const SERVICE_KEYWORDS = {
   'فراكس': 'Frax Pro',
   'بيكاواي': 'Picoway',
   'ريد تاتش': 'RedTouch',
-  'تقشير': 'Chemical Peels',
-  'أوندا': 'Onda Plus',
-  'ريدوستيم': 'Redustim',
-  'لفائف': 'Body Wraps',
-  'نسائي': 'Aesthetic Gynecology',
-  'بشرة': 'Medical Skin Care',
-  'جلد': 'Dermatology',
-  'استشارة': 'Consultation'
+  'تقشير': 'Chemical Peels'
 };
 
 function matchService(text) {

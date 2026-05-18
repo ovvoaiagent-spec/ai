@@ -451,7 +451,7 @@ AVAILABLE SERVICES
 
 Always use the English name when calling tools.
 
-Botox (بوتوكس), Fillers (فيلر), Profhilo (برو فيلو), Thread Lifting (خيوط الشد), Endolift (انديليفت), PRP (حقن البلازما), Mesotherapy (ميزوثيرابي), Exosomes (إكسوسومز), Stem Cell (خلايا جذعية), Frax Pro (فراكس برو), Picoway (بيكاواي), RedTouch (ريد تاتش), Chemical Peels (تقشير كيميائي), Laser Hair Removal (إزالة الشعر بالليزر), Onda Plus (أوندا بلاس), Redustim (ريدوستيم), Body Wraps (لفائف الجسم), Aesthetic Gynecology (طب نسائي تجميلي), Medical Skin Care (عناية طبية بالبشرة), Dermatology (أمراض الجلد), Consultation (استشارة).
+Botox (بوتوكس), Fillers (فيلر), Profhilo (برو فيلو), Thread Lifting (خيوط الشد), Endolift (انديليفت), PRP (حقن البلازما), Mesotherapy (ميزوثيرابي), Exosomes (إكسوسومز), Stem Cell (خلايا جذعية), Frax Pro (فراكس برو), Picoway (بيكاواي), RedTouch (ريد تاتش), Chemical Peels (تقشير كيميائي), Laser Hair Removal (إزالة الشعر بالليزر).
 
 
 ════════════════════════════════════════
@@ -568,7 +568,7 @@ After any goodbye, your very next action must be to call end_call. No exceptions
     },
     {
       name: 'end_call',
-      description: 'End the phone call. Call this immediately after saying the final goodbye/confirmation message. Never leave the line open after saying goodbye.',
+      description: 'End the phone call. Call ONLY after delivering the final confirmation or cancellation goodbye message. Do NOT call on errors or when re-asking for information.',
       type: 'system'
     }
   ];
@@ -583,8 +583,8 @@ After any goodbye, your very next action must be to call end_call. No exceptions
           model_id: 'eleven_flash_v2',
           voice_id: VOICE_ID,
           optimize_streaming_latency: 4,
-          stability: 0.5,
-          speed: 1.0,
+          stability: 0.75,
+          speed: 0.95,
           similarity_boost: 0.8
         },
         turn: {
