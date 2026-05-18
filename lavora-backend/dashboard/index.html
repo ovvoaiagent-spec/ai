@@ -1346,7 +1346,11 @@ function dubaiDate() {
 }
 
 function todayStr() {
-  const d = dubaiDate();
+  return localDateStr(dubaiDate());
+}
+
+// Extract YYYY-MM-DD from a Date using its LOCAL properties (never toISOString which shifts to UTC).
+function localDateStr(d) {
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
@@ -2520,10 +2524,10 @@ function renderCalendar() {
   document.getElementById('cal-week-label').textContent =
     `${fmt(days[0])} – ${fmt(days[days.length - 1])}`;
   const picker = document.getElementById('cal-date-picker');
-  if (picker) picker.value = days[0].toISOString().split('T')[0];
+  if (picker) picker.value = days[0].toLocaleDateString('sv-SE');
 
   // Index appointments by date+hour
-  const dayStrs = days.map(d => d.toISOString().split('T')[0]);
+  const dayStrs = days.map(d => d.toLocaleDateString('sv-SE'));
   const aptMap  = {};
   allAppointments
     .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time &&
@@ -2541,7 +2545,7 @@ function renderCalendar() {
   // Header
   html += `<div class="cal-head-corner"></div>`;
   days.forEach(d => {
-    const dStr    = d.toISOString().split('T')[0];
+    const dStr    = d.toLocaleDateString('sv-SE');
     const isToday = dStr === today;
     html += `<div class="cal-day-head${isToday ? ' is-today' : ''}">
       <div class="cal-day-name">${d.toLocaleDateString('en-OM',{weekday:'short'})}</div>
@@ -2558,7 +2562,7 @@ function renderCalendar() {
     html += `<div class="cal-time" style="${isLast?'border-bottom:none':''}">${timeLabel}</div>`;
 
     days.forEach(d => {
-      const dStr    = d.toISOString().split('T')[0];
+      const dStr    = d.toLocaleDateString('sv-SE');
       const isToday = dStr === today;
       const dayName = DAY_NAMES[d.getDay()];
       const isWork  = workDays.includes(dayName);
@@ -2623,7 +2627,7 @@ function renderDeptCalendar() {
   const lbl = document.getElementById('dept-cal-week-label');
   if (lbl) lbl.textContent = `${fmt(days[0])} – ${fmt(days[6])}`;
 
-  const dayStrs = days.map(d => d.toISOString().split('T')[0]);
+  const dayStrs = days.map(d => d.toLocaleDateString('sv-SE'));
   const aptMap  = {};
   allAppointments
     .filter(a => a.status !== 'Cancelled' && dayStrs.includes(a.date) && a.time &&
@@ -2637,7 +2641,7 @@ function renderDeptCalendar() {
   let html = '';
   html += `<div class="cal-head-corner"></div>`;
   days.forEach(d => {
-    const dStr    = d.toISOString().split('T')[0];
+    const dStr    = d.toLocaleDateString('sv-SE');
     const isToday = dStr === today;
     html += `<div class="cal-day-head${isToday ? ' is-today' : ''}">
       <div class="cal-day-name">${d.toLocaleDateString('en-OM',{weekday:'short'})}</div>
@@ -2652,7 +2656,7 @@ function renderDeptCalendar() {
     const isLast    = h === closeH;
     html += `<div class="cal-time" style="${isLast?'border-bottom:none':''}">${timeLabel}</div>`;
     days.forEach(d => {
-      const dStr    = d.toISOString().split('T')[0];
+      const dStr    = d.toLocaleDateString('sv-SE');
       const isToday = dStr === today;
       const dayName = DAY_NAMES[d.getDay()];
       const isWork  = workDays.includes(dayName);
