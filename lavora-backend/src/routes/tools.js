@@ -86,20 +86,25 @@ router.post('/check-availability', async (req, res) => {
 // ─── book_appointment ─────────────────────────────────────────────────────────
 router.post('/book-appointment', async (req, res) => {
   if (!verifyToolSecret(req, res)) return;
-  const { name, phone, date, time, service } = req.body;
+  const { name, phone, date, time, service, language } = req.body;
 
   const missing = [];
   if (!name)    missing.push('full name');
-  if (!phone)   missing.push('phone number');
   if (!date)    missing.push('date');
   if (!time)    missing.push('time');
   if (!service) missing.push('service');
+
+  // Detect unfilled ElevenLabs variable placeholder — caller_id was not injected
+  const phoneInvalid = !phone || /caller.?id/i.test(String(phone)) || /^\{\{/.test(String(phone));
+  if (phoneInvalid) missing.push('phone number (please ask the caller to confirm their number)');
+
   if (missing.length) return res.json({ result: `I still need: ${missing.join(', ')}.` });
 
   const normalizedDate    = parseDate(date) || date;
   const normalizedTime    = parseTime(time) || time;
   const normalizedService = matchService(service) || service;
   const normalizedPhone   = normalizePhone(phone);
+  const lang              = (language || 'ar') === 'en' ? 'en' : 'ar';
 
   log.info(`book_appointment → ${name} | ${normalizedService} | ${normalizedDate} ${normalizedTime}`);
 
@@ -117,6 +122,7 @@ router.post('/book-appointment', async (req, res) => {
       service: normalizedService, doctor: '',
       date: normalizedDate, time: normalizedTime,
       status: 'Confirmed', source: 'AI Voice',
+      language: lang,
       callDuration: '', notes: '',
       timestamp: new Date().toISOString(),
       calendarEventId: ''

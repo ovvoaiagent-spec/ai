@@ -380,8 +380,9 @@ Returning caller:
   English → "Shall we use your number on file?"
   Arabic  → "نستخدم رقمك المسجل؟"
 
-If they say yes or same → use {{caller_id}}.
+If they say yes or same → use the phone number shown in caller_id above. Pass the actual digits.
 If they give a different number → use that number.
+IMPORTANT: Always pass a real phone number to the tool. Never pass the text "caller_id".
 
 STEP 6 — CHECK AVAILABILITY
 Call check_availability immediately.
@@ -403,6 +404,7 @@ If clinic is closed that day:
 STEP 7 — BOOK APPOINTMENT
 Call book_appointment immediately after check_availability returns available.
 Say nothing between the two calls.
+Pass language="ar" if the call is in Arabic, language="en" if in English.
 
 If success = true:
   English → "Your [Service] appointment is confirmed for [Date] at [Time]. We will reach you at [Phone]. Thank you for calling Lavora Clinic. Goodbye!"
@@ -494,11 +496,12 @@ After any goodbye, your very next action must be to call end_call. No exceptions
         request_body_schema: {
           type: 'object',
           properties: {
-            name:    { type: 'string', description: 'Patient full name', dynamic_variable: '', constant_value: '' },
-            phone:   { type: 'string', description: 'Patient phone number with country code', dynamic_variable: '', constant_value: '' },
-            date:    { type: 'string', description: "Appointment date — pass the caller's exact words, e.g. 'tomorrow', 'بكرا', 'after tomorrow', 'بعد بكرا', 'next Monday'. Never convert yourself.", dynamic_variable: '', constant_value: '' },
-            time:    { type: 'string', description: 'Appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' },
-            service: { type: 'string', description: 'Service name in English', dynamic_variable: '', constant_value: '' }
+            name:     { type: 'string', description: 'Patient full name', dynamic_variable: '', constant_value: '' },
+            phone:    { type: 'string', description: 'Patient phone number with country code. NEVER pass "caller_id" literally — pass the actual digits the caller confirmed.', dynamic_variable: '', constant_value: '' },
+            date:     { type: 'string', description: "Appointment date — pass the caller's exact words, e.g. 'tomorrow', 'بكرا', 'after tomorrow', 'بعد بكرا', 'next Monday'. Never convert yourself.", dynamic_variable: '', constant_value: '' },
+            time:     { type: 'string', description: 'Appointment time in HH:MM 24-hour format', dynamic_variable: '', constant_value: '' },
+            service:  { type: 'string', description: 'Service name in English', dynamic_variable: '', constant_value: '' },
+            language: { type: 'string', description: 'Language used on this call: "ar" for Arabic, "en" for English', dynamic_variable: '', constant_value: '' }
           },
           required: ['name', 'phone', 'date', 'time', 'service']
         }
