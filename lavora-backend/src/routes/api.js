@@ -373,22 +373,20 @@ New caller:
 Returning caller: use {{patient_name}}. Do NOT ask.
 
 STEP 5 — PHONE NUMBER (NEVER SKIP)
-The caller's phone number from the system is: {{caller_id}}
+The caller's phone number is: {{caller_id}}
 
-Check if {{caller_id}} is a real phone number (contains digits, not empty, not "{{caller_id}}"):
+If {{caller_id}} contains digits (is a real number):
+  English → "I'll use {{caller_id}} for your booking. Is that correct?"
+  Arabic  → "بستخدم رقم {{caller_id}} للحجز. هذا صحيح؟"
+  If yes → pass {{caller_id}} to the tool.
+  If they give a different number → use that instead.
 
-CASE A — {{caller_id}} is a real number:
-  English → "I'll register your number as {{caller_id}}. Is that correct?"
-  Arabic  → "بسجل رقمك {{caller_id}}. هذا صحيح؟"
-  If they confirm → pass {{caller_id}} to the tool.
-  If they give a different number → use that number instead.
+If {{caller_id}} is empty:
+  English → "What phone number can we reach you on?"
+  Arabic  → "وش رقم جوالك؟"
+  Use the number they say.
 
-CASE B — {{caller_id}} is empty or not a real number:
-  English → "What phone number shall we use to contact you?"
-  Arabic  → "وش رقمك اللي نتواصل معك عليه؟"
-  Wait for them to say the number. Use that number.
-
-Returning caller: use their number already on file. Do NOT ask.
+Returning caller (is_returning = true): confirm their number from {{caller_id}} without asking.
 IMPORTANT: Always pass actual digits to the tool. Never pass the text "caller_id" or "{{caller_id}}".
 
 STEP 6 — CHECK AVAILABILITY
@@ -602,7 +600,22 @@ After any goodbye, your very next action must be to call end_call. No exceptions
         agent: {
           prompt: { prompt: SYSTEM_PROMPT, tools: TOOLS },
           first_message: 'أهلاً بك في لافورا كلينيك — Welcome to Lavora Clinic. Do you prefer Arabic or English?',
-          language: 'en'
+          language: 'en',
+          dynamic_variables: {
+            dynamic_variable_placeholders: {
+              caller_id:    '',
+              is_returning: 'false',
+              patient_name: ''
+            }
+          }
+        }
+      },
+      platform_settings: {
+        workspace_overrides: {
+          conversation_initiation_client_data_webhook: {
+            url: `${SERVER_URL}/api/call-init`,
+            request_timeout_secs: 5
+          }
         }
       }
     };
@@ -630,6 +643,54 @@ After any goodbye, your very next action must be to call end_call. No exceptions
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/call-init ──────────────────────────────────────────────────────
+// ElevenLabs calls this before each conversation to inject dynamic variables.
+// Returns caller_id, is_returning, patient_name so the agent knows who's calling.
+router.post('/call-init', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    // ElevenLabs sends caller phone in several possible locations
+    const callerPhone =
+      payload.caller_id ||
+      payload.conversation_initiation_metadata?.caller_id ||
+      payload.call_metadata?.caller_id ||
+      payload.metadata?.caller_id ||
+      '';
+
+    log.info(`[call-init] caller_id raw: ${callerPhone}`);
+
+    let isReturning = false;
+    let patientName = '';
+
+    if (callerPhone) {
+      const normalize = p => String(p).replace(/[\s\-().]/g, '').replace(/^00/, '+');
+      const norm = normalize(callerPhone);
+      const all = await db.getAllAppointments();
+      const match = all.find(a =>
+        a.status !== 'Cancelled' &&
+        normalize(a.phone || '') === norm
+      );
+      if (match) {
+        isReturning = true;
+        patientName = match.name || '';
+      }
+    }
+
+    log.info(`[call-init] returning=${isReturning}, name=${patientName}`);
+
+    res.json({
+      dynamic_variables: {
+        caller_id:    callerPhone,
+        is_returning: String(isReturning),
+        patient_name: patientName
+      }
+    });
+  } catch (err) {
+    log.error(`[call-init] error: ${err.message}`);
+    res.json({ dynamic_variables: { caller_id: '', is_returning: 'false', patient_name: '' } });
   }
 });
 
